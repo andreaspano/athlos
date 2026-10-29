@@ -11,8 +11,8 @@
 // piano, la seduta, il giudizio — e questo e' quello di mezzo, i soli dati.
 import { useEffect, useState } from "react";
 
-import { api, iconUrl, isAbort, type Activity, type ActivityDetail, type DailyData, type RunType, type Terrain } from "../api/client";
-import { durationLabel, effectMinutesLabel, fixed, timeOf } from "../format";
+import { api, iconUrl, isAbort, type Activity, type ActivityDetail, type DailyData, type Lap, type RunType, type Terrain } from "../api/client";
+import { durationLabel, effectMinutesLabel, fixed, lapTimeLabel, paceLabel, timeOf } from "../format";
 import type { ColorScheme } from "../useColorScheme";
 import { RouteMap } from "./RouteMap";
 import { RunChart } from "./RunChart";
@@ -98,6 +98,54 @@ function EffectsBar({ detail }: { detail: ActivityDetail }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+const LAPS_HELP =
+  "The pieces the session was made of, as the watch recorded them: one row per lap of the " +
+  "workout it was following. Only for a structured session \u2014 a free run's laps are the " +
+  "auto-lap every kilometre.";
+
+/** La tabella dei giri (todo 79): il riscaldamento, le ripetute una per una,
+ * i recuperi, il defaticamento. I nomi delle righe li da' l'API, cosi' il
+ * testo del report chiama le stesse cose con le stesse parole.
+ *
+ * Senza distanza (il tapis roulant) le colonne dei chilometri e del ritmo
+ * spariscono invece di mostrare trattini: li' la distanza la indovina il
+ * polso, e l'API non la manda. */
+function LapTable({ laps }: { laps: Lap[] }) {
+  if (laps.length === 0) return null;
+  const measured = laps.some((lap) => lap.distance_m != null);
+  return (
+    <div className="laps" title={LAPS_HELP}>
+      <div className="stat-label">How the session was run, lap by lap</div>
+      <div className="table-scroll">
+        <table className="lap-table">
+          <thead>
+            <tr>
+              <th scope="col">Lap</th>
+              <th scope="col">Time</th>
+              {measured && <th scope="col">Distance</th>}
+              {measured && <th scope="col">Pace</th>}
+              <th scope="col">HR</th>
+              <th scope="col">Max</th>
+            </tr>
+          </thead>
+          <tbody>
+            {laps.map((lap) => (
+              <tr key={lap.index} className={lap.intensity === "active" ? "rep" : undefined}>
+                <th scope="row">{lap.label}</th>
+                <td>{lapTimeLabel(lap.time_s)}</td>
+                {measured && <td>{fixed(lap.distance_m == null ? null : lap.distance_m / 1000, 2, " km")}</td>}
+                {measured && <td>{paceLabel(lap.pace_s_per_km)}</td>}
+                <td>{fixed(lap.avg_hr, 0)}</td>
+                <td>{fixed(lap.max_hr, 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -205,17 +253,23 @@ function ActivityView({
   const id = activity.activity_id;
   const [detail, setDetail] = useState<ActivityDetail | null>(null);
   const [points, setPoints] = useState<[number, number][]>([]);
+  const [laps, setLaps] = useState<Lap[]>([]);
   const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
     setDetail(null);
     setPoints([]);
+    setLaps([]);
     setShowMap(false);
     api.activity(id, controller.signal).then(setDetail).catch((e: unknown) => !isAbort(e) && console.error(e));
     api
       .route(id, controller.signal)
       .then((r) => setPoints(r.points))
+      .catch((e: unknown) => !isAbort(e) && console.error(e));
+    api
+      .laps(id, controller.signal)
+      .then((r) => setLaps(r.laps))
       .catch((e: unknown) => !isAbort(e) && console.error(e));
     return () => controller.abort();
   }, [id]);
@@ -290,6 +344,10 @@ function ActivityView({
             />
           </div>
           {detail && <EffectsBar detail={detail} />}
+          {/* Fra i totali e la traccia: prima quanto e' stata la seduta, poi
+              di che pezzi era fatta, poi come sono andati istante per
+              istante. */}
+          <LapTable laps={laps} />
           {/* Il grafico nella colonna di sinistra e non sotto le due: la colonna
               di destra (menu e Training Effect) e' piu' alta dei numeri, e
               sotto di loro restava un buco bianco. */}

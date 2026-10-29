@@ -169,6 +169,25 @@ export function effectMinutesLabel(seconds: number): string {
   return `${roundHalfEven(minutes)} min`;
 }
 
+/** Il ritmo di un giro: `5'56"` dai secondi al chilometro (todo 79). E'
+ * l'unico posto dove l'interfaccia parla in minuti al chilometro invece che
+ * in km/h, e ci vuole: il piano chiede una fascia di ritmo e le ripetute si
+ * giudicano contro quella. */
+export function paceLabel(secondsPerKm: number | null | undefined): string {
+  if (secondsPerKm == null || Number.isNaN(secondsPerKm) || secondsPerKm <= 0) return "-";
+  const total = Math.round(secondsPerKm);
+  return `${Math.floor(total / 60)}'${String(total % 60).padStart(2, "0")}"`;
+}
+
+/** La durata di un giro: `5:00`, `7:46`, minuti e secondi. `durationLabel`
+ * arrotonda al minuto, e un recupero di due minuti e uno di 2'30" non
+ * possono leggersi uguali. */
+export function lapTimeLabel(seconds: number | null | undefined): string {
+  if (seconds == null || Number.isNaN(seconds)) return "-";
+  const total = Math.round(seconds);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
 /** "written at 10:04", o "written 21 Oct, 00:01" quando il testo e' stato
  * scritto in un giorno diverso da quello di cui parla. Succede: la Recovery
  * del 20 ottobre e' stata riscritta a mezzanotte e un minuto. */

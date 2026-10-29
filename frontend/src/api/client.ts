@@ -17,6 +17,8 @@ export type Plan = Schemas["Plan"];
 export type PlanSummary = Schemas["PlanSummary"];
 export type PlanList = Schemas["PlanList"];
 export type Route = Schemas["Route"];
+export type Lap = Schemas["Lap"];
+export type LapList = Schemas["LapList"];
 export type Sport = Schemas["Sport"];
 export type SportList = Schemas["SportList"];
 export type WeeklyData = Schemas["WeeklyData"];
@@ -131,6 +133,11 @@ export const api = {
 
   route: (id: number, signal?: AbortSignal) =>
     getJson<Route>(`/api/activities/${id}/route`, signal),
+
+  // I giri della seduta (todo 79): `structured` false, e lista vuota, per
+  // una corsa libera.
+  laps: (id: number, signal?: AbortSignal) =>
+    getJson<LapList>(`/api/activities/${id}/laps`, signal),
 
   daily: (day: string, signal?: AbortSignal) =>
     getJson<DailyData>(`/api/daily/${day}`, signal),

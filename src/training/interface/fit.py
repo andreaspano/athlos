@@ -249,3 +249,58 @@ def load_activity_records(path: Path) -> pd.DataFrame:
     if not df.empty:
         df = df.set_index("timestamp")
     return df
+
+
+# L'enum `intensity` di un giro. Il profilo di fitparse conosce i primi
+# quattro valori e rende la stringa; gli altri li lascia interi, e senza
+# questa mappa i recuperi di un allenamento resterebbero un `4`.
+_LAP_INTENSITY = {
+    0: "active",
+    1: "rest",
+    2: "warmup",
+    3: "cooldown",
+    4: "recovery",
+    5: "interval",
+    6: "other",
+}
+
+
+def _lap_intensity(value) -> str | None:
+    """Il nome dell'intensita' di un giro: quello che il FIT ha scritto, o
+    quello dell'enum quando arriva il numero. Un valore che non conosciamo
+    resta com'e', scritto."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    return _LAP_INTENSITY.get(value, str(value))
+
+
+def load_activity_laps(path: Path) -> pd.DataFrame:
+    """Legge i messaggi 'lap' del file FIT: una riga per giro (todo 79).
+
+    I giri di una corsa libera sono quelli dell'auto-lap al chilometro;
+    quelli di una seduta con un allenamento caricato sull'orologio portano
+    anche `workout_step`, il passo che stavano seguendo — ed e' quel campo,
+    non l'intensita', che distingue le due cose."""
+    fit = FitFile(str(path))
+    rows = []
+    for index, lap in enumerate(fit.get_messages("lap")):
+        values = lap.get_values()
+        message_index = values.get("message_index")
+        rows.append(
+            {
+                "lap_index": int(message_index) if message_index is not None else index,
+                "intensity": _lap_intensity(values.get("intensity")),
+                "trigger": values.get("lap_trigger"),
+                "time_s": values.get("total_timer_time"),
+                "distance_m": values.get("total_distance"),
+                "speed_kmh": (values.get("enhanced_avg_speed") or values.get("avg_speed") or 0) * 3.6,
+                "avg_hr": values.get("avg_heart_rate"),
+                "max_hr": values.get("max_heart_rate"),
+                "cadence": values.get("avg_running_cadence") or values.get("avg_cadence"),
+                "ascent_m": values.get("total_ascent"),
+                "workout_step": values.get("wkt_step_index"),
+            }
+        )
+    return pd.DataFrame(rows)
