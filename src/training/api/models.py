@@ -123,6 +123,32 @@ class ChartData(BaseModel):
     threshold_hr: int | None
 
 
+class Lap(BaseModel):
+    """One lap of a structured session: a warm-up, a rep, a recovery (todo 79)."""
+
+    index: int = Field(description="Position in the session, from 0.")
+    label: str = Field(description='What the lap was: "Warm-up", "Rep 1", "Recovery", "Cool-down".')
+    intensity: str | None = Field(description="The FIT intensity: active, rest, recovery, warmup, cooldown.")
+    workout_step: int | None = Field(description="The step of the workout the watch was following.")
+    time_s: float | None
+    distance_m: float | None = Field(description="Null for sports without a distance (the treadmill).")
+    pace_s_per_km: float | None = Field(description="Seconds per km. Null where there is no distance.")
+    avg_hr: int | None
+    max_hr: int | None
+
+
+class LapList(BaseModel):
+    """The laps of an activity, when they say something (todo 79).
+
+    `structured` is true only when the watch was following a workout: then the laps are the
+    pieces the session was made of. A free run's laps are the auto-lap every kilometre, and
+    the list comes back empty.
+    """
+
+    structured: bool
+    laps: list[Lap]
+
+
 class Route(BaseModel):
     """The GPS track of an activity."""
 

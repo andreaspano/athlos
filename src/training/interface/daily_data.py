@@ -27,8 +27,9 @@ import pandas as pd
 
 from training.garmin.config import DATA_DIR
 from training.interface.activity_report import NUMBERS_WITHOUT_DISTANCE, activity_numbers
-from training.interface.db import list_activities, load_activity_records
+from training.interface.db import list_activities, load_activity_laps, load_activity_records
 from training.interface.health import _day_paths, _dig, _read_json
+from training.interface.laps import session_laps
 from training.interface.health_db import load_health_db
 from training.interface.report_text import section_icon
 from training.interface.grade import EQUIV_SPEED_SPORTS
@@ -495,6 +496,12 @@ def _session(activity: pd.Series, data_dir: Path, activities: pd.DataFrame) -> d
         "effect_minutes": _effect_minutes(activity, records),
         "minutes_above_z3": _minutes_above_z3(activity, records),
         "execution": _execution(records, activity["sport"]),
+        # I giri, solo per una seduta che l'orologio ha corso come
+        # allenamento (todo 79): il riscaldamento, le ripetute una per una, i
+        # recuperi. Vuoto per una corsa libera, dove sono l'auto-lap al
+        # chilometro. **La tabella la disegna la card Session**: questi
+        # numeri sono qui per poterli citare nel discorso.
+        "laps": session_laps(load_activity_laps(int(activity["activity_id"]), data_dir), activity["sport"])["laps"],
         "compared_with": _compared_with(activities, activity),
     }
 

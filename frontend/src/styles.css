@@ -1033,6 +1033,63 @@ h2 {
 .effects-legend .swatch {
   margin-right: 6px;
 }
+/* La tabella dei giri (todo 79): sta fra la barra degli effetti e il
+   grafico, e come le tabelle dei piani scorre di lato da sola dove non ci
+   sta, invece di allargare la pagina. */
+.laps {
+  margin: 16px 0 4px;
+}
+.laps .table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-top: 6px;
+}
+.lap-table {
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.lap-table th,
+.lap-table td {
+  padding: 5px 16px 5px 0;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+.lap-table thead th {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* La prima colonna e' il nome del giro, testo: a sinistra, intestazione
+   compresa. Le altre sono numeri e restano a destra. */
+.lap-table thead th:first-child {
+  text-align: left;
+}
+/* Il nome del giro e' la chiave della riga: a sinistra, e non in grassetto
+   come lo farebbe un `th` da solo — in grassetto ci va la ripetuta. */
+.lap-table tbody th {
+  text-align: left;
+  font-weight: 400;
+  padding-right: 24px;
+}
+/* Le ripetute sono il motivo per cui si guarda la tabella: le righe di
+   lavoro in grassetto, il riscaldamento e i recuperi attorno piu' tenui. */
+.lap-table tbody tr.rep th,
+.lap-table tbody tr.rep td {
+  font-weight: 700;
+}
+.lap-table tbody tr:not(.rep) th,
+.lap-table tbody tr:not(.rep) td {
+  color: var(--muted);
+}
+.lap-table tbody tr:last-child th,
+.lap-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .training-side {
   display: flex;
   flex-direction: column;

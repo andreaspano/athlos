@@ -41,6 +41,7 @@ from training.interface.fit import (
     load_activity_summary,
     load_activity_types,
 )
+from training.interface.fit import load_activity_laps as _parse_fit_laps
 from training.interface.fit import load_activity_records as _parse_fit_records
 from training.interface.grade import EQUIV_SPEED_SPORTS, equivalent_speed_kmh, equivalent_speed_series
 from training.interface.run_type import guess_run_type, has_run_type, load_run_type_overrides
@@ -129,7 +130,11 @@ def sport_from_garmin_type(
 # "8": colonne `workout_name`, `workout_active_steps` e
 # `workout_active_max_s`, l'allenamento pianificato letto dal FIT (vedi
 # `fit._workout`), per stimare il tipo delle corse (todo 36).
-LOGIC_VERSION = "8"
+#
+# "9": tabella `laps`, i giri del FIT (todo 79). Nasce vuota e non si puo'
+# riempire dai dati che ci sono: i giri stanno solo nei file, e per le sedute
+# di prima vanno riletti da li'.
+LOGIC_VERSION = "9"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -183,10 +188,33 @@ CREATE TABLE IF NOT EXISTS records (
     equiv_speed_kmh REAL,
     PRIMARY KEY (activity_id, ts_epoch)
 ) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS laps (
+    activity_id   INTEGER NOT NULL REFERENCES activities(activity_id) ON DELETE CASCADE,
+    lap_index     INTEGER NOT NULL,
+    intensity     TEXT,
+    trigger       TEXT,
+    time_s        REAL,
+    distance_m    REAL,
+    speed_kmh     REAL,
+    avg_hr        INTEGER,
+    max_hr        INTEGER,
+    cadence       INTEGER,
+    ascent_m      REAL,
+    workout_step  INTEGER,
+    PRIMARY KEY (activity_id, lap_index)
+) WITHOUT ROWID;
 """
 
 _RECORD_COLUMNS = (
     "heart_rate", "speed_kmh", "altitude_m", "cadence", "power", "lat", "lon", "distance_km", "equiv_speed_kmh",
+)
+
+# `cadence` e' quella del FIT, le falcate di una gamba al minuto: la cadenza
+# di chi corre e' il doppio. Resta com'e' scritta, come nei record.
+_LAP_COLUMNS = (
+    "intensity", "trigger", "time_s", "distance_m", "speed_kmh", "avg_hr", "max_hr", "cadence",
+    "ascent_m", "workout_step",
 )
 
 
@@ -298,6 +326,22 @@ def _insert_records(conn: sqlite3.Connection, activity_id: int, records: pd.Data
     )
 
 
+def _insert_laps(conn: sqlite3.Connection, activity_id: int, laps: pd.DataFrame) -> None:
+    """I giri di una seduta (todo 79). Senza timestamp: un giro e' un pezzo
+    di seduta, e il suo posto lo da' `lap_index`."""
+    if laps.empty:
+        return
+    rows = [
+        (activity_id, int(lap.lap_index), *(_clean(getattr(lap, col)) for col in _LAP_COLUMNS))
+        for lap in laps.itertuples()
+    ]
+    conn.executemany(
+        f"INSERT OR IGNORE INTO laps (activity_id, lap_index, {', '.join(_LAP_COLUMNS)}) "
+        f"VALUES ({', '.join(['?'] * (2 + len(_LAP_COLUMNS)))})",
+        rows,
+    )
+
+
 def _parse_and_store(
     conn: sqlite3.Connection, path: Path, names: dict, types: dict, parsed_at: str
 ) -> bool:
@@ -326,6 +370,7 @@ def _parse_and_store(
         )
     _insert_activity(conn, summary, names.get(activity_id), parsed_at)
     _insert_records(conn, summary["activity_id"], records)
+    _insert_laps(conn, summary["activity_id"], _parse_fit_laps(path))
     return True
 
 
@@ -654,3 +699,20 @@ def load_activity_records(activity_id: int, data_dir: Path = DATA_DIR) -> pd.Dat
         conn.close()
     df["timestamp"] = df["ts_epoch"].map(_epoch_to_local)
     return df.drop(columns=["activity_id", "ts_epoch"]).set_index("timestamp")
+
+
+def load_activity_laps(activity_id: int, data_dir: Path = DATA_DIR) -> pd.DataFrame:
+    """I giri di una seduta, nell'ordine in cui sono stati corsi (todo 79).
+    Vuoto per chi non ne ha: le sedute in palestra, e quelle vecchie finche'
+    il database non e' stato ricostruito."""
+    data_dir = Path(data_dir)
+    conn = _connect(data_dir)
+    try:
+        df = pd.read_sql_query(
+            "SELECT * FROM laps WHERE activity_id=? ORDER BY lap_index",
+            conn,
+            params=(int(activity_id),),
+        )
+    finally:
+        conn.close()
+    return df.drop(columns=["activity_id"])

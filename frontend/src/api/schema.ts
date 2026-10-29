@@ -172,6 +172,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/activities/{activity_id}/laps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Activity laps
+         * @description The laps of the session, named one by one (todo 79): the warm-up, the reps, the
+         *     recoveries, the cool-down.
+         *
+         *     Only for a session the watch ran as a workout (`structured`); for a free run the laps are
+         *     the auto-lap every kilometre and the list is empty. The pace is missing where the distance
+         *     is the wrist's guess (the treadmill).
+         */
+        get: operations["get_activity_laps_api_activities__activity_id__laps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/daily/trend": {
         parameters: {
             query?: never;
@@ -1074,6 +1099,62 @@ export interface components {
              * @description The day Garmin detected it.
              */
             as_of: string;
+        };
+        /**
+         * Lap
+         * @description One lap of a structured session: a warm-up, a rep, a recovery (todo 79).
+         */
+        Lap: {
+            /**
+             * Index
+             * @description Position in the session, from 0.
+             */
+            index: number;
+            /**
+             * Label
+             * @description What the lap was: "Warm-up", "Rep 1", "Recovery", "Cool-down".
+             */
+            label: string;
+            /**
+             * Intensity
+             * @description The FIT intensity: active, rest, recovery, warmup, cooldown.
+             */
+            intensity: string | null;
+            /**
+             * Workout Step
+             * @description The step of the workout the watch was following.
+             */
+            workout_step: number | null;
+            /** Time S */
+            time_s: number | null;
+            /**
+             * Distance M
+             * @description Null for sports without a distance (the treadmill).
+             */
+            distance_m: number | null;
+            /**
+             * Pace S Per Km
+             * @description Seconds per km. Null where there is no distance.
+             */
+            pace_s_per_km: number | null;
+            /** Avg Hr */
+            avg_hr: number | null;
+            /** Max Hr */
+            max_hr: number | null;
+        };
+        /**
+         * LapList
+         * @description The laps of an activity, when they say something (todo 79).
+         *
+         *     `structured` is true only when the watch was following a workout: then the laps are the
+         *     pieces the session was made of. A free run's laps are the auto-lap every kilometre, and
+         *     the list comes back empty.
+         */
+        LapList: {
+            /** Structured */
+            structured: boolean;
+            /** Laps */
+            laps: components["schemas"]["Lap"][];
         };
         /** Load */
         Load: {
@@ -2437,6 +2518,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Route"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_activity_laps_api_activities__activity_id__laps_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LapList"];
                 };
             };
             /** @description Validation Error */

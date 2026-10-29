@@ -35,6 +35,8 @@ from training.api.models import (
     DailyData,
     DayPlan,
     EffectSeconds,
+    Lap,
+    LapList,
     Pause,
     Plan,
     PlanList,
@@ -64,7 +66,7 @@ from training.interface.daily_data import (
     trend_data,
     week_trend_data,
 )
-from training.interface.db import _clean, load_activity_records
+from training.interface.db import _clean, load_activity_laps, load_activity_records
 from training.interface.health import load_lactate_threshold
 from training.interface.report_text import parse_report, section_icon
 from training.interface.run_chart import (
@@ -79,6 +81,7 @@ from training.interface.run_chart import (
     zone_bands,
     zone_settings,
 )
+from training.interface.laps import session_laps
 from training.interface.run_type import save_run_type_override
 from training.interface.sports import REST_ICON_FILE, SPORT_ICON_FILES, has_distance, sport_label
 from training.interface.terrain import save_terrain_override
@@ -271,6 +274,20 @@ def get_activity_route(
         keep = list(range(0, len(points) - 1, step)) + [len(points) - 1]
         points = points[np.array(keep)]
     return Route(points=[(float(lat), float(lon)) for lat, lon in points])
+
+
+@app.get("/api/activities/{activity_id}/laps", response_model=LapList, summary="Activity laps")
+def get_activity_laps(activity_id: int, ctx: Context) -> LapList:
+    """The laps of the session, named one by one (todo 79): the warm-up, the reps, the
+    recoveries, the cool-down.
+
+    Only for a session the watch ran as a workout (`structured`); for a free run the laps are
+    the auto-lap every kilometre and the list is empty. The pace is missing where the distance
+    is the wrist's guess (the treadmill)."""
+    row = _activity_row(activity_id, ctx)
+    laps = load_activity_laps(activity_id, ctx.data_dir)
+    payload = session_laps(laps, _clean(row["sport"]))
+    return LapList(structured=payload["structured"], laps=[Lap(**lap) for lap in payload["laps"]])
 
 
 def _trend_window(start: date, end: date) -> int:

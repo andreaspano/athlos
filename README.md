@@ -56,9 +56,9 @@ tutti, e sono l'unica cosa che l'API serve da disco.
 ## API
 
 Un'API (FastAPI) espone i dati della pagina Day: attivita',
-dettaglio, dati e specifica Vega-Lite del grafico, traccia, i fatti del
-giorno e il report giornaliero, piu' i piani di allenamento di `plan/`. Si
-lancia con:
+dettaglio, dati e specifica Vega-Lite del grafico, traccia, i giri della
+seduta, i fatti del giorno e il report giornaliero, piu' i piani di
+allenamento di `plan/`. Si lancia con:
 
 ```bash
 make api
@@ -93,6 +93,22 @@ corregge dalla vista Training della Day in React; le correzioni stanno in
 `activity_terrain.json`, e un rebuild non le perde. Il report giornaliero lo
 usa nella sezione Training (todo 43): e' il metro con cui l'allenatore giudica
 la seduta, perche' dice che seduta voleva essere.
+
+### I giri di una seduta
+
+Dal todo 79 i messaggi `lap` del FIT finiscono nella tabella `laps` di
+`activities.db`: un giro per riga, con intensita', tempo, distanza, velocita'
+e battiti. Servono a una cosa sola, mostrare **com'era fatta una seduta** —
+il riscaldamento, le ripetute una per una, i recuperi, il defaticamento — e
+la card Session ne disegna la tabella (`GET
+/api/activities/{id}/laps`).
+
+Si distingue una seduta strutturata da una corsa libera dal
+`wkt_step_index` del giro, non dall'intensita': i giri di una corsa libera
+sono l'auto-lap al chilometro e quel campo e' vuoto, quindi la tabella non
+si disegna. Il ritmo manca dove la distanza la indovina il polso (il
+nastro). I giri stanno **solo nei file**, non si ricavano dai dati gia' in
+tabella: la tabella nuova si riempie con un rebuild (`LOGIC_VERSION` "9").
 
 ### Il tapis roulant e' uno sport, non una corsa
 
