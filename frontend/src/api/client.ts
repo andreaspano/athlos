@@ -82,6 +82,15 @@ async function postJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+// Le due scritture senza corpo della pagina Goal (todo 85): il goal attuale e
+// il cestino. Rispondono con l'elenco rimasto, cosi' una chiamata fa la cosa
+// e aggiorna la pagina.
+async function sendNoBody<T>(url: string, method: "PUT" | "DELETE"): Promise<T> {
+  const response = await fetch(url, { method });
+  if (!response.ok) throw new ApiError(response.status, url);
+  return (await response.json()) as T;
+}
+
 // Per gli endpoint dove il 404 vuol dire "non c'e'" (il report di un giorno,
 // il grafico di un'attivita' senza dati), non un errore.
 async function getOrNull<T>(
@@ -228,6 +237,16 @@ export const api = {
   // con un link vecchio, o con un piano rinominato.
   plan: (slug: string, signal?: AbortSignal) =>
     getOrNull<Plan>(`/api/plans/${encodeURIComponent(slug)}`, signal),
+
+  // Fa di questo il goal attuale (todo 85): scrive `current: true` nel suo
+  // file e lo toglie dagli altri. **Non rigenera i piani settimanali**, e
+  // l'`ahead` della risposta e' quello che lo dice.
+  setCurrentPlan: (slug: string) =>
+    sendNoBody<PlanList>(`/api/plans/${encodeURIComponent(slug)}/current`, "PUT"),
+
+  // Sposta il goal nel cestino (`plan/.trash/`), non lo cancella.
+  deletePlan: (slug: string) =>
+    sendNoBody<PlanList>(`/api/plans/${encodeURIComponent(slug)}`, "DELETE"),
 
   // Lo stato del lavoro in corso, di qualunque tipo: `kind` dice se e' il
   // report di un giorno o di una settimana, e le chiavi delle sezioni

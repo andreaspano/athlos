@@ -13,7 +13,14 @@ sarebbe peggio di un piano senza numeri in cima.
 
 Il titolo non sta nel front matter: e' il primo titolo di primo livello del
 testo (`# ...`), togliendolo dal corpo perche' la pagina lo mette nella sua
-intestazione. Senza titolo resta il nome del file."""
+intestazione. Senza titolo resta il nome del file.
+
+**Uno dei piani e' quello attuale**, e lo dice `current: true` nel suo front
+matter (todo 84). Prima lo si sapeva solo di rimbalzo: le settimane di
+`summary/05.plan/` portano la chiave `plan:` col nome del blocco da cui
+vengono, e tutte e diciotto dicono `half_marathon_2.20`. Quello era il goal
+attuale senza che il goal lo sapesse — si leggeva nei file generati, non in
+quello scritto a mano. Adesso sta dove lo si decide."""
 
 import re
 from datetime import date, datetime, timedelta
@@ -95,9 +102,34 @@ def _plan(path: Path) -> dict[str, Any]:
         "block_start": _as_date(meta.get("block_start")),
         "weeks": int(weeks) if (weeks := _as_number(meta.get("block_weeks"))) else None,
         "peak_weekly_km": _as_number(meta.get("peak_weekly_km")),
+        # `is True` e non la verita' di Python: `current: 0` o `current: ""`
+        # sarebbero falsi comunque, ma `current: no` letto come stringa da uno
+        # YAML strano no. Il flag e' uno o nessuno, non un valore da
+        # interpretare.
+        "current": meta.get("current") is True,
         "written_at": datetime.fromtimestamp(path.stat().st_mtime),
         "body": text,
     }
+
+
+def _one_current(plans: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Un `current: true` solo: il primo nell'ordine della lista, gli altri
+    spenti.
+
+    I piani li scrive una persona a mano, quindi due file col flag e' una cosa
+    che succede — si scrive il nuovo e si dimentica di togliere il vecchio. La
+    pagina non deve mostrare due obiettivi attuali, e scegliere "nessuno"
+    sarebbe peggio: il flag c'e' proprio per dire quale si sta seguendo.
+    Vince il primo dell'ordine di `load_plans` (gara piu' vicina, poi
+    bersaglio piu' veloce), che e' deterministico — non l'ordine in cui il
+    sistema ha restituito i file."""
+    found = False
+    for plan in plans:
+        if plan["current"] and not found:
+            found = True
+        else:
+            plan["current"] = False
+    return plans
 
 
 def load_plans(folder: Path) -> list[dict[str, Any]]:
@@ -106,19 +138,137 @@ def load_plans(folder: Path) -> list[dict[str, Any]]:
     Dentro la stessa gara vince il bersaglio piu' veloce, cosi' i tre piani
     di una mezza si leggono dal piu' ambizioso al piu' prudente; i piani
     senza data di gara stanno in fondo, in ordine di nome. Una cartella che
-    non c'e' non e' un errore: sono zero piani."""
+    non c'e' non e' un errore: sono zero piani.
+
+    L'ordine **non** mette davanti quello attuale: la lista e' il calendario
+    di quello che si vuole fare, e il `current` lo dice una pillola, non la
+    posizione. Il flag passa da `_one_current`, che ne lascia uno."""
     if not folder.is_dir():
         return []
     plans = [_plan(path) for path in sorted(folder.glob("*.md")) if path.is_file()]
-    return sorted(
-        plans,
-        key=lambda p: (
-            p["race"] is None,
-            p["race"] or date.max,
-            p["target_time"] or "",
-            p["slug"],
-        ),
+    return _one_current(
+        sorted(
+            plans,
+            key=lambda p: (
+                p["race"] is None,
+                p["race"] or date.max,
+                p["target_time"] or "",
+                p["slug"],
+            ),
+        )
     )
+
+
+# --- Cambiare i goal dalla pagina (todo 85) ---
+
+# La chiave `current` in cima al front matter: senza rientro, che una
+# `current:` rientrata starebbe dentro un'altra struttura e non e' questa.
+_CURRENT_KEY = re.compile(r"^current[ \t]*:")
+
+# Dove finiscono i goal cancellati. Un goal e' un documento che una persona ha
+# scritto a mano in mezz'ora, e l'API non ha login: cancellare per sempre dal
+# clic di una pagina raggiungibile da tutta la tailnet e' un modo di perdere
+# lavoro che non si recupera. Nella cartella dei goal e non in `/tmp`, cosi' sta
+# dove sta il resto; `glob("*.md")` non scende nelle sottocartelle, quindi un
+# file nel cestino non si vede piu' nell'elenco.
+TRASH_FOLDER = ".trash"
+
+
+def _set_current_flag(text: str, wanted: bool) -> str:
+    """Il file col flag `current` messo o tolto, **e il resto intatto**.
+
+    Riscritto riga per riga e non con `yaml.dump`: un giro da YAML
+    riordinerebbe le chiavi, butterebbe i commenti (`# il goal che si sta
+    seguendo`) e riscriverebbe `siblings: [a, b]` su tre righe. Questi file li
+    scrive una persona e li rilegge: la forma e' sua, e un'API che la
+    rimpagina a ogni clic e' un'API che si fa odiare.
+
+    Il flag si cerca **solo dentro il front matter**: una riga `current:` nel
+    testo — dentro un esempio, o in un blocco di codice — non e' la chiave."""
+    match = _FRONT_MATTER.match(text)
+    front, rest = (match.group(1), text[match.end() :]) if match else ("", text)
+    kept = [line for line in front.splitlines() if not _CURRENT_KEY.match(line)]
+    if wanted:
+        kept.append("current: true")
+    if not kept:
+        # Front matter rimasto vuoto: meglio nessun front matter che due righe
+        # di trattini con niente in mezzo.
+        return rest
+    return "---\n" + "\n".join(kept) + "\n---\n" + rest
+
+
+def set_current(folder: Path, slug: str) -> None:
+    """Fa di `slug` il goal attuale: il flag nel suo file, e via dagli altri.
+
+    Scrive **tutti** i file, non solo i due che cambiano, perche' il flag di
+    troppo puo' essere in un terzo: due `current: true` sono una cosa che
+    succede, e `_one_current` li nasconde in lettura senza sistemarli. Qui si
+    sistemano.
+
+    Prima si controlla che `slug` ci sia: con la verifica in mezzo si
+    toglierebbe il flag agli altri per poi scoprire che il nuovo non esiste, e
+    si resterebbe senza nessun goal attuale."""
+    paths = [path for path in sorted(folder.glob("*.md")) if path.is_file()]
+    if not any(path.stem == slug for path in paths):
+        raise FileNotFoundError(slug)
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        changed = _set_current_flag(text, path.stem == slug)
+        if changed != text:
+            path.write_text(changed, encoding="utf-8")
+
+
+def delete_plan(folder: Path, slug: str) -> Path:
+    """Sposta il goal `slug` nel cestino e torna dove l'ha messo.
+
+    Non lo cancella: vedi `TRASH_FOLDER`. Il nome porta il momento, cosi'
+    cancellare due volte un goal riscritto nel frattempo non copre il primo."""
+    source = folder / f"{slug}.md"
+    if not source.is_file():
+        raise FileNotFoundError(slug)
+    trash = folder / TRASH_FOLDER
+    trash.mkdir(exist_ok=True)
+    target = trash / f"{slug}-{datetime.now():%Y%m%d-%H%M%S}.md"
+    source.rename(target)
+    return target
+
+
+def weeks_following(summary_dir: Path, since: date) -> dict[str, int]:
+    """Quante settimane da `since` in poi dichiarano ogni goal, dalla chiave
+    `plan:` dei file di `summary/05.plan/`.
+
+    Serve a dire una cosa che il progetto non sapeva vedere: che le settimane
+    gia' scritte seguono **un altro** goal da quello attuale. Cambiare il flag
+    non le riscrive — niente le riscrive, non c'e' un generatore — e senza
+    questo conto la divergenza resterebbe muta.
+
+    `since` taglia il passato: le settimane finite sono il registro di quello
+    che era previsto allora, e che seguano un goal vecchio e' giusto, non un
+    guasto."""
+    folder = summary_dir / WEEK_PLAN_FOLDER
+    if not folder.is_dir():
+        return {}
+    counts: dict[str, int] = {}
+    for path in sorted(folder.glob("*.md")):
+        if not path.is_file():
+            continue
+        try:
+            meta, _ = _front_matter(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        slug = _as_text(meta.get("plan"))
+        if slug is None:
+            continue
+        week = _as_date(meta.get("week"))
+        if week is None:
+            try:
+                week = date.fromisoformat(path.stem)
+            except ValueError:
+                continue
+        if week < since:
+            continue
+        counts[slug] = counts.get(slug, 0) + 1
+    return counts
 
 
 # I piani settimanali di `summary/05.plan/` (todo 14 e 60): un file per

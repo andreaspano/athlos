@@ -19,6 +19,9 @@ FIT, JSON, salute e database tutti piatti nella stessa cartella.
   plan/      i blocchi scritti a mano
 ```
 
+Che cosa c'e' dentro ognuna, lo schema di `activities.db` e da quale file di
+Garmin viene ogni colonna stanno in **[`docs/data.md`](docs/data.md)**.
+
 **Due file di configurazione, in quest'ordine.**
 
 `data.yaml`, nella radice del repo, dice una cosa sola — dove sta la cartella
@@ -152,13 +155,21 @@ report giornaliero non legge nessuna delle tre.
 `frontend/` e' l'interfaccia (React, TypeScript, Vite), l'unica dal todo 40.
 La barra in alto ha **due menu su due righe** (todo 55): sopra il periodo —
 la **Day** e la **Week** — sotto che cosa se ne guarda. Sono due assi, non
-una fila sola: Activities non e' un periodo e sta a destra, staccata e ancora
-grigia. Accanto a lei, a destra per lo stesso motivo, c'e' **Plan**: un piano
-guarda avanti a una gara, non indietro a un giorno. Month e Year si
-aggiungeranno quando esisteranno, non prima.
+una fila sola. A destra, staccato, c'e' **Goal**, che un periodo non e': un
+obiettivo guarda avanti a una gara, non indietro a un giorno.
+
+Si chiamava **Plan** come la sua pagina, e nella barra erano due: questo e la
+vista Plan della Week, che e' un'altra cosa — la settimana del piano, dentro
+la settimana. Goal dice quello che la pagina mostra, la gara a cui si va e
+quanto manca; il piano e' il come, ed e' una scheda dentro. **L'indirizzo
+resta `?period=plan`**, cosi' i link scritti prima continuano ad aprirla.
+
+**Nella barra non ci sono voci grigie.** Month, Year e Activities si
+aggiungeranno quando esisteranno, non prima: Activities e' stata per mesi una
+pillola disattivata e non portava in nessun posto.
 
 **Le viste sono di ogni periodo** (todo 59): **Snap**, **Training** e
-**Trend** sotto Day, **Snap**, **Trend** e **Plan** sotto Week; la Plan, che
+**Trend** sotto Day, **Snap**, **Trend** e **Plan** sotto Week; la Goal, che
 un periodo non e', non ne ha e apre la barra con una riga sola. Stanno in `VIEWS`
 (`src/navigation.ts`) nell'ordine in cui si leggono, e **la prima e' quella
 che il periodo apre da solo** — lo Snap, per tutti e due.
@@ -178,12 +189,18 @@ continuano ad aprire quello che aprivano. Cambiando vista **il periodo
 resta**: da Day/Snap si clicca Trend e si resta sul giorno che si stava
 guardando. E **la vista si porta dietro dove esiste**: da Day/Trend si clicca
 Week e si arriva sul Trend della Week, mentre da Week/Plan si torna a
-Day/Snap, che il Plan la Day non ce l'ha. La forma vecchia `?page=week`
-continua a valere, e senza niente si apre Day/Snap; anche `?view=report`,
-che non e' piu' una chiave, ricade sulla vista di partenza — la stessa
-pagina con un altro nome. Niente router di
-libreria: `URLSearchParams` e `history.pushState`
+Day/Snap, che il Plan la Day non ce l'ha. Senza niente si apre Day/Snap.
+Niente router di libreria: `URLSearchParams` e `history.pushState`
 (`src/navigation.ts`).
+
+**Le forme vecchie non si leggono piu'.** `?page=week` valeva fino al todo
+55 e ha smesso: era compatibilita' verso i link di un'app con un utente
+solo, e in `summary/` e in `plan/` non ce n'era nessuno. Oggi apre Day/Snap,
+che e' la ricaduta di qualunque indirizzo che non si capisce. Una chiave
+sparita non ha comunque bisogno di codice: `?view=report`, la vista del
+giorno fino al todo 67, ricade sulla vista di partenza perche' `view` si
+valida contro `VIEWS` — e quella validazione serve a se stessa, non alla
+compatibilita'.
 
 Il **Trend** della Day (todo 55) disegna quello che lo Snap racconta: le
 misure giorno per giorno nei cinque pannelli delle card, in una finestra che
@@ -422,10 +439,35 @@ leggere da li'.
 ### I piani di allenamento
 
 In `plan/` stanno i piani scritti a mano: un file Markdown per piano, e la
-pagina **Plan** li mostra tutti, la gara piu' vicina per prima. Nessun elenco
+pagina **Goal** li mostra tutti, la gara piu' vicina per prima. Nessun elenco
 nel codice — un file nuovo nella cartella si vede ricaricando la pagina — e
 nessun agente: questi li scrive una persona, mentre `summary/` lo riscrivono
-gli agenti. Per questo `plan/` sta nel repo e `summary/` no.
+gli agenti.
+
+**L'elenco si apre e si chiude** (todo 84): una riga per goal, e aperte
+quante se ne vuole. I tre piani di una mezza sono tre bersagli della stessa
+gara, e la domanda che si fa guardandoli e' *quale di questi*: una pagina che
+ne mostrava uno per volta la rendeva un andare avanti e indietro.
+
+**Uno e' quello attuale, e lo dice `current: true`** nel suo front matter:
+porta la pillola e si apre da solo. Dal todo 85 si sceglie dalla pagina
+(`make current` sulle righe che non lo sono) e un goal si butta col cestino:
+**il file va in `plan/.trash/`, non si cancella** — un goal e' un documento
+scritto a mano e l'API non ha login.
+
+**Cambiare goal non rigenera i piani settimanali**, e nessun altro lo fa: i
+file di `summary/05.plan/` sono stati scritti a mano e nel progetto non c'e'
+un generatore. Siccome i tre piani hanno ritmi e chilometraggi diversi, dopo
+uno scambio le settimane prescrivono il bersaglio vecchio — quindi la pagina
+lo dice: *18 weekly plans from this Monday on still follow
+`half_marathon_2.20`*. Il passato non si conta e non si riscrive: le
+settimane finite sono il registro di quello che era previsto allora, e i
+report di allora le hanno giudicate. Prima lo si sapeva solo di rimbalzo —
+le diciotto settimane di `summary/05.plan/` portano `plan: half_marathon_2.20`
+— cioe' stava scritto nei file generati e non in quello scritto a mano. Il
+flag e' uno o nessuno: se due file ce l'hanno, lo tiene il primo dell'elenco
+e gli altri lo perdono, che due obiettivi attuali non sono una cosa da
+mostrare.
 
 Davanti al testo c'e' un front matter YAML, nello spirito del todo 14 ma per
 un blocco intero invece che per una settimana: le chiavi dicono la gara, non
@@ -439,6 +481,7 @@ distance_km: 21.097
 target_time: "2:20:00"
 target_pace_min_km: "6:38"
 target_speed_kmh: 9.04
+current: true          # il goal che si sta seguendo: uno solo fra i file
 block_start: 2026-10-26
 block_weeks: 18
 peak_weekly_km: 46
