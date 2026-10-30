@@ -609,40 +609,73 @@ rilancio dopo, quando c'e'.
 l'una, fanno un paio d'ore e mezza per gli ottanta giorni da agosto; le
 settimane mezz'ora. Si lancia quando non c'e' altro in corso.
 
-### Le righe di cron
+### I timer di systemd
 
-I giri sono righe di **cron**, in `deploy/crontab`:
+I giri sono **timer di systemd utente**, in `deploy/`:
 
 ```bash
-make install_cron            # le mette nel tuo crontab, ripetibile
-make uninstall_cron          # le toglie
-crontab -l | grep mygarmin   # cosa c'e' adesso
-tail -f ~/.local/state/mygarmin-report.log   # com'e' andata
+make install_timers                        # li installa e li accende, ripetibile
+make uninstall_timers                      # li toglie
+systemctl --user list-timers 'mygarmin-*'  # quando girano
+journalctl --user -u 'mygarmin-*' -f       # com'e' andata
+systemctl --user --failed                  # cosa e' andato storto
 ```
 
-Le righe sono quattro e non due: il lunedi e la domenica il giro del giorno
-**si tira dietro la settimana**, nella stessa riga e con un `;` in mezzo. Il
-settimanale deve girare dopo il giornaliero, perche' il lock ne lascia
-passare uno solo e chi lo trova occupato se ne va senza fare niente; con due
-righe a orari diversi bisognerebbe indovinare quanto dura il primo. Il `;` e
-non `&&`, cosi' una sezione del giorno che fallisce non si porta via anche
-la settimana.
+Tre coppie, con gli stessi orari delle righe di cron che c'erano prima:
+`mygarmin-morning` alle 8, `mygarmin-evening` alle 21 da lunedi a sabato,
+`mygarmin-weekend` la domenica alle 21. La domenica e' un'unita' sola con due
+`ExecStart` perche' il settimanale deve girare **dopo** il giornaliero: il
+lock ne lascia passare uno alla volta e chi lo trova occupato se ne va senza
+fare niente. Il `-` davanti al primo e' il `;` del crontab — se il giorno
+fallisce, la settimana gira lo stesso.
 
-L'installazione toglie le righe che ha messo l'ultima volta (le riconosce dal
-marcatore `# mygarmin` in fondo) e rimette queste: il resto del crontab non
-si tocca. Cron da' un `PATH` scarno (`/usr/bin:/bin`), dove `make` e `claude`
-ci sono ma `uv` no, e **non basta scrivere `uv` per intero**: dentro il
-lavoro c'e' un `make update_activity` che a sua volta chiama `uv run`. Per
-questo le righe allargano il `PATH` con la cartella di `uv`. I primi due giri
-automatici sbagliarono proprio qui: i report furono scritti, ma sui dati
-vecchi.
+Le unita' allargano il `PATH` con la cartella di `uv`, e **non basta
+scrivere `uv` per intero**: dentro il lavoro c'e' un `make update_activity`
+che a sua volta chiama `uv run`. I primi due giri automatici sbagliarono
+proprio qui, e i report furono scritti sui dati vecchi.
 
-Prima erano due timer di systemd (todo 47), con il vantaggio di recuperare un
-giro saltato a macchina spenta. Su questa macchina, accesa sempre e mai
-sospesa, quel vantaggio non valeva il prezzo: i timer utente girano solo
-finche' sei collegato, a meno di `loginctl enable-linger`. **Cron non ha
-quel problema** — in cambio non recupera i giri saltati, e l'output va nel
-file qui sopra invece che nel journal.
+#### Perche' si e' tornati ai timer (todo 81)
+
+Il todo 47 li aveva messi, e poi erano stati sostituiti da cron con un
+ragionamento giusto: su una macchina accesa sempre, recuperare un giro
+saltato non vale il prezzo dei timer utente, che girano solo finche' sei
+collegato.
+
+**Quello che ha fatto cambiare idea non e' il recupero, e' la visibilita'.**
+Il 21 ottobre due giri scrissero i report su dati vecchi (`uv: not found`) e
+uscirono **0**: cron era contento e non se ne accorse nessuno. Adesso il
+comando esce 1 anche quando lo scaricamento fallisce (todo 81), e con i timer
+quell'uscita lascia l'unita' elencata da `systemctl --user --failed` finche'
+non la si azzera — un guasto si vede anche passandoci davanti mezza giornata
+dopo. Cron questo non lo sa fare: al massimo lascia una riga in un file che
+nessuno apre.
+
+In piu' l'output va nel journal, che ruota da solo:
+`~/.local/state/mygarmin-report.log` cresceva e basta, e non c'era niente
+che lo tagliasse mai. Il file vecchio resta dov'e', fermo all'ultimo giro di
+cron.
+
+#### Il prezzo: `Linger`
+
+Resta quello di allora. I timer utente girano da quando fai l'accesso, e
+senza accesso non girano:
+
+```bash
+sudo loginctl enable-linger $USER   # i timer girano anche senza sessione
+```
+
+Senza, `Persistent=true` fa comunque partire al login il giro perso — su un
+fisso a cui ti colleghi e' il recupero che volevi. Ma su una macchina che
+nessuno logga, **senza `enable-linger` i report non si scrivono affatto**, ed
+e' peggio di cron. `make install_timers` lo dice quando vede `Linger` spento.
+
+#### Le righe di cron, se servisse tornarci
+
+`deploy/crontab` resta, con `make install_cron` e `make uninstall_cron`.
+`install_timers` toglie le righe `# mygarmin` dal crontab, perche' i due
+meccanismi insieme si ruberebbero il lock a vicenda: ogni giro troverebbe
+l'altro in corso e uscirebbe senza fare niente — il silenzio che somiglia al
+successo.
 
 Un lavoro alla volta vale anche fra processi diversi, con un lock su file in
 `<dati>/.refresh.lock`: se un giro parte mentre premi Refresh, il secondo se

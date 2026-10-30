@@ -1,4 +1,4 @@
-.PHONY: install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data
+.PHONY: install_timers uninstall_timers install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data
 
 update_activity:
 	uv run python -c "from training.garmin import update_activity; update_activity()"
@@ -112,18 +112,62 @@ weekly_report:
 daily_data:
 	uv run training-daily-data $(if $(DAY),--day $(DAY))
 
-# I due giri che scrivono il report da soli (todo 47): le 10 e le 22. Le
-# righe stanno in deploy/crontab con tre segnaposto, perche' cron da' un PATH
-# scarno e il repo puo' stare dove vuole.
+# I giri che scrivono i report da soli (todo 47 per il giorno, 53 per la
+# settimana). Le unita' stanno in deploy/ con tre segnaposto, perche' systemd
+# non espande niente e il repo puo' stare dove vuole.
+#
+# `abspath` normalizza i percorsi: qui dentro sia `$PATH` sia `$HOME`
+# finiscono con uno slash di troppo (`/home/andrea//.local/bin`), e senza
+# questo il doppio slash finiva in tutte le righe installate (todo 81).
+UV := $(abspath $(shell command -v uv))
+# La cartella di uv entra nel PATH delle unita': il percorso assoluto basta a
+# lanciare il comando, non a `make update_activity` che dentro chiama un
+# altro `uv run`.
+UV_DIR := $(dir $(UV))
+CRON_LOG := $(abspath $(HOME)/.local/state/mygarmin-report.log)
+UNIT_DIR := $(abspath $(HOME)/.config/systemd/user)
+TIMERS := mygarmin-morning mygarmin-evening mygarmin-weekend
+
+# I timer di systemd, al posto del cron (todo 81). Tre coppie con gli stessi
+# orari delle tre righe di crontab, piu' due cose che cron non sa fare: il
+# giro perso si recupera (`Persistent=true`) e un guasto resta visibile
+# (`OnFailure=` e `systemctl --user --failed`).
+#
+# Ripetibile: riscrive le unita' e le riabilita. **Toglie anche le righe del
+# crontab**, perche' i due meccanismi insieme si ruberebbero il lock a
+# vicenda e ogni giro uscirebbe senza fare niente.
+install_timers:
+	@test -n "$(UV)" || { echo "uv non e' nel PATH"; exit 1; }
+	@mkdir -p $(UNIT_DIR)
+	@for f in deploy/mygarmin-*.service deploy/mygarmin-*.timer; do \
+	   sed -e 's|__REPO__|$(CURDIR)|g' -e 's|__UV__|$(UV)|g' \
+	       -e 's|__UVDIR__|$(UV_DIR:/=)|g' "$$f" > "$(UNIT_DIR)/$$(basename $$f)"; \
+	 done
+	@systemctl --user daemon-reload
+	@for t in $(TIMERS); do systemctl --user enable --now $$t.timer >/dev/null; done
+	@{ crontab -l 2>/dev/null | grep -v '# mygarmin$$' || true; } | crontab - 2>/dev/null || true
+	@echo "Installati. I prossimi giri:"
+	@systemctl --user list-timers 'mygarmin-*' --no-pager
+	@echo "Il registro: journalctl --user -u 'mygarmin-*' -f"
+	@test "$$(loginctl show-user $$USER -p Linger --value 2>/dev/null)" = yes || { \
+	   echo; \
+	   echo "Nota: Linger e' spento, quindi i timer girano da quando fai"; \
+	   echo "l'accesso e un giro perso parte al login. Per una macchina che"; \
+	   echo "nessuno logga: sudo loginctl enable-linger $$USER"; }
+
+# Toglie i timer e lascia il resto in pace. Il cron non lo rimette: per
+# quello c'e' install_cron.
+uninstall_timers:
+	@for t in $(TIMERS); do systemctl --user disable --now $$t.timer >/dev/null 2>&1 || true; done
+	@rm -f $(UNIT_DIR)/mygarmin-*.service $(UNIT_DIR)/mygarmin-*.timer
+	@systemctl --user daemon-reload
+	@echo "Tolti."
+
+# Le righe di cron: il modo vecchio (todo 47), prima dei timer del todo 81.
+# Resta perche' chi le ha ancora possa toglierle, e per poterci tornare.
 #
 # L'installazione e' ripetibile: toglie le righe `# mygarmin` che ci sono gia'
 # e rimette queste, senza toccare il resto del tuo crontab.
-UV := $(shell command -v uv)
-# La cartella di uv entra nel PATH delle righe di cron: il percorso assoluto
-# basta a lanciare il comando, non a `make update_activity` che dentro chiama
-# un altro `uv run`.
-UV_DIR := $(dir $(UV))
-CRON_LOG := $(HOME)/.local/state/mygarmin-report.log
 install_cron:
 	@test -n "$(UV)" || { echo "uv non e' nel PATH"; exit 1; }
 	@mkdir -p $(dir $(CRON_LOG))

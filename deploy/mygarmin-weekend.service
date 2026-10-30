@@ -1,0 +1,18 @@
+# La domenica sera: prima il giorno, poi la settimana (todo 53 e 68).
+#
+# In una unita' sola e in quest'ordine per lo stesso motivo per cui nel
+# crontab erano una riga sola con il `;`: il lock ne lascia passare uno alla
+# volta e chi lo trova occupato se ne va senza fare niente, quindi devono
+# essere in fila. Il `-` davanti al primo e' il `;` di systemd: se il giorno
+# fallisce, la settimana gira lo stesso.
+[Unit]
+Description=mygarmin: il report della sera e quello della settimana
+Documentation=file://__REPO__/README.md
+OnFailure=mygarmin-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=__REPO__
+Environment=PATH=__UVDIR__:/usr/local/bin:/usr/bin:/bin
+ExecStart=-__UV__ run training-daily-report --moment evening
+ExecStart=__UV__ run training-weekly-report --moment end

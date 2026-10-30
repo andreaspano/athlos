@@ -1,0 +1,19 @@
+# L'avvisatore: lo lancia `OnFailure=` delle tre unita' (todo 81).
+#
+# Con cron un guasto usciva 0 e non lo vedeva nessuno. Adesso ci sono due
+# segnali, e tutti e due restano:
+#   - la riga qui sotto nel journal, accanto al registro del giro fallito;
+#   - l'unita' elencata da `systemctl --user --failed` finche' non la si
+#     azzera, cosi' il guasto si vede anche passando di li' mezza giornata
+#     dopo.
+#
+# Niente `notify-send`: su questa macchina non c'e' un demone di notifiche
+# (le sessioni sono tty e ssh), quindi non arriverebbe niente e la chiamata
+# resterebbe appesa sul timeout di D-Bus proprio mentre si sta gestendo un
+# guasto. Se un giorno ci fosse un desktop, e' una riga da aggiungere qui.
+[Unit]
+Description=mygarmin: avviso che %i non e' andata a buon fine
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo "GUASTO in %i — journalctl --user -u %i -n 50"'

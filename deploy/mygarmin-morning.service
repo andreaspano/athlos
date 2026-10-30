@@ -1,0 +1,16 @@
+# Il giro del mattino (todo 47): le cinque sezioni del corpo, cioe' lo Snap.
+# I segnaposto li riempie `make install_timers`.
+[Unit]
+Description=mygarmin: il report del mattino
+Documentation=file://__REPO__/README.md
+OnFailure=mygarmin-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=__REPO__
+# Il PATH va allargato, non basta il percorso assoluto di uv: dentro il
+# lavoro c'e' un `make update_activity` che a sua volta chiama `uv run`.
+# I primi giri di cron (21/10) hanno scritto su dati vecchi proprio per
+# questo.
+Environment=PATH=__UVDIR__:/usr/local/bin:/usr/bin:/bin
+ExecStart=__UV__ run training-daily-report --moment morning
