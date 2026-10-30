@@ -13,18 +13,23 @@
 // Sono elencate in `VIEWS`, nell'ordine in cui stanno nel menu, e la prima
 // e' quella che si apre senza `?view=`.
 //
-// `?page=week` e' la forma vecchia e continua a valere: i link scritti prima
-// del todo 55 aprono la Week col suo Snap. Senza niente si apre Day/Snap,
-// cosi' anche `?day=2026-10-07` funziona come prima. E anche
-// `?view=report`, la vista del giorno fino al todo 67: non e' piu' fra le
-// chiavi, quindi `viewFromUrl` ci ricade sopra la vista di partenza, che e'
-// la stessa pagina con un altro nome.
+// Senza niente si apre Day/Snap, cosi' `?day=2026-10-07` basta da solo.
+//
+// **Le forme vecchie non si leggono piu'.** `?page=week`, che valeva fino al
+// todo 55, ha smesso: era compatibilita' verso i link di un'app con un
+// utente solo, e in `summary/` e in `plan/` non ce n'era nessuno. Un
+// `?page=week` che sopravvive in un segnalibro adesso apre Day/Snap — la
+// stessa ricaduta di qualunque indirizzo che non si capisce, non un errore.
+//
+// Una chiave che non c'e' piu' non ha comunque bisogno di codice: `?view=report`,
+// la vista del giorno fino al todo 67, ricade sulla vista di partenza perche'
+// `viewFromUrl` valida contro `VIEWS`, e quella validazione serve a se stessa.
 //
 // La **Plan** sta sullo stesso asse, `?period=plan`, ma non e' un periodo: i
 // piani di `plan/` guardano avanti e durano quanto dura un blocco, non un
-// giorno o una settimana. Per questo nella barra sta a destra, accanto ad
-// Activities, e non fra Day e Week; il piano aperto e' `?plan=<slug>`, cioe'
-// il nome del suo file senza `.md`. Viste non ne ha.
+// giorno o una settimana. Per questo nella barra sta a destra, staccata, e
+// non fra Day e Week; il piano aperto e' `?plan=<slug>`, cioe' il nome del
+// suo file senza `.md`. Viste non ne ha.
 export type Page = "day" | "week" | "plan";
 export type View = "snap" | "training" | "trend" | "plan";
 
@@ -85,9 +90,7 @@ function search(): URLSearchParams {
 }
 
 export function pageFromUrl(): Page {
-  const params = search();
-  // `page` e' la forma vecchia: si guarda solo se `period` non c'e'.
-  const value = params.get("period") ?? params.get("page");
+  const value = search().get("period");
   if (value === "week") return "week";
   if (value === "plan") return "plan";
   return "day";
@@ -150,15 +153,13 @@ export function pushUrl(changes: Record<string, string | null>): void {
  *
  * Tiene il giorno, il lunedi' e l'ampiezza del Trend: passando da Snap a
  * Trend si resta sul giorno che si stava guardando, che e' il motivo per cui
- * il menu e' annidato. E toglie sempre `page`, la forma vecchia, cosi' i due
- * modi di dire il periodo non finiscono insieme nello stesso URL.
+ * il menu e' annidato.
  *
  * `view` lo si puo' non dire, e allora e' quella di partenza di quel
  * periodo; e il parametro si scrive solo quando serve, cioe' quando non e'
  * la prima della lista. */
 export function hrefFor(page: Page, view?: View): string {
   const params = search();
-  params.delete("page");
   if (page === "day") params.delete("period");
   else params.set("period", page);
   const wanted = view ?? defaultView(page);

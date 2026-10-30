@@ -2,8 +2,7 @@
 //
 // Prima riga il **periodo** (Day, Week), seconda riga **cosa se ne guarda**:
 // due assi veri, mentre prima Day, Week e Activities stavano in fila come se
-// fossero la stessa cosa. Activities non e' un periodo e sta a destra,
-// staccata, ancora disattivata.
+// fossero la stessa cosa.
 //
 // Le viste sono di ogni periodo e stanno in `VIEWS` (todo 59): Snap,
 // Training e Trend sotto Day, Snap, Trend e Plan sotto Week. Lo Snap e' la
@@ -13,14 +12,21 @@
 // si scrivono stanno li' accanto (`ETICHETTE`), che servono anche al titolo
 // della pagina.
 //
-// A destra sta anche **Plan**, per lo stesso motivo di Activities: un piano
-// non e' un periodo. Non guarda indietro a un giorno o a una settimana,
-// guarda avanti a una gara, e dura quanto dura il blocco. Di viste non ne
-// ha, quindi apre la barra con una riga sola.
+// A destra sta **Goal**, perche' un obiettivo non e' un periodo: non guarda
+// indietro a un giorno o a una settimana, guarda avanti a una gara, e dura
+// quanto dura il blocco. Di viste non ne ha, quindi apre la barra con una
+// riga sola.
 //
-// Niente voci grigie nei due menu: Month e Year si aggiungono quando
-// esistono, non prima. Resta disattivata solo Activities, che la forma della
-// barra ce l'ha gia'.
+// Si chiamava Plan, come la pagina e come `?period=plan`, che restano. Nella
+// barra erano **due Plan**: questo e la vista della Week, che e' un'altra
+// cosa — la settimana del piano, dentro la settimana. Il nome nuovo dice
+// quello che la pagina mostra, cioe' la gara a cui si va e quanto manca; il
+// piano e' il come, ed e' una scheda dentro.
+//
+// **Niente voci grigie, da nessuna parte.** Month, Year e Activities si
+// aggiungono quando esistono, non prima: Activities e' stata per mesi una
+// pillola disattivata che non portava in nessun posto, e una voce che non si
+// puo' premere e' rumore, non una promessa.
 import { ETICHETTE, VIEWS, defaultView, hrefFor, type Page, type View } from "../navigation";
 
 const PERIODI: { page: Page; label: string }[] = [
@@ -78,11 +84,8 @@ export function TopBar({
             href={hrefFor("plan")}
             aria-current={current === "plan" ? "page" : undefined}
           >
-            Plan
+            Goal
           </a>
-          <span className="tab disabled" aria-disabled="true" title="Coming soon">
-            Activities
-          </span>
         </nav>
       </div>
     </header>
