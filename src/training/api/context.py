@@ -22,6 +22,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 # Le icone no: sono dell'applicazione, uguali per tutti, e sono l'unica cosa
 # che l'API serve da disco (`StaticFiles` in `app.py`).
 ICONS_DIR = REPO_ROOT / "icons"
+# La pagina compilata (`npm run build`). In sviluppo non si usa — ci pensa
+# vite su 5173 — ma il servizio di systemd la serve da qui, cosi' la
+# macchina ha un processo solo e una porta sola (todo 82).
+DIST_DIR = REPO_ROOT / "frontend" / "dist"
 
 
 @dataclass(frozen=True)

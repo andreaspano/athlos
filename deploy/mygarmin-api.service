@@ -1,0 +1,34 @@
+# L'app: uvicorn che serve l'API **e** la pagina compilata (todo 82).
+#
+# Un servizio solo e una porta sola. Prima erano due processi a mano —
+# `make api` e `make frontend` — e quello di vite era un server di sviluppo:
+# andava bene per lavorarci, non per stare acceso. La pagina che serve
+# questo e' `frontend/dist`, cioe' `make frontend_build`.
+#
+# Resta su 127.0.0.1: non c'e' login e sono dati di salute. Dalla tailnet ci
+# si arriva con `tailscale serve`, che e' il punto in cui si decide chi
+# entra.
+[Unit]
+Description=mygarmin: l'API e la pagina
+Documentation=file://__REPO__/README.md
+After=network.target
+
+[Service]
+# `exec` e non `simple`: systemd considera il servizio avviato quando il
+# binario e' partito davvero, non appena ha fatto fork — cosi' un errore
+# all'avvio si vede come avvio fallito invece che come servizio su che
+# muore un istante dopo.
+#
+# Il processo principale resta `uv`, che tiene sotto di se' uvicorn: due
+# processi invece di uno, ed e' il prezzo di lanciare tutto con `uv run`
+# come fa il resto del progetto. In cambio le dipendenze sono sempre in
+# pari, anche dopo un `uv add`.
+Type=exec
+WorkingDirectory=__REPO__
+Environment=PATH=__UVDIR__:/usr/local/bin:/usr/bin:/bin
+ExecStart=__UV__ run uvicorn training.api.app:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
