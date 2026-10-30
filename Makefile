@@ -37,6 +37,11 @@ fitness_status:
 # L'API, solo su 127.0.0.1 (niente login): letture, piu' il terreno, il tipo di
 # corsa e il tasto Refresh (todo 41), che lancia `claude`. Documentazione su
 # http://127.0.0.1:8000/docs
+#
+# Questo e' per lavorarci: ha `--reload` e vuole la porta libera. Quella che
+# gira sulla macchina e' `mygarmin-api.service` (todo 82, vedi
+# docs/service.md), che serve anche la pagina compilata: per usare questo,
+# prima `systemctl --user stop mygarmin-api`.
 api:
 	uv run uvicorn training.api.app:app --host 127.0.0.1 --port 8000 --reload
 

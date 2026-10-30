@@ -345,7 +345,8 @@ del Report che non appartiene a una card.
 
 **Sulla macchina gira da sola** (todo 82): `mygarmin-api.service` e'
 uvicorn che serve l'API **e** la pagina compilata, tutto sulla 8000. Un
-processo solo, niente vite acceso in produzione, niente proxy.
+processo solo, niente vite acceso in produzione, niente proxy. I comandi per
+gestirla sono in **[`docs/service.md`](docs/service.md)**.
 
 ```bash
 cd frontend && npm ci      # la prima volta
@@ -627,6 +628,10 @@ l'una, fanno un paio d'ore e mezza per gli ottanta giorni da agosto; le
 settimane mezz'ora. Si lancia quando non c'e' altro in corso.
 
 ### I timer di systemd
+
+> I comandi per accendere, guardare e rimettere in piedi quello che gira
+> sulla macchina stanno tutti in **[`docs/service.md`](docs/service.md)**.
+> Qui c'e' il perche'.
 
 I giri sono **timer di systemd utente**, in `deploy/`:
 
