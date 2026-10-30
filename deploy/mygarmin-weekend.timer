@@ -1,0 +1,9 @@
+[Unit]
+Description=mygarmin: il giro della domenica sera, alle 21
+
+[Timer]
+OnCalendar=Sun *-*-* 21:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

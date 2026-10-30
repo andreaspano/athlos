@@ -1,0 +1,11 @@
+# Il giro della sera (todo 66): la sola Training, cioe' la seduta.
+[Unit]
+Description=mygarmin: il report della sera
+Documentation=file://__REPO__/README.md
+OnFailure=mygarmin-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=__REPO__
+Environment=PATH=__UVDIR__:/usr/local/bin:/usr/bin:/bin
+ExecStart=__UV__ run training-daily-report --moment evening

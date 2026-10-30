@@ -697,7 +697,8 @@ def _cli(kind: Report) -> None:
     Lo stesso lavoro del tasto Refresh, ma in primo piano e senza server:
     serve per rifare un report a mano, per provare l'impianto, ed e' quello
     che lanciano i timer (`--moment`, todo 47 e 53). Stampa come e' andata
-    sezione per sezione, ed esce 1 se qualcuna e' fallita.
+    sezione per sezione, ed esce 1 se qualcuna e' fallita **o se i dati non
+    si sono scaricati** (todo 81).
 
     Se un altro lavoro sta gia' girando — il tasto della pagina, o il giro
     di cron dell'altro momento — non si mette in coda: lo dice ed esce 0,
@@ -795,7 +796,14 @@ def _cli(kind: Report) -> None:
         note = f"  {row['message']}" if row["message"] else ""
         print(f"  {section.key:15} {row['status']}{note}")
     print(state["message"] or "Fatto.")
-    raise SystemExit(1 if state["status"] == "failed" else 0)
+    # Esce 1 anche quando lo scaricamento e' fallito, non solo quando e'
+    # fallita una sezione (todo 81). Il report c'e' lo stesso — `_prepare`
+    # va avanti con i dati locali apposta — ma e' scritto su dati che non
+    # sono quelli di oggi, e chi lancia deve poterlo sapere senza leggere
+    # il registro: il 21 ottobre due giri hanno scritto su dati vecchi
+    # (`uv: not found`) uscendo 0, e non se n'e' accorto nessuno.
+    stale = bool(state["download"]) and not state["download"]["ok"]
+    raise SystemExit(1 if state["status"] == "failed" or stale else 0)
 
 
 def main() -> None:
