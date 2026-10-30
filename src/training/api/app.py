@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from training.api import refresh
 from training.api.cache import invalidate, load_activities, load_health
-from training.api.context import ICONS_DIR, REPO_ROOT, UserContext, get_user_context
+from training.api.context import DIST_DIR, ICONS_DIR, REPO_ROOT, UserContext, get_user_context
 from training.api.daily import daily_payload
 from training.api.plans import load_day_plan, load_plans, load_week_plan
 from training.api.sections import DAILY, SECTIONS, WEEKLY
@@ -697,3 +697,22 @@ def get_plan(slug: str, ctx: Context) -> Plan:
 def get_refresh() -> RefreshStatus:
     """The state of the latest Refresh job."""
     return RefreshStatus(**refresh.status())
+
+
+# La pagina compilata sotto `/`, **in fondo a tutto**: un mount su `/` prende
+# qualunque percorso, e le rotte dichiarate prima di lui vincono solo perche'
+# Starlette le prova in ordine. Spostarlo piu' su oscurerebbe `/api`.
+#
+# Serve al servizio di systemd (todo 82): cosi' la macchina ha un processo
+# solo invece di uvicorn piu' vite, e la tailnet punta a una porta sola. In
+# sviluppo non c'entra niente — `make frontend` resta vite su 5173, con il
+# ricaricamento a caldo — e se `dist/` non c'e' il mount non si fa affatto:
+# l'API funziona lo stesso e `/` rende 404 finche' non si lancia
+# `make frontend_build`.
+#
+# `html=True` serve solo a far rendere `index.html` sulla radice: la pagina
+# tiene il suo stato nella stringa di ricerca (`?period=`, vedi
+# `navigation.ts`) e non ha percorsi veri, quindi non c'e' nessun fallback di
+# history da gestire.
+if DIST_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=DIST_DIR, html=True), name="page")

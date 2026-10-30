@@ -17,9 +17,16 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 5173,
-    // Vite ascolta solo su 127.0.0.1, anche su mutolo. Dalle altre macchine
-    // della tailnet si arriva con `tailscale serve`, che ascolta
-    // sull'indirizzo Tailscale e gira le richieste qui:
+    // Vite ascolta solo su 127.0.0.1, anche su mutolo.
+    //
+    // **Dal todo 82 la tailnet non passa piu' di qui.** Quello che gira
+    // sulla macchina e' `mygarmin-api.service`, che serve l'API e la
+    // pagina compilata sulla 8000, e `tailscale serve` punta li':
+    //   sudo tailscale serve --bg --http=8000 http://127.0.0.1:8000
+    // Questo file resta quello dello sviluppo: `make frontend` per avere il
+    // ricaricamento a caldo, con l'API presa dal servizio sulla 8000. Per
+    // vedere dalla tailnet il server di sviluppo invece della pagina
+    // compilata:
     //   sudo tailscale serve --bg --http=5173 http://127.0.0.1:5173
     // L'host che arriva e' allora `mutolo` (MagicDNS, con la porta che Vite
     // non guarda), oppure `mutolo.<tailnet>.ts.net` se nella tailnet si

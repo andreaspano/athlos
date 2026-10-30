@@ -343,28 +343,45 @@ e' stato scritto e un tasto che la rifa' da sola (todo 44 e 47). In cima, a
 tutta larghezza, il **Summary**: il verdetto sulle quattro, e il solo testo
 del Report che non appartiene a una card.
 
-Per lanciarla servono l'API e Node.js:
+**Sulla macchina gira da sola** (todo 82): `mygarmin-api.service` e'
+uvicorn che serve l'API **e** la pagina compilata, tutto sulla 8000. Un
+processo solo, niente vite acceso in produzione, niente proxy.
 
 ```bash
-cd frontend && npm ci   # la prima volta
-make api                # in un terminale
-make frontend           # in un altro, poi http://127.0.0.1:5173
+cd frontend && npm ci      # la prima volta
+make install_services      # compila la pagina e accende il servizio
+# poi http://127.0.0.1:8000
 ```
 
-In sviluppo Vite passa `/api` e `/icons` all'API, quindi non serve CORS.
-
-Vite ascolta solo su 127.0.0.1. Per aprire la pagina dalle altre macchine
-della tailnet, su mutolo si lascia a `tailscale serve` l'indirizzo Tailscale,
-una volta sola (la configurazione resta anche dopo il riavvio):
+Dalla tailnet ci si arriva con `tailscale serve`, una volta sola (la
+configurazione resta anche dopo il riavvio):
 
 ```bash
-sudo tailscale set --operator=$USER                            # una volta, per non rifare sudo
-tailscale serve --bg --http=5173 http://127.0.0.1:5173         # poi http://mutolo:5173
+sudo tailscale set --operator=$USER                       # una volta, per non rifare sudo
+tailscale serve --bg --http=8000 http://127.0.0.1:8000    # poi http://mutolo:8000
 ```
 
-Da li' in poi basta `make api` e `make frontend` su mutolo. L'API resta su
-127.0.0.1: dalla tailnet passa solo la pagina. Con `tailscale serve status`
-si vede la configurazione, con `tailscale serve reset` si spegne.
+L'API resta su 127.0.0.1: chi decide che cosa esce e' `tailscale serve`. Con
+`tailscale serve status` si vede com'e' puntata, con `tailscale serve reset`
+si spegne.
+
+**Dopo un cambio al frontend il servizio non se ne accorge**: serve
+`make frontend_build` (o `make install_services`, che lo fa) e poi
+`systemctl --user restart mygarmin-api`. La pagina servita e'
+`frontend/dist`, non i sorgenti.
+
+#### Per lavorarci
+
+In sviluppo si lascia stare il servizio e si lancia vite, che ha il
+ricaricamento a caldo:
+
+```bash
+make frontend    # http://127.0.0.1:5173, con /api e /icons presi dalla 8000
+```
+
+Vite passa `/api` e `/icons` all'API, quindi non serve CORS. L'API gliela da'
+il servizio: non serve piu' `make api` in un altro terminale, a meno di
+volerla ricaricare a caldo anche lei.
 
 I tipi delle risposte vengono dall'OpenAPI: dopo un cambio ai modelli
 dell'API, con l'API accesa, `make frontend_types` rigenera
@@ -614,8 +631,8 @@ settimane mezz'ora. Si lancia quando non c'e' altro in corso.
 I giri sono **timer di systemd utente**, in `deploy/`:
 
 ```bash
-make install_timers                        # li installa e li accende, ripetibile
-make uninstall_timers                      # li toglie
+make install_services                      # app e timer, ripetibile
+make uninstall_services                    # li toglie
 systemctl --user list-timers 'mygarmin-*'  # quando girano
 journalctl --user -u 'mygarmin-*' -f       # com'e' andata
 systemctl --user --failed                  # cosa e' andato storto
@@ -667,12 +684,15 @@ sudo loginctl enable-linger $USER   # i timer girano anche senza sessione
 Senza, `Persistent=true` fa comunque partire al login il giro perso — su un
 fisso a cui ti colleghi e' il recupero che volevi. Ma su una macchina che
 nessuno logga, **senza `enable-linger` i report non si scrivono affatto**, ed
-e' peggio di cron. `make install_timers` lo dice quando vede `Linger` spento.
+e' peggio di cron. `make install_services` lo dice quando vede `Linger` spento.
+
+**Dal todo 82 `Linger` serve anche all'app**: senza, il servizio che serve
+la pagina si spegne quando esci, e dalla tailnet non risponde piu' niente.
 
 #### Le righe di cron, se servisse tornarci
 
 `deploy/crontab` resta, con `make install_cron` e `make uninstall_cron`.
-`install_timers` toglie le righe `# mygarmin` dal crontab, perche' i due
+`install_services` toglie le righe `# mygarmin` dal crontab, perche' i due
 meccanismi insieme si ruberebbero il lock a vicenda: ogni giro troverebbe
 l'altro in corso e uscirebbe senza fare niente — il silenzio che somiglia al
 successo.

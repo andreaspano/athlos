@@ -1,4 +1,4 @@
-.PHONY: install_timers uninstall_timers install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data
+.PHONY: install_services uninstall_services frontend_build install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data
 
 update_activity:
 	uv run python -c "from training.garmin import update_activity; update_activity()"
@@ -44,6 +44,13 @@ api:
 # all'API: prima make api. La prima volta: cd frontend && npm ci
 frontend:
 	cd frontend && npm run dev
+
+# La pagina compilata in frontend/dist, che e' quella servita dal servizio
+# (todo 82). In sviluppo non serve: `make frontend` e' vite, con il
+# ricaricamento a caldo. **Dopo un cambio al frontend va rilanciata**, o il
+# servizio continua a servire la pagina di prima.
+frontend_build:
+	cd frontend && npm run build
 
 # Rigenera i tipi TypeScript (frontend/src/api/schema.ts) dall'OpenAPI, dopo
 # ogni cambio ai modelli dell'API. Con l'API accesa (make api).
@@ -127,16 +134,20 @@ UV_DIR := $(dir $(UV))
 CRON_LOG := $(abspath $(HOME)/.local/state/mygarmin-report.log)
 UNIT_DIR := $(abspath $(HOME)/.config/systemd/user)
 TIMERS := mygarmin-morning mygarmin-evening mygarmin-weekend
+SERVICES := mygarmin-api
 
-# I timer di systemd, al posto del cron (todo 81). Tre coppie con gli stessi
-# orari delle tre righe di crontab, piu' due cose che cron non sa fare: il
-# giro perso si recupera (`Persistent=true`) e un guasto resta visibile
-# (`OnFailure=` e `systemctl --user --failed`).
+# Tutto quello che gira da solo sulla macchina: l'app (todo 82) e i tre giri
+# dei report (todo 81).
+#
+# L'app e' un servizio solo — uvicorn che serve l'API e la pagina compilata —
+# e per questo `install_services` prima compila. I giri sono timer, che
+# rispetto a cron recuperano quello perso (`Persistent=true`) e lasciano un
+# guasto visibile (`OnFailure=` e `systemctl --user --failed`).
 #
 # Ripetibile: riscrive le unita' e le riabilita. **Toglie anche le righe del
 # crontab**, perche' i due meccanismi insieme si ruberebbero il lock a
 # vicenda e ogni giro uscirebbe senza fare niente.
-install_timers:
+install_services: frontend_build
 	@test -n "$(UV)" || { echo "uv non e' nel PATH"; exit 1; }
 	@mkdir -p $(UNIT_DIR)
 	@for f in deploy/mygarmin-*.service deploy/mygarmin-*.timer; do \
@@ -145,8 +156,13 @@ install_timers:
 	 done
 	@systemctl --user daemon-reload
 	@for t in $(TIMERS); do systemctl --user enable --now $$t.timer >/dev/null; done
+	@for s in $(SERVICES); do systemctl --user enable --now $$s.service >/dev/null; \
+	   systemctl --user restart $$s.service; done
 	@{ crontab -l 2>/dev/null | grep -v '# mygarmin$$' || true; } | crontab - 2>/dev/null || true
-	@echo "Installati. I prossimi giri:"
+	@echo "Installati. L'app:"
+	@systemctl --user --no-pager --no-legend list-units 'mygarmin-*.service' | head -3
+	@echo "  http://127.0.0.1:8000"
+	@echo "I prossimi giri:"
 	@systemctl --user list-timers 'mygarmin-*' --no-pager
 	@echo "Il registro: journalctl --user -u 'mygarmin-*' -f"
 	@test "$$(loginctl show-user $$USER -p Linger --value 2>/dev/null)" = yes || { \
@@ -155,9 +171,10 @@ install_timers:
 	   echo "l'accesso e un giro perso parte al login. Per una macchina che"; \
 	   echo "nessuno logga: sudo loginctl enable-linger $$USER"; }
 
-# Toglie i timer e lascia il resto in pace. Il cron non lo rimette: per
-# quello c'e' install_cron.
-uninstall_timers:
+# Toglie l'app e i timer, e lascia il resto in pace. Il cron non lo rimette:
+# per quello c'e' install_cron.
+uninstall_services:
+	@for s in $(SERVICES); do systemctl --user disable --now $$s.service >/dev/null 2>&1 || true; done
 	@for t in $(TIMERS); do systemctl --user disable --now $$t.timer >/dev/null 2>&1 || true; done
 	@rm -f $(UNIT_DIR)/mygarmin-*.service $(UNIT_DIR)/mygarmin-*.timer
 	@systemctl --user daemon-reload
