@@ -53,6 +53,7 @@ import { TopBar } from "./TopBar";
 import { WeekPicker } from "./WeekPicker";
 import { WeekTrendPanels } from "./WeekTrendPanels";
 import { WeekPlanBrief, WeekPlanCard } from "./WeekPlanCard";
+import { WeeksAhead, mondaysAhead } from "./WeeksAhead";
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
@@ -203,6 +204,9 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
   const [report, setReport] = useState<Report | null>(null);
   const [plan, setPlan] = useState<WeekPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  // I piani delle quattro settimane che vengono (todo 87), nell'ordine dei
+  // lunedi' di `mondaysAhead`, con `null` dove una non ha un file.
+  const [ahead, setAhead] = useState<(WeekPlan | null)[]>([]);
   const [refresh, setRefresh] = useState<RefreshStatus | null>(null);
   // Vero da quando si e' premuto un tasto: prima di allora un lavoro
   // fallito e' roba di qualcun altro, e non si annuncia.
@@ -319,6 +323,35 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
         setPlanLoading(false);
         setError(API_DOWN);
       });
+    return () => controller.abort();
+  }, [monday, view]);
+
+  // Le quattro settimane che vengono (todo 87), solo nella Training che e'
+  // dove si guardano. Quattro chiamate alla rotta che c'e' gia' e nessuna
+  // rotta nuova: quella rende esattamente il piano di una settimana, sedute
+  // comprese (todo 71), e quattro chiamate sono meno codice di un endpoint
+  // piu' il suo modello piu' i tipi rigenerati.
+  //
+  // **Un effetto solo e un `AbortController` solo**, e fra le dipendenze i
+  // lunedi' e niente altro: coi risultati fra le dipendenze l'arrivo del
+  // primo rilancerebbe l'effetto e la sua pulizia annullerebbe gli altri
+  // tre, che ripartirebbero da zero. E' l'errore trovato nel todo 84.
+  useEffect(() => {
+    if (view !== "training") return;
+    const controller = new AbortController();
+    setAhead([]);
+    Promise.all(
+      // Una chiamata che fallisce lascia fuori **la sua** settimana e non le
+      // altre tre: per uno sguardo avanti un avviso rosso sarebbe peggio del
+      // silenzio, e `null` e' gia' il modo in cui si dice "questa settimana
+      // non c'e'".
+      mondaysAhead(monday).map((week) =>
+        api.weekPlan(week, controller.signal).catch(() => null),
+      ),
+    ).then((found) => {
+      if (controller.signal.aborted) return;
+      setAhead(found);
+    });
     return () => controller.abort();
   }, [monday, view]);
 
@@ -615,6 +648,16 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               )}
             </section>
             </div>
+            {/* E dopo? Le quattro settimane che vengono (todo 87), sotto le
+                due colonne e a tutta larghezza: non hanno il lato destro,
+                perche' non sono state corse. */}
+            <WeeksAhead
+              plans={ahead}
+              monday={monday}
+              goal={plan?.plan ?? null}
+              sport={{ label: sportLabel, icon: (key) => sportIcons.get(key ?? "") ?? null }}
+              restIcon={sportList?.rest_icon ?? null}
+            />
           </>
         )}
         {/* Lo Snap e' il corpo, come quello del giorno (todo 68): il

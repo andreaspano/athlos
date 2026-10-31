@@ -240,8 +240,9 @@ Dal todo 68 la Week ha le **stesse quattro viste della Day, nello stesso
 ordine**. Lo **Snap** e' il corpo: il verdetto a tutta larghezza e le quattro
 card. La **Training** e' il lavoro: in cima il **Plan**, cosa chiedeva la
 settimana (todo 71), poi l'elenco delle sedute (un clic su una seduta apre la
-Day di quel giorno) e il commento sulla forma della settimana. Le sedute
-avevano sopra un grafico del lavoro per sport, tolto col todo 72.
+Day di quel giorno), il commento sulla forma della settimana, e in fondo le
+**quattro settimane che vengono** (todo 87). Le sedute avevano sopra un
+grafico del lavoro per sport, tolto col todo 72.
 Prima stavano tutte nello Snap, sette riquadri in fila, insieme a un **Next**
 che dal todo 69 non c'e' piu'.
 
@@ -304,6 +305,29 @@ pero' il front matter non ce l'ha, quindi per la sua settimana la card mostra
 i quattro riquadri del blocco a trattino e nessuna riga: le sedute a macchina
 non ci sono, e ricavarle dalla prosa e' la strada che il todo 14 aveva
 scartato.
+
+In fondo alla Training, sotto le due colonne, ci sono le **quattro settimane
+che vengono** (todo 87): quelle dopo la settimana mostrata, ognuna coi suoi
+sette giorni nelle stesse righe della card Plan. Prima si rispondeva alla
+domanda cambiando settimana col selettore quattro volte, tenendo a mente la
+prima mentre si guardava la quarta.
+
+Stanno **sotto** le due colonne e non dentro quella del piano: le settimane
+che vengono non hanno il lato destro — non sono state corse — e nella colonna
+di sinistra sarebbero ventotto righe con ventuno di bianco di fronte. Sopra
+ogni gruppo di sette una riga dice dove sta quella settimana nel blocco (`Week
+6 of 18 · build · 30 Nov – 6 Dec`), che per quattro gruppi serve e per uno no
+(todo 75); gara e bersaglio restano alla vista Plan, che non cambiano da un
+lunedi' all'altro.
+
+**Quattro e non un numero a scelta**: niente `?weeks=`, che quanto si guarda
+avanti non e' uno stato della pagina. Sono quattro chiamate alla rotta del
+piano che c'e' gia', in un effetto solo; una settimana senza file non si
+disegna — verso la fine di un blocco le quattro diventano tre, due, una — e
+se non ne ha nessuna la card non c'e' affatto. Se una di quelle settimane
+dichiara **un altro goal** lo si scrive sulla sua riga: e' l'avviso della
+pagina Goal (todo 85) nel posto dove si guarda avanti, e senza di lui si
+leggerebbero quattro settimane coerenti venute da un bersaglio abbandonato.
 
 Comune a tutte e quattro e' l'intestazione — titolo, frecce, calendario, il
 tasto che riscrive la settimana — e il selettore: cambiando settimana la
