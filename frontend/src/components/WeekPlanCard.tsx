@@ -12,7 +12,7 @@
 //
 // Una settimana senza file non e' un errore — prima dell'inizio del blocco
 // non ce n'e' nessuno — e la vista lo dice invece di restare muta.
-import { iconUrl, type WeekPlan } from "../api/client";
+import { iconUrl, type PlannedSession, type WeekPlan } from "../api/client";
 import { addDays, raceLabel, shortDayLabel, targetLabel, weekdayShort } from "../format";
 import { markdown } from "../markdown";
 import { sessionIcon, sessionLabel, type Sport } from "./PlanSession";
@@ -85,6 +85,44 @@ export function WeekPlanCard({
 }
 
 
+/** La riga di un giorno del piano: il giorno, l'icona dello sport e la
+ * seduta in una riga di testo.
+ *
+ * Sta a parte perche' la vogliono in due (todo 87): la colonna del piano di
+ * questa settimana, e la card delle quattro settimane che vengono, che ne
+ * mette ventotto. Era scritta dentro `WeekPlanBrief`, e la seconda avrebbe
+ * dovuto copiarla — lo stesso motivo per cui `sessionLabel` sta in
+ * `PlanSession`.
+ *
+ * Un giorno **senza seduta** lascia la riga vuota col suo nome: nel piano
+ * sono sette giorni sempre, e un giorno che manca dal front matter e' una
+ * riga senza niente, non una riga in meno. */
+export function PlanDayRow({
+  day,
+  session,
+  sport,
+  restIcon,
+}: {
+  day: string;
+  session: PlannedSession | null;
+  sport: Sport;
+  restIcon: string | null;
+}) {
+  const icon = session ? sessionIcon(session, sport, restIcon) : null;
+  return (
+    <div className={`plan-day-row${session && session.sport !== "rest" ? "" : " rest"}`}>
+      {/* Il giorno della settimana davanti alla data, come nell'elenco delle
+          sedute: in sette righe "Mon" si legge prima del numero. */}
+      <span className="plan-day">
+        {weekdayShort(day)} {shortDayLabel(day)}
+      </span>
+      {icon && <img src={iconUrl(icon)} alt="" width={26} height={26} />}
+      <span>{session ? sessionLabel(session, sport) : ""}</span>
+    </div>
+  );
+}
+
+
 /** Il piano della settimana **giorno per giorno**: la card Plan della vista
  * Training (todo 71).
  *
@@ -131,25 +169,15 @@ export function WeekPlanBrief({
       {plan === null
         ? loading && <p className="caption">Loading…</p>
         : plan.sessions &&
-          days.map((day) => {
-            const session = byDay.get(day);
-            const icon = session ? sessionIcon(session, sport, restIcon) : null;
-            return (
-              <div
-                key={day}
-                className={`plan-day-row${session && session.sport !== "rest" ? "" : " rest"}`}
-              >
-                {/* Il giorno della settimana davanti alla data, come
-                    nell'elenco delle sedute: in sette righe "Mon" si legge
-                    prima del numero. */}
-                <span className="plan-day">
-                  {weekdayShort(day)} {shortDayLabel(day)}
-                </span>
-                {icon && <img src={iconUrl(icon)} alt="" width={26} height={26} />}
-                <span>{session ? sessionLabel(session, sport) : ""}</span>
-              </div>
-            );
-          })}
+          days.map((day) => (
+            <PlanDayRow
+              key={day}
+              day={day}
+              session={byDay.get(day) ?? null}
+              sport={sport}
+              restIcon={restIcon}
+            />
+          ))}
       {plan && (
         <div className="week-days-foot">
           <WrittenAt when={plan.written_at} day={monday} />

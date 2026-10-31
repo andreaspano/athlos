@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 
 # Le quattro settimane che vengono, nella Training della Week
@@ -144,7 +144,77 @@ fianco di una colonna che per questa settimana lo dice gia', e' rumore.
   sempre le prossime quattro da oggi — sarebbe l'unica cosa della pagina a
   non seguire il selettore, e si e' scelto il male minore.
 
+## Come e' andata
+
+Fatto. In fondo alla vista Training della Week c'e' la card **Ahead**: le
+quattro settimane dopo quella mostrata, ognuna con la sua riga di
+intestazione e i suoi sette giorni.
+
+Tre cose decise strada facendo.
+
+**La riga di un giorno e' diventata un pezzo a se'**, `PlanDayRow` in
+`WeekPlanCard.tsx`, e la usano in due: la colonna del piano e questa card, che
+ne mette ventotto. Era scritta dentro `WeekPlanBrief`, e copiarla avrebbe
+voluto dire due posti dove cambiare il passo delle righe — lo stesso motivo
+per cui `sessionLabel` sta in `PlanSession`. `WeekPlanBrief` per il resto non
+cambia.
+
+**Niente «Loading…».** Il todo aveva deciso che senza file la card non si
+disegna, e mentre le quattro chiamate sono in volo non si sa ancora se un
+file c'e': la card appare quando i piani arrivano. Una cornice vuota che poi
+si riempie sarebbe stata la stessa cosa in due tempi.
+
+**Una chiamata che fallisce vale `null`**, non un errore della pagina: ogni
+`weekPlan` ha il suo `.catch(() => null)`, cosi' una settimana persa lascia le
+altre tre al loro posto. Con un `Promise.all` secco ne bastava una per
+perderle tutte e quattro.
+
+### Verificato
+
+Senza browser: qui `chromium-browser` e' lo stub di snap e il pacchetto non
+c'e', quindi niente screenshot. Al suo posto **il componente renderizzato per
+davvero**, con `react-dom/server` e `rolldown` che il frontend ha gia', sui
+piani veri chiesti all'API in esecuzione (`/api/weekly/<lunedi>/plan` e
+`/api/sports`):
+
+- **quattro settimane**: quattro gruppi, intestazioni `Week 2 of 18 · base ·
+  2 Nov – 8 Nov` fino a `Week 5 of 18 · base · 23 Nov – 29 Nov`, e dentro le
+  righe dei giorni — `Mon 2 Nov / Rest · or Cycling`, `Tue 3 Nov / Running ·
+  easy · 7 km`, con la classe `rest` sui giorni di riposo.
+- **nessun file**: niente disegnato, zero caratteri. La card non c'e'.
+- **due su quattro** (la seconda e la terza `null`): due gruppi, e sono la 2 e
+  la 5 — i buchi non spostano le date, ogni settimana resta attaccata al suo
+  lunedi'.
+- **goal diverso**: su tutte e quattro compare `half_marathon_2.20` accanto
+  all'intestazione, perche' la settimana mostrata era stata dichiarata del
+  2.10. Con lo stesso goal non si scrive niente.
+
+E poi: `npm run typecheck` pulito, `npm run build` ok, le classi nuove
+(`weeks-ahead`, `ahead-week`) sono nel CSS e nel JS compilati, servizio
+riavviato. Nessun modello dell'API cambia — la rotta e' quella del todo 60 —
+quindi `schema.ts` non si rigenera.
+
+### Quello che non ho provato
+
+**La pagina in un browser.** Il markup e le classi ci sono, ma come la card
+sta davvero nella pagina — quanto e' alta, dove cade sul telefono, se i
+quattro gruppi si distinguono a occhio — non l'ho visto. E' la cosa da
+guardare per prima aprendo `/?period=week&view=training`.
+
+**Il caso della settimana fuori dal blocco** l'ho provato coi `null` a mano e
+non navigando a una settimana che non ne ha: la pagina non lascia andare oltre
+la settimana corrente, e all'indietro il blocco comincia il 26 ottobre.
+
 ## Revert
 
-Il revert del codice basta: e' una card in piu' in una vista, quattro letture
-e nessuna scrittura. Effetti fuori dal repo: nessuno.
+```bash
+git revert -m 1 $(git log main --merges --grep="^Merge branch 'todo_87'$" --format=%H -1)
+```
+
+Effetti fuori dal repo: nessuno. E' una card in piu' in una vista, quattro
+letture e nessuna scrittura. Resta solo la pagina compilata in
+`frontend/dist/`, che si rifa' con `make frontend_build` (e il servizio la
+serve da li').
+
+Dopo il revert, rifare il merge di `todo_87` non riporta le modifiche (git le
+considera gia' unite): per riaverle serve il revert del revert.
