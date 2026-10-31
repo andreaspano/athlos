@@ -25,6 +25,7 @@ training-weekly-data = "training.interface.weekly_data:main"
 training-daily-data = "training.interface.daily_data:main"
 training-daily-report = "training.api.refresh:main"
 training-weekly-report = "training.api.refresh:week_main"
+training-week-plans = "training.api.weekplans:main"
 
 [build-system]
 requires = ["uv_build>=0.12.6,<0.13.0"]

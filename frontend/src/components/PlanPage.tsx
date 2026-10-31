@@ -215,10 +215,16 @@ function Goal({
 
 /** Le settimane gia' scritte che seguono un goal diverso da quello attuale.
  *
- * E' il seguito che il cambio di goal **non** ha: i file di
- * `summary/05.plan/` non li rigenera nessuno — non c'e' un generatore da
- * chiamare — quindi cambiare il flag li lascia dov'erano, scritti su un altro
- * bersaglio. Dirlo e' il minimo; vedi il todo 85. */
+ * Cambiare il flag non le riscrive: dal todo 86 c'e' un generatore, ma e' un
+ * comando da terminale (`make week_plans`) e non un tasto qui. Diciassette
+ * agenti e mezz'ora col lock in mano dietro un'API che non ha login (todo
+ * 83) sono un'altra decisione, e il tasto vorrebbe uno stato da mostrare
+ * mentre gira: quello che c'e' e' fatto sulle sezioni di un report.
+ *
+ * L'avviso resta su **una** settimana anche dopo una generazione: il conto
+ * parte da questo lunedi' e il generatore scrive da quello dopo, perche' la
+ * settimana in corso e' stata corsa e giudicata. Si spegne da se' il lunedi'
+ * (todo 86). */
 function staleWeeks(
   plans: PlanSummary[],
   ahead: { slug: string; weeks: number }[],
@@ -360,7 +366,9 @@ export function PlanPage() {
             <p className="warning" key={entry.slug}>
               {entry.weeks} weekly {entry.weeks === 1 ? "plan" : "plans"} from this Monday on
               still {entry.weeks === 1 ? "follows" : "follow"} <code>{entry.slug}</code>.
-              Changing the current goal does not rewrite them — nothing does yet.
+              Changing the current goal does not rewrite them: run{" "}
+              <code>make week_plans</code> to write the weeks from next Monday on from the
+              goal you are following.
             </p>
           ))}
           <div className="goal-list">
