@@ -455,12 +455,12 @@ porta la pillola e si apre da solo. Dal todo 85 si sceglie dalla pagina
 **il file va in `plan/.trash/`, non si cancella** — un goal e' un documento
 scritto a mano e l'API non ha login.
 
-**Cambiare goal non rigenera i piani settimanali**, e nessun altro lo fa: i
-file di `summary/05.plan/` sono stati scritti a mano e nel progetto non c'e'
-un generatore. Siccome i tre piani hanno ritmi e chilometraggi diversi, dopo
-uno scambio le settimane prescrivono il bersaglio vecchio — quindi la pagina
-lo dice: *18 weekly plans from this Monday on still follow
-`half_marathon_2.20`*. Il passato non si conta e non si riscrive: le
+**Cambiare goal non rigenera i piani settimanali.** Dal todo 86 un
+generatore c'e', ma e' un comando da lanciare (`make week_plans`, qui sotto)
+e non un effetto del clic: siccome i tre piani hanno ritmi e chilometraggi
+diversi, finche' non si lancia le settimane prescrivono il bersaglio vecchio —
+quindi la pagina lo dice e nomina il comando: *18 weekly plans from this
+Monday on still follow `half_marathon_2.20`*. Il passato non si conta e non si riscrive: le
 settimane finite sono il registro di quello che era previsto allora, e i
 report di allora le hanno giudicate. Prima lo si sapeva solo di rimbalzo —
 le diciotto settimane di `summary/05.plan/` portano `plan: half_marathon_2.20`
@@ -562,6 +562,68 @@ come prima, dalle sole sedute presenti e passate. All'agente non si dice
 **ne' che un piano c'e' ne' che non c'e'**: "per questo giorno non era
 previsto niente" e' peggio del silenzio, perche' si legge come un verdetto
 sulla seduta.
+
+### Le settimane si generano dal goal
+
+Fino al todo 86 nessuno le scriveva: i diciannove file di `summary/05.plan/`
+li ha scritti un giro a mano il 26 ottobre 2026, e cambiare goal li lasciava
+dov'erano. Adesso c'e' `make week_plans`, cioe' `api/weekplans.py` — `plans.py`
+e' chi legge, questo e' chi genera.
+
+```
+make week_plans                           # il goal attuale, da lunedi' prossimo
+make week_plans DRY=1                     # cosa farebbe, senza agenti
+make week_plans GOAL=half_marathon_2.10
+make week_plans FROM=2026-12-07 TO=2027-01-04
+```
+
+**Le scrive un agente, una settimana per volta** (`.claude/agents/p_week.md`,
+lanciato come le sezioni dei report) e non una funzione: il blocco e' prosa —
+la tabella delle diciotto settimane, le tabelle di fase, i ritmi, le deroghe —
+e un parser di quelle tabelle sarebbe il parser del markdown di una persona,
+che si rompe sul primo blocco scritto diversamente e si rompe in silenzio. Ogni
+agente riceve il blocco, l'identita' della sua settimana e **il file della
+settimana prima**, che e' da dove la sua continua. Lo stile dei report
+(`_style.md`) non si attacca: dice "nessun titolo, un paragrafo, niente
+tabelle", e una settimana e' tutto il contrario.
+
+**Le date non sono dell'agente.** Il lunedi', `block_week`, `block_weeks`,
+`plan`, `race` e `target_time` li calcola il modulo dal front matter del blocco
+e li mette nel prompt, perche' un front matter sbagliato non da' un errore:
+`load_day_plan` cerca la seduta per data, quindi una data storta diventa un
+giorno senza piano, e si scopre a dicembre guardando una card vuota. Quello che
+l'agente scrive si **ricontrolla** (`check`): il front matter si legge,
+l'identita' e' quella chiesta, `sessions` ha sette voci coi sette giorni,
+`sport`/`kind`/`distance_km` sono valori che i lettori sanno leggere, e la
+tabella ha una riga per ogni giorno — cercata con `_day_row`, che e' chi la
+cerca davvero.
+
+**Il file nasce in `summary/05.plan/.staging/` e arriva al suo posto solo se
+passa.** Un file rotto e' peggio di un file che non c'e': quello che manca lo
+gestiscono apposta tutti e tre i lettori, quello rotto gira, e il Training del
+giorno ne scrive il verdetto. Una settimana scartata resta nella staging da
+leggere, e al suo posto resta quella di prima.
+
+**Si genera dal lunedi' prossimo.** Il passato non si tocca — le settimane
+finite sono il registro di quello che era previsto allora, e i report di allora
+le hanno giudicate — e la settimana **in corso** sta col passato: i suoi giorni
+sono stati corsi e giudicati, e una settimana che cambia sotto i piedi a meta'
+e' peggio di una che finisce sul piano vecchio. Per questo l'avviso della
+pagina Goal, che conta da questo lunedi', resta su una settimana anche dopo una
+generazione, e si spegne da se' il lunedi'.
+
+**Quello che c'e' va in `summary/05.plan/.trash/`**, non si sovrascrive: una
+settimana si puo' essere riscritta a mano avvicinandosi alla data. Generare e'
+l'unico gesto distruttivo dentro `summary/`, e rilanciare il comando non e'
+innocuo come rilanciare un backfill.
+
+Il comando **prende il lock dei report** (`.refresh.lock`): due serie di
+`claude` sugli stessi file non si fanno. Sono una sessione per settimana,
+mezz'ora in tutto, quindi non si lancia vicino ai giri delle 8 e delle 21, che
+troverebbero il lock occupato e salterebbero il report. E stampa una riga per
+settimana — numero del blocco, fase, km, lungo, quante qualita': **quelle righe
+sono la verifica**, da leggere accanto alla tabella del blocco, perche' i
+controlli sono strutturali e non sanno niente di allenamento.
 
 ### I due giri dei timer: una pagina per giro
 

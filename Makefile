@@ -1,4 +1,4 @@
-.PHONY: install_services uninstall_services frontend_build install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data
+.PHONY: install_services uninstall_services frontend_build install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data week_plans
 
 update_activity:
 	uv run python -c "from training.garmin import update_activity; update_activity()"
@@ -123,6 +123,24 @@ weekly_report:
 #   make daily_data DAY=2026-10-07   (un giorno a scelta)
 daily_data:
 	uv run training-daily-data $(if $(DAY),--day $(DAY))
+
+# I piani settimanali di summary/05.plan/, generati dal blocco di un goal
+# (todo 86). Li scrive un agente per settimana, uno alla volta, e il file
+# arriva al suo posto solo se passa i controlli.
+#
+# **Genera dal lunedi' prossimo**: il passato e la settimana in corso non si
+# riscrivono. Le settimane che ci sono gia' finiscono in
+# summary/05.plan/.trash/ — una puo' essere stata riscritta a mano.
+#
+# Sono una sessione di `claude` per settimana e mezz'ora col lock in mano,
+# lo stesso dei report: non si lancia vicino ai giri delle 8 e delle 21, che
+# troverebbero il lock occupato e salterebbero il report.
+#   make week_plans                        (il goal attuale, da lunedi' prossimo)
+#   make week_plans DRY=1                  (dice cosa farebbe, senza agenti)
+#   make week_plans GOAL=half_marathon_2.10
+#   make week_plans FROM=2026-12-07 TO=2027-01-04
+week_plans:
+	uv run training-week-plans $(if $(GOAL),--goal $(GOAL)) $(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) $(if $(DRY),--dry-run)
 
 # I giri che scrivono i report da soli (todo 47 per il giorno, 53 per la
 # settimana). Le unita' stanno in deploy/ con tre segnaposto, perche' systemd

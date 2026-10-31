@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 
 # Le settimane si generano dal goal
@@ -231,15 +231,90 @@ dal repo.
   l'errore che la settimana del 26 ottobre ha fatto scrivendo «this
   morning».
 
+## Come e' andata
+
+Fatto. `make week_plans` c'e', e con `DRY=1` dice che scriverebbe diciassette
+settimane dal 2026-11-02 al 2027-02-22, 2/18 ... 18/18, dal goal attuale.
+
+Tre cose decise strada facendo.
+
+**`--dry-run` (`DRY=1`), che il todo non chiedeva.** Dice quali settimane
+scriverebbe e quali manderebbe nel cestino, senza lanciare niente. Serviva per
+provare il conto delle settimane senza spendere diciassette agenti e senza
+riscrivere i file veri, e resta perche' prima di un gesto distruttivo da
+mezz'ora guardare cosa fara' e' il minimo.
+
+**Lo `sport` non si controlla contro i dati.** Il todo diceva «fra i nomi di
+`activities.sport` piu' `rest`», e non lo fa: i nomi degli sport vengono dal
+database, e su un database vuoto — un clone nuovo — ogni settimana sarebbe da
+buttare, mentre non e' la settimana a essere sbagliata. In piu' un piano puo'
+prescrivere uno sport mai fatto. Resta il controllo che ci sia e che non sia
+vuoto; il `kind` invece e' un insieme chiuso e si controlla, perche' quello lo
+dice il formato e non i dati. Gli sport scritti si vedono comunque nelle righe
+stampate.
+
+**Il `.staging/` tiene le scartate.** Non si svuota da se': una settimana
+scartata e' l'unica traccia di cosa l'agente ha scritto, e il giro dopo la
+sovrascrive da solo.
+
+### Verificato
+
+- **I controlli passano sui file veri**: `check` su tutti e diciassette i file
+  di `summary/05.plan/` dal 2026-11-02 in poi, zero problemi — gli stessi file
+  scritti a mano in ottobre, cioe' il metro giusto. E le righe stampate danno
+  26, 30, 33, 26, 35, 38, 41, 31, 38, 42, 44, 34, 42, 46, 43, 38, 29, 33 km,
+  che sono **esattamente** la colonna della tabella «Le 18 settimane» del
+  blocco: la riga stampata e' lo strumento che doveva essere.
+- **Gli otto modi di sbagliare, su copie in uno scratchpad e non sui file
+  veri**: lunedi' spostato di un giorno, `plan` di un altro goal,
+  `block_week` sbagliato, sei sedute invece di sette, `kind: tempo`,
+  `distance_km: "sixteen"`, la riga della tabella scritta `**Tue 10/11**`, il
+  front matter via. Tutti e otto dicono cosa manca, e il file buono non dice
+  niente.
+- **Un giro vero dell'agente**, su un albero finto in uno scratchpad: la
+  settimana 4/18 del 2026-11-16, col 2026-11-09 come settimana prima e un
+  2026-11-16 da sostituire. Ha scritto 26 km, lungo 12, una qualita' — la riga
+  del blocco — ha ripreso dalla settimana prima («the quality session steps
+  back to 4 x 5 min, the shape of week 2, after the 5 x 6 min of week 3»), ha
+  tenuto la regola del sabato senza escursione, e non ha scritto nessun
+  «stamattina». Il file di prima e' finito in
+  `.trash/2026-11-16-20261031-153339.md`.
+- **La settimana scartata non va in giro**: con un agente finto che scrive un
+  file rotto, il file al suo posto resta **identico byte per byte**, la
+  scartata resta nella staging, e nel cestino non entra niente.
+- **Il lock**: con il lock dei report preso, `generate` rende `stopped` e non
+  fa niente.
+- Gli errori che fermano prima di scrivere: `FROM` nel passato (lo dice e
+  dice da quando si genera), `FROM` che non e' un lunedi', un goal che non
+  esiste (elenca quelli che ci sono), nessun goal attuale, un blocco senza
+  `block_start` (dice quale chiave e in quale file).
+- `npm run typecheck` pulito, `npm run build` ok. Nessun modello dell'API
+  cambia, quindi `schema.ts` non si rigenera.
+
+### Quello che non ho provato
+
+**Le diciassette settimane vere non le ho generate.** E' il gesto che il todo
+descrive come distruttivo: avrebbe riscritto i file di
+`~/adrive/data/training/summary/05.plan/` e mandato nel cestino quelli di
+ottobre, mezz'ora di agenti su dati veri. Una settimana sola, sull'albero
+finto, dice che la macchina funziona; il primo giro vero lo lancia chi ha
+scritto il blocco, e le righe stampate sono per lui.
+
+**E non ho visto la pagina.** L'avviso che nomina il comando e' nel bundle
+compilato, ma senza browser non l'ho guardato nella riga.
+
 ## Revert
 
-Il revert del codice basta: il generatore e' un comando e un agente, e
-nessuno lo chiama da solo.
+```bash
+git revert -m 1 $(git log main --merges --grep="^Merge branch 'todo_86'$" --format=%H -1)
+```
 
-Quello che resta fuori dal repo sono i file, e sono il grosso: le settimane
-generate stanno in `summary/05.plan/` e restano, insieme a `.trash/` con
-dentro quelle che hanno sostituito e a `.staging/` con le scartate. Tornare
-indietro vuol dire ripescare dal cestino a mano, un lunedi' per volta. Le
-due righe di README che dicono che un generatore non c'e' tornano con il
-codice solo per il repo: quella di `summary/05.plan/README.md` e' fuori, e si
+Effetti fuori dal repo: i file. Le settimane generate stanno in
+`summary/05.plan/` e restano, insieme a `.trash/` con dentro quelle che hanno
+sostituito e a `.staging/` con le scartate: tornare indietro vuol dire
+ripescare dal cestino a mano, un lunedi' per volta. Resta anche la sezione
+«Who writes them» di `summary/05.plan/README.md`, che sta fuori dal repo e si
 riscrive a mano.
+
+Dopo il revert, rifare il merge di `todo_86` non riporta le modifiche (git le
+considera gia' unite): per riaverle serve il revert del revert.
