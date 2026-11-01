@@ -14,7 +14,7 @@
 // non ce n'e' nessuno — e la vista lo dice invece di restare muta.
 import { iconUrl, type PlannedSession, type WeekPlan } from "../api/client";
 import { addDays, raceLabel, shortDayLabel, targetLabel, weekdayShort } from "../format";
-import { markdown } from "../markdown";
+import { inline, markdown } from "../markdown";
 import { sessionIcon, sessionLabel, type Sport } from "./PlanSession";
 import { CardHead, Stat, WrittenAt } from "./Stat";
 
@@ -85,8 +85,8 @@ export function WeekPlanCard({
 }
 
 
-/** La riga di un giorno del piano: il giorno, l'icona dello sport e la
- * seduta in una riga di testo.
+/** La riga di un giorno del piano: il giorno, l'icona dello sport, la seduta
+ * in una riga di testo e **sotto, quello che il piano chiede davvero**.
  *
  * Sta a parte perche' la vogliono in due (todo 87): la colonna del piano di
  * questa settimana, e la card delle quattro settimane che vengono, che ne
@@ -96,7 +96,21 @@ export function WeekPlanCard({
  *
  * Un giorno **senza seduta** lascia la riga vuota col suo nome: nel piano
  * sono sette giorni sempre, e un giorno che manca dal front matter e' una
- * riga senza niente, non una riga in meno. */
+ * riga senza niente, non una riga in meno.
+ *
+ * **Il dettaglio e' la riga della tabella del piano** (`text`, todo 89), cioe'
+ * le parole con cui la settimana e' scritta: i ritmi, le ripetute, il tetto
+ * del battito, il lavoro di forza, il perche'. Era gia' nei dati — la card
+ * della Day lo mostra dal todo 63 — e qui si fermava a
+ * `Running · easy · 8 km`, che dice *quanto* e non *come*: una qualita' da
+ * 5 x 5' a 5'55" e un lento da 8 km diventavano due righe che si somigliano.
+ *
+ * La riga corta **resta** sopra, in tono pieno: e' il riassunto a macchina,
+ * e sta sulla riga della seduta fatta nella colonna accanto (todo 77), dove
+ * il confronto e' fra due righe corte. Il dettaglio sta sotto, in tono
+ * minore, perche' e' il documento che parla. Un giorno senza riga nella
+ * tabella non ha il dettaglio e non lascia un buco: il piano puo' non
+ * averlo. */
 export function PlanDayRow({
   day,
   session,
@@ -117,7 +131,10 @@ export function PlanDayRow({
         {weekdayShort(day)} {shortDayLabel(day)}
       </span>
       {icon && <img src={iconUrl(icon)} alt="" width={26} height={26} />}
-      <span>{session ? sessionLabel(session, sport) : ""}</span>
+      <span className="plan-session">
+        <span>{session ? sessionLabel(session, sport) : ""}</span>
+        {session?.text && <span className="plan-detail">{inline(session.text)}</span>}
+      </span>
     </div>
   );
 }

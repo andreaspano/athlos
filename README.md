@@ -291,11 +291,20 @@ riquadri sotto:
 
 ```
 Mon 26 Oct   Rest
+             Rest. Nothing today, an easy walk if you like. 20 min of strength work.
 Tue 27 Oct   Running · easy · 5 km
+             Easy 5 km at 7'15"-7'40", then 6 x 20 s strides. Heart rate under 138.
 Wed 28 Oct   Rest · or Cycling
-Thu 29 Oct   Running · quality · 7 km
+             Rest, or an easy spin of 45 min.
 ...
 ```
+
+Sotto ogni riassunto c'e' **la riga di quel giorno nella tabella del piano**
+(todo 89), cioe' i ritmi, le ripetute, il tetto del battito e il perche': era
+nei dati da sempre (`text`, come nella card della Day) e questa colonna la
+buttava via, cosi' una qualita' e un lento si somigliavano. Il riassunto
+resta sopra perche' e' lui che sta sulla riga della seduta fatta nella colonna
+accanto.
 
 Le sedute arrivano dal front matter (`sessions` in `WeekPlan`), **in ordine
 di data e non di file**: il file di settembre 2026 ha la tabella che parte
