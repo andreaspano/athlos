@@ -410,5 +410,8 @@ suoi endpoint interni. Le credenziali non si salvano: si salva un token, nel
 percorso che dice `token_store` in `user/config.yaml` (`~/token`).
 
 Il primo scarico di tutto, prima che il progetto fosse un progetto, lo faceva
-`export/garmin_export_all.py`, uno script a se' stante che sta ancora li'.
-Oggi non serve: ci sono i target del Makefile.
+`export/garmin_export_all.py`, uno script a se' stante, e piu' tardi il
+comando `garmin-export-all`. Non ci sono piu' ne' l'uno ne' l'altro: i file
+sono scaricati, e a tenerli aggiornati bastano i target del Makefile. Il
+comando scriveva in `activities/` e `misc/`, due cartelle che nessun lettore
+di questo progetto ha mai aperto.
