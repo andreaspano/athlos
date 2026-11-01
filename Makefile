@@ -1,4 +1,10 @@
-.PHONY: install_services uninstall_services frontend_build install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data week_plans
+.PHONY: test install_services uninstall_services frontend_build install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data week_plans
+
+# I test: non toccano Garmin ne' il data root vero — le chiamate passano da
+# doppi e i file stanno in cartelle temporanee — quindi si lanciano sempre,
+# anche con l'orologio sbagliato e senza rete.
+test:
+	uv run pytest -q
 
 update_activity:
 	uv run python -c "from training.garmin import update_activity; update_activity()"
