@@ -1,7 +1,6 @@
 """Esportazione dell'elenco attivita' e dei relativi file originali (FIT)."""
 
 import io
-import json
 import re
 import time
 import zipfile
@@ -13,7 +12,8 @@ from garminconnect import Garmin, GarminConnectAuthenticationError
 from .auth import init_api
 from .client import safe_call
 from .config import DATA_DIR, REQUEST_DELAY
-from .health import refresh_recent_health
+from .files import read_json, write_json
+from .health import refresh_recent_health, today_local
 
 # Quanto indietro guarda `update_activity` nell'elenco di Garmin. Non si puo'
 # fermare alla prima attivita' gia' presente: Garmin ordina per data di
@@ -32,19 +32,30 @@ def _names_path(data_dir: Path) -> Path:
     return Path(data_dir) / "json" / _NAMES_FILENAME
 
 
+def _load_map(path: Path, what: str) -> dict:
+    """Legge una delle due mappe (nomi, tipi). Se il file c'e' ma e' rovinato
+    — un'interruzione a meta' scrittura, un disco pieno — lo sposta in
+    `.corrupt` e riparte da vuoto, invece di far morire con un
+    `JSONDecodeError` ogni `update_activity` da qui all'intervento di un umano.
+
+    La mappa si ricostruisce: `make backfill_activity_names` la rifa' tutta."""
+    data = read_json(path, default=None, label=what)
+    if data is None and path.exists():
+        aside = path.with_name(path.name + ".corrupt")
+        path.replace(aside)
+        print(f"  {what}: il file rovinato e' in {aside.name}. "
+              f"Per rifare la mappa: make backfill_activity_names")
+    return data or {}
+
+
 def _load_activity_names(data_dir: Path) -> dict:
-    path = _names_path(data_dir)
-    if not path.exists():
-        return {}
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    return _load_map(_names_path(data_dir), _NAMES_FILENAME)
 
 
 def _save_activity_names(data_dir: Path, names: dict) -> None:
     path = _names_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(names, f, ensure_ascii=False, indent=2, sort_keys=True)
+    write_json(path, names, sort_keys=True)
 
 
 def _types_path(data_dir: Path) -> Path:
@@ -52,18 +63,13 @@ def _types_path(data_dir: Path) -> Path:
 
 
 def _load_activity_types(data_dir: Path) -> dict:
-    path = _types_path(data_dir)
-    if not path.exists():
-        return {}
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    return _load_map(_types_path(data_dir), _TYPES_FILENAME)
 
 
 def _save_activity_types(data_dir: Path, types: dict) -> None:
     path = _types_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(types, f, ensure_ascii=False, indent=2, sort_keys=True)
+    write_json(path, types, sort_keys=True)
 
 
 def _remember(act: dict, names: dict, types: dict) -> None:
@@ -145,9 +151,15 @@ def _existing_activity_ids(data_dir: Path) -> set:
 
 def download_activities_between(
     api: Garmin, start_date: str, end_date: str, data_dir: Path = DATA_DIR
-) -> list:
+) -> tuple[list, list]:
     """Scarica in data_dir tutte le attivita' comprese tra start_date e
-    end_date (formato 'YYYY-MM-DD', estremi inclusi) non ancora presenti."""
+    end_date (formato 'YYYY-MM-DD', estremi inclusi) non ancora presenti.
+
+    Restituisce `(id scaricati, elenco dell'intervallo)`. L'elenco e' quello
+    che questa funzione ha dovuto chiedere comunque per sapere che cosa
+    scaricare: chi lo vuole lo prende da qui invece di richiederlo a Garmin
+    (lo faceva `fitness_status`, con una chiamata in piu' e il rischio di
+    leggere due elenchi diversi)."""
     data_dir = Path(data_dir)
     (data_dir / "fit").mkdir(parents=True, exist_ok=True)
     existing_ids = _existing_activity_ids(data_dir)
@@ -155,8 +167,11 @@ def download_activities_between(
     types = _load_activity_types(data_dir)
 
     print(f"Recupero le attivita' tra {start_date} e {end_date} da Garmin Connect...")
-    activities = safe_call(api.get_activities_by_date, start_date, end_date)
-    activities = activities or []
+    # sortorder="asc" perche' chi riceve l'elenco lo vuole dal piu' vecchio;
+    # per scaricare l'ordine non conta.
+    activities = safe_call(
+        api.get_activities_by_date, start_date, end_date, sortorder="asc"
+    ) or []
     to_download = []
     for act in activities:
         activity_id = act.get("activityId")
@@ -171,7 +186,7 @@ def download_activities_between(
 
     if not to_download:
         print(f"Nessuna nuova attivita' da scaricare per l'intervallo {start_date} .. {end_date}.")
-        return []
+        return [], activities
 
     print(f"Trovate {len(to_download)} nuove attivita'. Scarico ed estraggo in {data_dir.resolve()}...")
     downloaded = []
@@ -191,7 +206,7 @@ def download_activities_between(
         time.sleep(REQUEST_DELAY)
 
     print(f"Fatto: {len(downloaded)} nuove attivita' aggiunte a {data_dir.resolve()}")
-    return downloaded
+    return downloaded, activities
 
 
 def update_activity(data_dir: Path = DATA_DIR) -> list:
@@ -226,7 +241,7 @@ def update_activity(data_dir: Path = DATA_DIR) -> list:
     try:
         print("Recupero le attivita' piu' recenti da Garmin Connect...")
         new_ids = []
-        cutoff = date.today() - timedelta(days=SCAN_LOOKBACK_DAYS)
+        cutoff = today_local() - timedelta(days=SCAN_LOOKBACK_DAYS)
         start, limit = 0, 100
         while True:
             batch = safe_call(api.get_activities, start, limit)

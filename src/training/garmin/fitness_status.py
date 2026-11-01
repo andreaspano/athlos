@@ -10,15 +10,15 @@ dopo un allenamento mattutino).
 import contextlib
 import json
 import sys
-from datetime import date, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 from .activities import download_activities_between
 from .auth import init_api
-from .client import safe_call
 from .config import DATA_DIR, FITNESS_STATUS_WINDOW_DAYS
-from .health import export_daily_health
+from .files import read_json
+from .health import export_daily_health, today_local
 
 
 # I nove endpoint di prima del todo 38: endurance, hill score e soglia del
@@ -47,9 +47,12 @@ def _load_cached_health(data_dir: Path, start_date: date, end_date: date) -> dic
         date_str = d.strftime("%Y-%m-%d")
         for name in REPORT_ENDPOINTS:
             path = health_dir / name / f"{date_str}.json"
-            if path.exists():
-                with open(path, encoding="utf-8") as f:
-                    result[name][date_str] = json.load(f)
+            # Un file troncato non deve far morire lo snapshot dopo che ha
+            # speso tutte le chiamate: si salta quel giorno, come fa
+            # `interface/health.py` con gli stessi file.
+            data = read_json(path, default=None, label=f"{name}/{date_str}.json")
+            if data is not None:
+                result[name][date_str] = data
         d += timedelta(days=1)
 
     return result
@@ -59,18 +62,16 @@ def build_fitness_status(
     data_dir: Path = DATA_DIR, days: int = FITNESS_STATUS_WINDOW_DAYS
 ) -> dict[str, Any]:
     data_dir = Path(data_dir)
-    today = date.today()
+    today = today_local()
     start_date = today - timedelta(days=days - 1)
 
     api = init_api()
 
     print(f"Aggiorno i dati recenti ({start_date} -> {today})...")
-    download_activities_between(api, start_date.isoformat(), today.isoformat(), data_dir)
+    _, activities = download_activities_between(
+        api, start_date.isoformat(), today.isoformat(), data_dir
+    )
     export_daily_health(api, data_dir, start_date, today, force_dates={today})
-
-    activities = safe_call(
-        api.get_activities_by_date, start_date.isoformat(), today.isoformat(), sortorder="asc"
-    ) or []
 
     health = _load_cached_health(data_dir, start_date, today)
 

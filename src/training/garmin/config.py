@@ -23,7 +23,7 @@ commenti nei file YAML, che e' dove si cambiano.
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -79,8 +79,13 @@ def _local_tz(value: Any) -> tuple[Any, str | None]:
 def _history_start(value: Any) -> tuple[Any, str | None]:
     # YAML legge gia' 2025-01-01 come `date`; una stringa vuol dire che la
     # data e' scritta male (o tra virgolette).
-    if not isinstance(value, date):
-        return None, "deve essere una data nella forma YYYY-MM-DD"
+    #
+    # `datetime` e' sottoclasse di `date`, quindi `2025-01-01 00:00:00` passava
+    # l'isinstance e poi rompeva il confronto qui sotto con un `TypeError` a
+    # import di questo modulo: un traceback su ogni comando, invece dell'unico
+    # ConfigError che questo file promette.
+    if not isinstance(value, date) or isinstance(value, datetime):
+        return None, "deve essere una data nella forma YYYY-MM-DD, senza l'ora"
     if value > date.today():
         return None, f"e' nel futuro: {value}"
     return value, None

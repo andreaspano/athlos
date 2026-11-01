@@ -1,7 +1,6 @@
 """Esportazione delle metriche giornaliere di salute/wellness."""
 
 import json
-import os
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -11,7 +10,8 @@ from garminconnect import Garmin, GarminConnectAuthenticationError
 
 from .auth import init_api
 from .client import safe_call
-from .config import DATA_DIR, HEALTH_REFRESH_DAYS, HISTORY_START, REQUEST_DELAY
+from .config import DATA_DIR, HEALTH_REFRESH_DAYS, HISTORY_START, LOCAL_TZ, REQUEST_DELAY
+from .files import write_json
 
 DAILY_ENDPOINTS = {
     "stats": lambda api, d: api.get_stats(d),
@@ -45,10 +45,17 @@ def _is_complete(path: Path, day: date) -> bool:
     `training_status` del 2026-10-15, salvato alle 13:20, non aveva la corsa
     delle 19:50, ne' il VO2max e il carico che Garmin ne ha ricavato."""
     try:
-        saved = datetime.fromtimestamp(path.stat().st_mtime)
+        saved = datetime.fromtimestamp(path.stat().st_mtime, tz=LOCAL_TZ)
     except OSError:
         return False
-    if saved < datetime.combine(day + timedelta(days=1), datetime.min.time()):
+    # Il giorno e' quello di Garmin, cioe' del fuso dell'account (`local_tz`),
+    # non quello dell'orologio della macchina: su un portatile in viaggio, o in
+    # un container con un TZ diverso, le due mezzanotti non sono la stessa e un
+    # file scritto alle 23 di Roma risultava salvato il giorno dopo.
+    end_of_day = datetime.combine(
+        day + timedelta(days=1), datetime.min.time(), tzinfo=LOCAL_TZ
+    )
+    if saved < end_of_day:
         return False
     # Anche un file troncato ha un mtime dopo la fine del suo giorno: senza
     # questa lettura resterebbe "completo" per sempre e quel giorno non si
@@ -62,21 +69,10 @@ def _is_complete(path: Path, day: date) -> bool:
     return True
 
 
-def _write_json(path: Path, data) -> None:
-    """Scrive `data` in `path` senza poter lasciare un file a meta': prima un
-    temporaneo nella stessa cartella, poi `os.replace`, che e' atomico.
-
-    Serve perche' il Ctrl+C e' una via d'uscita dichiarata (vedi sotto e il
-    Makefile): scrivendo direttamente sul file giusto, un'interruzione a meta'
-    della `json.dump` lasciava un file troncato che `_is_complete` dava per
-    buono."""
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-        os.replace(tmp, path)
-    finally:
-        tmp.unlink(missing_ok=True)
+def today_local() -> date:
+    """Oggi nel fuso dell'account, non in quello della macchina: e' il giorno
+    con cui Garmin nomina i suoi dati, e quello con cui li nominiamo noi."""
+    return datetime.now(LOCAL_TZ).date()
 
 
 def export_daily_health(
@@ -127,7 +123,7 @@ def export_daily_health(
                 failures.append(f"{name} {date_str}: {exc}")
             else:
                 if data is not None:
-                    _write_json(target, data)
+                    write_json(target, data)
                     downloaded += 1
             time.sleep(REQUEST_DELAY)
 
@@ -162,7 +158,7 @@ def export_lactate_threshold(api: Garmin, out_dir: Path) -> None:
         return
     health_dir = out_dir / "health"
     health_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(health_dir / LACTATE_THRESHOLD_FILE, data)
+    write_json(health_dir / LACTATE_THRESHOLD_FILE, data)
 
 
 def refresh_recent_health(api: Garmin, data_dir: Path = DATA_DIR) -> None:
@@ -174,7 +170,7 @@ def refresh_recent_health(api: Garmin, data_dir: Path = DATA_DIR) -> None:
     readiness dopo un allenamento, il body battery che si consuma); ieri, se
     l'ultimo giro e' stato ieri di giorno, e' rimasto a meta' e si completa
     adesso. In piu' riscarica l'ultima soglia del lattato."""
-    today = date.today()
+    today = today_local()
     export_daily_health(
         api,
         Path(data_dir),
@@ -195,4 +191,4 @@ def backfill_health(data_dir: Path = DATA_DIR) -> None:
     puo' interrompere con Ctrl+C e rilanciare: i giorni gia' scaricati e
     completi vengono saltati, quelli salvati a meta' giornata si riscaricano."""
     api = init_api()
-    export_daily_health(api, Path(data_dir), HISTORY_START, date.today())
+    export_daily_health(api, Path(data_dir), HISTORY_START, today_local())

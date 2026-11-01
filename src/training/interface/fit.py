@@ -39,10 +39,18 @@ def load_activity_types(data_dir: Path) -> dict:
 
 
 def _load_json_map(path: Path) -> dict:
+    """La mappa, o vuota se il file manca o non e' JSON valido.
+
+    Un file troncato non deve far cadere la pagina: i nomi e i tipi che
+    contiene sono un aiuto (il FIT da solo non li sa), non un dato
+    indispensabile, e `make backfill_activity_names` li rifa'."""
     if not path.exists():
         return {}
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
 
 
 def save_json_map(path: Path, values: dict) -> None:
