@@ -513,10 +513,15 @@ h2 {
   justify-content: space-between;
   gap: 24px;
 }
+/* Il corpo del verdetto: l'icona e il testo accanto.
+   **Niente tetto alla larghezza.** C'era, 560 px, ed era di Next: quel
+   riquadro metteva i chip della seduta a destra, e il testo doveva stargli
+   alla larga. Next non c'e' piu' — ne' nel giorno (todo 66) ne' nella
+   settimana (todo 69) — e quel numero restava a tenere il verdetto in mezza
+   card, con l'altra meta' vuota. Adesso il Summary prende la card intera. */
 .next-main {
   display: flex;
   gap: 16px;
-  max-width: 560px;
 }
 .next-icon {
   flex: 0 0 auto;

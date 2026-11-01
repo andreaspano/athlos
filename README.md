@@ -238,7 +238,9 @@ l'ora e il tasto per rifarla, come nella Day.
 
 Dal todo 68 la Week ha le **stesse viste della Day, nello stesso ordine** —
 tre dal todo 90, che le ha portate da quattro a tre. Lo **Snap** e' il corpo:
-il verdetto a tutta larghezza e le quattro card. La **Training** e' il lavoro:
+il verdetto a tutta larghezza — **la card e il testo dentro**: il tetto di
+560 px era di Next, che metteva i chip a destra, e teneva il verdetto in
+mezza card con l'altra meta' vuota. La **Training** e' il lavoro:
 in cima il **Plan**, cosa chiedeva la settimana (todo 71), poi l'elenco delle
 sedute (un clic su una seduta apre la
 Day di quel giorno, sulla sua **Training**: si e' cliccato una seduta, e la
