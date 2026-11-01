@@ -53,7 +53,7 @@ import { SummaryCard } from "./SummaryCard";
 import { TopBar } from "./TopBar";
 import { WeekPicker } from "./WeekPicker";
 import { WeekTrendPanels } from "./WeekTrendPanels";
-import { WeekPlanBrief, WeekPlanCard } from "./WeekPlanCard";
+import { WeekPlanBrief } from "./WeekPlanCard";
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
@@ -704,11 +704,6 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               )}
             </section>
             </div>
-            {/* La settimana spiegata, sotto le righe che spiega (todo 90):
-                a cosa serve, i totali, le note, i ritmi, quando scaricare.
-                Era una vista a parte col documento intero; la tabella dei
-                giorni non c'e' piu' perche' e' nelle righe qui sopra. */}
-            <WeekPlanCard plan={plan} monday={monday} />
           </>
         )}
         {/* Lo Snap e' il corpo, come quello del giorno (todo 68): il

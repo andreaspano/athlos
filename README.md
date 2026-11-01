@@ -242,8 +242,7 @@ il verdetto a tutta larghezza e le quattro card. La **Training** e' il lavoro:
 in cima il **Plan**, cosa chiedeva la settimana (todo 71), poi l'elenco delle
 sedute (un clic su una seduta apre la
 Day di quel giorno, sulla sua **Training**: si e' cliccato una seduta, e la
-seduta sta li'), il commento sulla forma della settimana e, in fondo, la
-**settimana spiegata** — quello che era la vista Plan (todo 90). Le sedute
+seduta sta li') e il commento sulla forma della settimana. Le sedute
 avevano sopra un grafico del lavoro per sport, tolto col todo 72.
 Prima stavano tutte nello Snap, sette riquadri in fila, insieme a un **Next**
 che dal todo 69 non c'e' piu'.
@@ -277,13 +276,10 @@ limiti.
 Sotto tre giorni misurati la fascia non si disegna, e il pannello Training non
 ce l'ha affatto.
 
-Il file della settimana si legge **tutto nella Training**, in due pezzi che
-rispondono a due domande (todo 71, riunite dal todo 90): la colonna ha le
-sette sedute come **dati**, una riga per giorno, da scorrere con un'occhiata
+Del file della settimana la pagina mostra **le sette sedute**, e basta: la
+colonna le ha come **dati**, una riga per giorno, da scorrere con un'occhiata
 accanto alle sedute fatte nella colonna di fianco — con `Week 3 of 18`
-accanto al titolo, che dice dove si e' nel blocco senza aggiungere una riga
-(gara e bersaglio no: non cambiano da un lunedi' all'altro, e li dice la card
-in fondo) —
+accanto al titolo, che dice dove si e' nel blocco senza aggiungere una riga —
 
 ```
 Mon 26 Oct   Rest
@@ -302,25 +298,21 @@ buttava via, cosi' una qualita' e un lento si somigliavano. Il riassunto
 resta sopra perche' e' lui che sta sulla riga della seduta fatta nella colonna
 accanto.
 
-— e **sotto le due colonne** c'e' il resto del file: a cosa serve quella
-settimana, i totali, le note, i ritmi, quando scaricare. Era una vista a
-parte col documento intero, e dal todo 90 non lo e' piu' per due ragioni
-misurate sui file: la tabella dei giorni era la stessa cosa detta due volte
-nella stessa vista (dal todo 89 le righe portano il testo di quella tabella),
-e i ritmi e le deroghe sono **copiati dal blocco** — gli stessi valori di
-«Ritmi e frequenze» e le stesse regole di «Quando scaricare», che si leggono
-nella pagina Goal. Quello che resta e' scritto per quella settimana e solo
-li': 1.300-1.800 caratteri, e dentro ci puo' stare una regola di scarico in
-piu' che il blocco non ha. Per questo la card mostra **tutto tranne la
-tabella dei giorni**, tagliata per forma — il blocco di tabella in cui una
-prima cella e' un giorno — e non per nome di sezione, che le sezioni le
-scrive un agente.
+— e **il resto del file non si vede piu'** (todo 91). Era una vista a parte
+col documento intero (todo 60), poi una card in fondo alla Training (todo 90),
+e adesso niente, perche' quello che diceva sta altrove: la tabella dei giorni
+e' in queste righe col loro dettaglio (todo 89), i ritmi e le regole di
+scarico sono **copiati dal blocco** — gli stessi valori di «Ritmi e
+frequenze» e le stesse regole di «Quando scaricare» — e si leggono nella
+pagina Goal. Quello che resta scritto per quella settimana e solo li' — a
+cosa serviva, i totali, le decisioni prese strada facendo con la loro data —
+**resta nel file**, che si apre anche da solo: `summary/05.plan/<lunedi>.md`.
 
 Le sedute arrivano dal front matter (`sessions` in `WeekPlan`), **in ordine
 di data e non di file**: il file di settembre 2026 ha la tabella che parte
 dalla domenica, e una card che le mette in fila le vuole in fila. Quel file
-pero' il front matter non ce l'ha, quindi per la sua settimana la card mostra
-i quattro riquadri del blocco a trattino e nessuna riga: le sedute a macchina
+pero' il front matter non ce l'ha, quindi per la sua settimana la colonna
+resta vuota e senza il `Week n of N` accanto al titolo: le sedute a macchina
 non ci sono, e ricavarle dalla prosa e' la strada che il todo 14 aveva
 scartato.
 
@@ -583,9 +575,10 @@ definizione sola per l'orchestratore e per l'API.
 
 Dal todo 60 **si vedono anche**, nella vista Training della Week
 (`GET /api/weekly/<lunedi>/plan`, 404 quella settimana non ne ha): fino al
-todo 90 in una vista Plan tutta sua, adesso in una card sotto le sette righe.
-Il testo e le sedute del front matter arrivano insieme e dicono le stesse
-cose — la tabella col perche' dentro, i campi a macchina.
+todo 90 in una vista Plan tutta sua, poi in una card, dal todo 91 in nessuno
+dei due. Delle sedute del front matter la pagina usa i campi; il testo della
+tabella arriva insieme a loro, una riga per giorno, ed e' il dettaglio sotto
+ogni riassunto.
 
 Dal todo 63 **`sessions` si legge, per un giorno alla volta**:
 `GET /api/daily/<giorno>/plan` rende la seduta prevista per quel giorno nei suoi
