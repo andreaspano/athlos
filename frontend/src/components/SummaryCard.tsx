@@ -54,12 +54,12 @@ function Part({
               sotto, che e' quello che questo testo riassume. */}
           {face && (
             <img
-              className="head-face"
+              className="card-face"
               src={iconUrl(`${face}.png`)}
               alt={face}
               title={face}
-              width={20}
-              height={20}
+              width={22}
+              height={22}
             />
           )}
           {part.refresh}
