@@ -7,7 +7,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from garminconnect import Garmin
+from garminconnect import Garmin, GarminConnectAuthenticationError
 
 from .auth import init_api
 from .client import safe_call
@@ -71,6 +71,25 @@ def _remember(act: dict, names: dict, types: dict) -> None:
         types[activity_id] = type_key
 
 
+def _download_or_warn(api: Garmin, activity_id, label: str):
+    """Scarica il file originale di una attivita', e se non si puo' lo dice e
+    restituisce `None`.
+
+    `safe_call` alza l'eccezione sugli errori veri (vedi `client.py`): qui
+    serve il comportamento di prima, cioe' che una singola attivita' che non
+    si scarica non fermi le altre. L'errore di autenticazione invece esce:
+    senza login non ne scarichera' nessuna."""
+    try:
+        return safe_call(
+            api.download_activity, activity_id, dl_fmt=api.ActivityDownloadFormat.ORIGINAL
+        )
+    except GarminConnectAuthenticationError:
+        raise
+    except Exception as exc:
+        print(f"  {label} ATTENZIONE: attivita' {activity_id} non scaricata: {exc}")
+        return None
+
+
 def export_activities(api: Garmin, out_dir: Path) -> list:
     activities_dir = out_dir / "activities"
     fit_dir = activities_dir / "fit"
@@ -104,9 +123,7 @@ def export_activities(api: Garmin, out_dir: Path) -> list:
         target = fit_dir / f"{activity_id}.zip"
         if target.exists():
             continue  # gia' scaricata in un run precedente
-        data = safe_call(
-            api.download_activity, activity_id, dl_fmt=api.ActivityDownloadFormat.ORIGINAL
-        )
+        data = _download_or_warn(api, activity_id, f"[{i}/{len(all_activities)}]")
         if data:
             with open(target, "wb") as f:
                 f.write(data)
@@ -162,11 +179,8 @@ def download_activities_between(
     downloaded = []
     for i, act in enumerate(to_download, 1):
         activity_id = act["activityId"]
-        data = safe_call(
-            api.download_activity, activity_id, dl_fmt=api.ActivityDownloadFormat.ORIGINAL
-        )
+        data = _download_or_warn(api, activity_id, f"[{i}/{len(to_download)}]")
         if data is None:
-            print(f"  [{i}/{len(to_download)}] ATTENZIONE: impossibile scaricare l'attivita' {activity_id}")
             time.sleep(REQUEST_DELAY)
             continue
 
@@ -240,11 +254,8 @@ def update_activity(data_dir: Path = DATA_DIR) -> list:
     print(f"Trovate {len(new_ids)} nuove attivita'. Scarico ed estraggo in {data_dir.resolve()}...")
     downloaded = []
     for i, activity_id in enumerate(new_ids, 1):
-        data = safe_call(
-            api.download_activity, activity_id, dl_fmt=api.ActivityDownloadFormat.ORIGINAL
-        )
+        data = _download_or_warn(api, activity_id, f"[{i}/{len(new_ids)}]")
         if data is None:
-            print(f"  [{i}/{len(new_ids)}] ATTENZIONE: impossibile scaricare l'attivita' {activity_id}")
             time.sleep(REQUEST_DELAY)
             continue
 
