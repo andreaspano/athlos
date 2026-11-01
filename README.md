@@ -280,7 +280,10 @@ ce l'ha affatto.
 Il file della settimana si legge **tutto nella Training**, in due pezzi che
 rispondono a due domande (todo 71, riunite dal todo 90): la colonna ha le
 sette sedute come **dati**, una riga per giorno, da scorrere con un'occhiata
-accanto alle sedute fatte nella colonna di fianco —
+accanto alle sedute fatte nella colonna di fianco — con `Week 3 of 18`
+accanto al titolo, che dice dove si e' nel blocco senza aggiungere una riga
+(gara e bersaglio no: non cambiano da un lunedi' all'altro, e li dice la card
+in fondo) —
 
 ```
 Mon 26 Oct   Rest

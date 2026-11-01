@@ -811,6 +811,15 @@ h2 {
   text-transform: uppercase;
   margin-bottom: 10px;
 }
+/* La nota accanto al titolo di un riquadro: contesto, non titolo. Fuori dal
+   maiuscoletto e dal grassetto dell'intestazione, cosi' si legge come una
+   didascalia e non come un secondo titolo. */
+.head-note {
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
 .prose {
   font-size: 0.9rem;
 }

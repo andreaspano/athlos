@@ -37,20 +37,27 @@ export function Stat({
 }
 
 /** Il titolo piccolo di un riquadro, con l'icona della sua sezione del report
- * e, in fondo a destra, il tasto che rifa' solo quella sezione (todo 44). */
+ * e, in fondo a destra, il tasto che rifa' solo quella sezione (todo 44).
+ *
+ * `note` e' un pezzo di contesto accanto al titolo, in tono minore: quanto
+ * basta a dire *di che* parla questo riquadro senza aggiungergli una riga
+ * sotto. La usa la colonna del piano per la settimana del blocco. */
 export function CardHead({
   icon,
   title,
+  note,
   refresh,
 }: {
   icon: string | null;
   title: string;
+  note?: ReactNode;
   refresh?: ReactNode;
 }) {
   return (
     <div className="block-head">
       {icon && <img src={iconUrl(icon)} alt="" width={22} height={22} />}
       <span>{title}</span>
+      {note && <span className="head-note">{note}</span>}
       {refresh}
     </div>
   );
