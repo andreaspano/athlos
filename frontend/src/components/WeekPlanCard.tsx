@@ -1,4 +1,11 @@
-// Il piano della settimana (todo 60): la vista Plan della Week.
+// Il piano della settimana (todo 60): la card in fondo alla vista Training,
+// e la colonna dei sette giorni accanto alle sedute fatte.
+//
+// Fino al todo 90 era **una vista a parte**, col documento intero. Non lo e'
+// piu': i ritmi e le regole di scarico che quel documento porta sono quelli
+// del blocco e si leggono nella pagina Goal, la tabella dei giorni e' nelle
+// righe della colonna (todo 89), e quello che restava scritto solo per quella
+// settimana sta in questa card, sotto le righe che spiega.
 //
 // Il file e' `summary/05.plan/<lunedi>.md`, uno per settimana del blocco. Lo
 // scriveva solo l'agente Next, dentro il prompt, e all'utente arrivava di
@@ -51,33 +58,74 @@ function WeekPlanStats({ plan }: { plan: WeekPlan }) {
   );
 }
 
+// La prima cella di una riga di giorno, come la scrive il piano:
+// `**Mon 9 Nov**`. La stessa forma che cerca `_day_row` nell'API, perche' e'
+// la stessa riga — qui per **non** mostrarla, li' per mostrarla nella sua
+// riga.
+const DAY_CELL = /^\s*\*{0,2}\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{1,2}\s+[A-Z][a-z]{2}/;
+
+/** Il corpo del piano **senza la tabella dei giorni** (todo 90).
+ *
+ * Quella tabella si legge nelle sette righe della colonna accanto, una per
+ * giorno, col dettaglio sotto il riassunto (todo 89): ripeterla qui vorrebbe
+ * dire la stessa cosa due volte nella stessa vista. Quello che resta e' la
+ * settimana spiegata — a cosa serve, i totali, le note, i ritmi, quando
+ * scaricare.
+ *
+ * Si taglia **per forma e non per titolo**: si butta il blocco di righe di
+ * tabella in cui una prima cella e' un giorno, e si tengono le altre tabelle
+ * (i ritmi). Un filtro sul nome della sezione sarebbe fragile — le sezioni le
+ * scrive un agente (todo 86), e basta che un giorno chiami «Pace» quella
+ * tabella perche' il filtro mangi la cosa sbagliata.
+ *
+ * Le altre sezioni **non si toccano**, nemmeno quelle che ripetono il blocco:
+ * «When to back off» e' quattro quinti le deroghe del goal e un quinto una
+ * regola scritta per quella settimana — il 9 novembre *«if Sunday morning
+ * readiness is under 50 … cut the long run to 12 km»*, che nel blocco non
+ * c'e'. Buttare la sezione butterebbe anche quella. */
+export function withoutDayTable(body: string): string {
+  const lines = body.split("\n");
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (!lines[i].trimStart().startsWith("|")) {
+      out.push(lines[i]);
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j < lines.length && lines[j].trimStart().startsWith("|")) j += 1;
+    const block = lines.slice(i, j);
+    const days = block.some((line) =>
+      DAY_CELL.test(line.trim().replace(/^\|/, "").split("|")[0] ?? ""),
+    );
+    if (!days) out.push(...block);
+    i = j;
+  }
+  // Il buco lasciato dalla tabella non deve diventare un salto: due righe
+  // vuote di fila tornano una.
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function WeekPlanCard({
   plan,
   monday,
-  loading,
 }: {
   plan: WeekPlan | null;
   monday: string;
-  loading: boolean;
 }) {
-  if (plan === null) {
-    // Finche' la chiamata e' in volo non si dice ancora che il piano non
-    // c'e': "Loading…" e "no plan" sono due cose diverse, e scambiarle fa
-    // lampeggiare un errore che non e' vero.
-    if (loading) return <p className="caption">Loading…</p>;
-    return (
-      <p className="info">
-        No plan for the week of {shortDayLabel(monday)}. The weeks of a block are files in{" "}
-        <code>summary/05.plan/</code>, named after their Monday; the weeks before a block
-        starts do not have one.
-      </p>
-    );
-  }
+  // Niente piano, niente card (todo 90): la colonna delle sedute previste,
+  // qui sopra, e' gia' la cornice che lo dice — una settimana prima
+  // dell'inizio del blocco non ne ha uno, e dirlo due volte nella stessa
+  // vista e' dirlo male. Lo stesso mentre la chiamata e' in volo: la card
+  // compare col testo.
+  if (plan === null) return null;
+  const prose = withoutDayTable(plan.body);
   return (
     <section className="card plan-card week-plan-card" aria-label="Weekly plan">
       <CardHead icon={PLAN_ICON} title={plan.title} />
       <WeekPlanStats plan={plan} />
-      <div className="prose plan-prose">{markdown(plan.body)}</div>
+      {prose && <div className="prose plan-prose">{markdown(prose)}</div>}
       <p className="caption plan-file">summary/05.plan/{plan.file}</p>
       <WrittenAt when={plan.written_at} day={monday} />
     </section>

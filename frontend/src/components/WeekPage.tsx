@@ -352,13 +352,14 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
     return () => controller.abort();
   }, [monday, reloads, view, future]);
 
-  // Il piano della settimana (todo 60), sulle due viste che lo mostrano: il
-  // documento nel Plan, i suoi totali nella Training (todo 70). Una
+  // Il piano della settimana (todo 60): lo chiede **solo la Training**, che
+  // dal todo 90 e' il posto dove sta — le sette righe coi loro dettagli, e
+  // sotto la settimana spiegata. La vista Plan non c'e' piu'. Una
   // settimana senza file rende `null`, che qui vuol dire "non ce n'e' uno" e
   // non "non si e' potuto chiedere": `planLoading` tiene separate le due
   // cose, cosi' la card non annuncia un piano mancante mentre lo cerca.
   useEffect(() => {
-    if (view !== "plan" && view !== "training") return;
+    if (view !== "training") return;
     const controller = new AbortController();
     setPlan(null);
     setPlanLoading(true);
@@ -604,10 +605,6 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
             theme={theme}
           />
         )}
-        {/* Come doveva andare la settimana: il Plan (todo 60). */}
-        {view === "plan" && (
-          <WeekPlanCard plan={plan} monday={monday} loading={planLoading} />
-        )}
         {/* La Training della settimana (todo 68), sulla linea di quella del
             giorno: cosa hai fatto, com'e' andato, cosa viene dopo. Le sedute
             e il grafico stavano dentro la card del commento; qui sono due
@@ -707,6 +704,11 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               )}
             </section>
             </div>
+            {/* La settimana spiegata, sotto le righe che spiega (todo 90):
+                a cosa serve, i totali, le note, i ritmi, quando scaricare.
+                Era una vista a parte col documento intero; la tabella dei
+                giorni non c'e' piu' perche' e' nelle righe qui sopra. */}
+            <WeekPlanCard plan={plan} monday={monday} />
           </>
         )}
         {/* Lo Snap e' il corpo, come quello del giorno (todo 68): il
