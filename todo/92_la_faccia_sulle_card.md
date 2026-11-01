@@ -91,13 +91,16 @@ testo di ottobre sarebbe un voto che nessuno ha dato.
 
 ### 5. La faccia nella cornice — `CardHead`
 
-Un `face` accanto al `note` del todo 91: l'icona in fondo
-all'intestazione, prima del tasto che rifa' la sezione, grande come quella
-della sezione (22 px), col `title` che dice la parola — `perfect`, `low` —
-perche' un'icona senza nome e' un indovinello.
+Un `face` accanto al `note` del todo 91, grande come l'icona della sezione
+(22 px), col `title` che dice la parola — `perfect`, `low` — perche'
+un'icona senza nome e' un indovinello.
 
-Sta nell'intestazione e non sopra i numeri per la ragione del todo 75: li'
-non aggiunge una riga, e nessun allineamento si muove.
+Nel markup la scrive l'intestazione, che e' dove arriva la prop, ma **si
+vede in fondo a destra della card**: un voto si guarda dopo aver letto, non
+prima, e nell'angolo non si mette in mezzo al titolo ne' al tasto che rifa'
+la sezione. Il posto se lo prende da se' — `:has()` allarga il fondo della
+sola card che una faccia ce l'ha — cosi' non finisce sopra l'ultima riga di
+testo. Niente righe nuove: l'allineamento delle card non si muove.
 
 ## Quello che non va toccato
 

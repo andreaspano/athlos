@@ -64,11 +64,14 @@ export function CardHead({
       {icon && <img src={iconUrl(icon)} alt="" width={22} height={22} />}
       <span>{title}</span>
       {note && <span className="head-note">{note}</span>}
-      {/* Col nome scritto nel `title`: un'icona senza nome e' un indovinello,
-          e cinque facce che si somigliano a 22 px lo sono due volte. */}
+      {/* La faccia sta **in fondo a destra della card**, non qui: la
+          scrive l'intestazione perche' e' lei che ha la prop, e il CSS la
+          porta nell'angolo (`.card-face`, posizionata sulla cornice). Col
+          nome nel `title`: un'icona senza nome e' un indovinello, e cinque
+          facce che si somigliano a 22 px lo sono due volte. */}
       {face && (
         <img
-          className="head-face"
+          className="card-face"
           src={iconUrl(`${face}.png`)}
           alt={face}
           title={face}

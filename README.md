@@ -684,10 +684,10 @@ controlli sono strutturali e non sanno niente di allenamento.
 
 ### La faccia su ogni card
 
-Dal todo 92 ogni card porta in cima una delle cinque facce — `terrible`,
+Dal todo 92 ogni card porta **in fondo a destra** una delle cinque facce — `terrible`,
 `low`, `medium`, `high`, `perfect`, i file di `icons/` disegnati da
-`tools/scale_icons.py` — a dire **come sta andando quella cosa** prima di
-leggere i numeri e prima di leggere il testo. Sei card su tutte e due le
+`tools/scale_icons.py` — a dire **come sta andando quella cosa**. Sta
+nell'angolo e non in cima perche' un voto si guarda dopo aver letto. Sei card su tutte e due le
 pagine: Summary, Health, Recovery, Load, Fitness e il Comment della Training.
 
 **Il voto viene dai numeri** (`api/score.py`), non da un'opinione: le fasce
