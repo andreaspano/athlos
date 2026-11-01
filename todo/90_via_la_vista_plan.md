@@ -129,6 +129,31 @@ La pagina in un DOM (jsdom sul bundle vero, contro l'API accesa):
 
 `npm run typecheck` pulito, `npm run build` ok, servizio riavviato.
 
+### Un seguito, subito dopo: via anche l'apertura
+
+Guardando la card finita, il doppione vero era rimasto dentro di lei. Ogni
+settimana comincia con la stessa riga — *«Half marathon in 2h20 (6'38"/km) on
+Sunday 28 February 2027. Phase: base. The whole block… is in
+`plan/half_marathon_2.20.md`»* — che sta a venti centimetri dai quattro numeri
+che dicono fase, settimana, gara e bersaglio, e rimanda a un file che e' una
+pagina dell'app.
+
+`withoutOpening` la salta. **Il file non si tocca e l'agente non cambia**: in
+`summary/05.plan/<lunedi>.md` quella riga ci sta bene, perche' il documento si
+apre anche da solo e li' e' l'unico modo di sapere a quale blocco appartiene
+la settimana. E' in lettura che e' di troppo.
+
+Si riconosce **dai dati e non dalle parole**: il primo blocco si salta solo se
+contiene lo slug del blocco o il bersaglio, cioe' due cose che la card mostra
+gia' nei suoi riquadri; e solo il primo, mai quelli dopo. Da cui il
+comportamento su `2026-09-28.md`, il file senza front matter: slug e bersaglio
+sono nulli, non c'e' niente da riconoscere, e la sua apertura **resta** —
+quello che non si sa riconoscere non si taglia.
+
+Misurato: la prosa di questa settimana passa da 2.284 a **1.936** caratteri, e
+nella card non compare piu' ne' `2:20:00` ne' `half_marathon_2.20` fuori dai
+riquadri.
+
 ### Quello che non ho provato
 
 **Lo schermo**, come sempre senza browser: quanto e' lunga la Training

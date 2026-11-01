@@ -107,6 +107,33 @@ export function withoutDayTable(body: string): string {
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/** Il corpo senza il **paragrafo di apertura**, quando quel paragrafo dice
+ * quello che i quattro numeri dicono gia' (todo 90).
+ *
+ * Ogni settimana scritta da `p_week` comincia con la stessa riga: *«Half
+ * marathon in 2h20 (6'38"/km) on Sunday 28 February 2027. Phase: base. The
+ * whole block… is in `plan/half_marathon_2.20.md`»*. Nel file ci sta bene —
+ * si apre anche da solo, e li' dire a quale blocco appartiene la settimana e'
+ * l'unico modo di saperlo — ma nella card sta a venti centimetri dalla riga
+ * che dice fase, settimana, gara e bersaglio, e rimanda a un file che e' una
+ * pagina dell'app.
+ *
+ * **Si riconosce dai dati e non dalle parole**: si salta il primo blocco solo
+ * se contiene lo slug del blocco o il bersaglio, cioe' due cose che la card
+ * mostra gia' nei suoi riquadri. Un'apertura che parlasse d'altro resta dov'e'
+ * — e il taglio vale **solo** per il primo blocco, mai per quelli dopo.
+ *
+ * Il file non si tocca, e l'agente non cambia: il documento resta intero per
+ * chi lo legge fuori dall'app. */
+export function withoutOpening(body: string, slug: string | null, target: string | null): string {
+  const blocks = body.split(/\n\s*\n/);
+  const first = blocks[0] ?? "";
+  // Un titolo o una tabella non sono l'apertura: l'apertura e' prosa.
+  if (first.startsWith("#") || first.trimStart().startsWith("|")) return body;
+  const says = [slug, target].filter((v): v is string => Boolean(v)).some((v) => first.includes(v));
+  return says ? blocks.slice(1).join("\n\n").trim() : body;
+}
+
 export function WeekPlanCard({
   plan,
   monday,
@@ -120,7 +147,7 @@ export function WeekPlanCard({
   // vista e' dirlo male. Lo stesso mentre la chiamata e' in volo: la card
   // compare col testo.
   if (plan === null) return null;
-  const prose = withoutDayTable(plan.body);
+  const prose = withoutOpening(withoutDayTable(plan.body), plan.plan, plan.target_time);
   return (
     <section className="card plan-card week-plan-card" aria-label="Weekly plan">
       <CardHead icon={PLAN_ICON} title={plan.title} />
