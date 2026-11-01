@@ -238,6 +238,16 @@ export function PlanDayRow({
  *
  * La cornice c'e' sempre, come nella Day (todo 63): una settimana senza
  * piano la lascia vuota invece di far sparire un riquadro su tre. */
+/** `Week 3 of 18`, o niente quando il piano non lo dice: il file di settembre
+ * 2026 non ha front matter, e un riquadro di contesto che dice «Week – of –»
+ * e' peggio di un riquadro senza contesto. */
+function blockWeek(plan: WeekPlan | null): string | null {
+  if (plan?.block_week == null) return null;
+  return plan.block_weeks != null
+    ? `Week ${plan.block_week} of ${plan.block_weeks}`
+    : `Week ${plan.block_week}`;
+}
+
 export function WeekPlanBrief({
   plan,
   monday,
@@ -257,7 +267,14 @@ export function WeekPlanBrief({
   const byDay = new Map((plan?.sessions ?? []).map((s) => [s.day, s]));
   return (
     <section className="card plan-card week-days" aria-label="Plan">
-      <CardHead icon={PLAN_ICON} title="Plan" />
+      {/* Dove sta questa settimana nel blocco, accanto al titolo.
+          Il todo 75 aveva tolto i **quattro** numeri del blocco da qui perche'
+          stavano in una riga loro e spingevano in basso il lunedi',
+          disallineandolo dalla prima seduta della colonna accanto. Questo sta
+          **dentro l'intestazione**, che c'era gia': non aggiunge una riga,
+          quindi l'allineamento non si muove. Gara e bersaglio restano fuori —
+          non cambiano da un lunedi' all'altro, e li dice la card in fondo. */}
+      <CardHead icon={PLAN_ICON} title="Plan" note={blockWeek(plan)} />
       {plan === null
         ? loading && <p className="caption">Loading…</p>
         : plan.sessions &&
