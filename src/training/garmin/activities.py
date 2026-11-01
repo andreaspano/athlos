@@ -5,6 +5,7 @@ import json
 import re
 import time
 import zipfile
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from garminconnect import Garmin, GarminConnectAuthenticationError
@@ -13,6 +14,14 @@ from .auth import init_api
 from .client import safe_call
 from .config import DATA_DIR, REQUEST_DELAY
 from .health import refresh_recent_health
+
+# Quanto indietro guarda `update_activity` nell'elenco di Garmin. Non si puo'
+# fermare alla prima attivita' gia' presente: Garmin ordina per data di
+# inizio, non di caricamento, quindi un'escursione di sabato importata dopo la
+# corsa di oggi sta *sotto* la corsa di oggi nell'elenco, e la prima regola la
+# saltava per sempre. Un mese di attivita' sta in una pagina da 100, quindi la
+# finestra non costa nessuna chiamata in piu' nel caso normale.
+SCAN_LOOKBACK_DAYS = 30
 
 _ACTIVITY_ID_RE = re.compile(r"(\d+)_ACTIVITY\.fit$")
 _NAMES_FILENAME = "activity_names.json"
@@ -69,6 +78,41 @@ def _remember(act: dict, names: dict, types: dict) -> None:
     type_key = (act.get("activityType") or {}).get("typeKey")
     if type_key:
         types[activity_id] = type_key
+
+
+def _started_before(act: dict, cutoff: date) -> bool:
+    """L'attivita' comincia prima di `cutoff`? Se la data non si legge
+    rispondiamo no: meglio scorrere qualche pagina in piu' che perdere
+    un'attivita'."""
+    stamp = act.get("startTimeLocal") or act.get("startTimeGMT")
+    if not isinstance(stamp, str):
+        return False
+    try:
+        return datetime.fromisoformat(stamp).date() < cutoff
+    except ValueError:
+        return False
+
+
+def _extract_or_warn(data: bytes, data_dir: Path, activity_id, label: str) -> bool:
+    """Estrae in `fit/` lo zip di una attivita'; `False` se quei byte non sono
+    uno zip leggibile.
+
+    Garmin puo' rispondere 200 con un corpo che non e' uno zip (pagina di
+    manutenzione, corpo troncato). `zipfile.BadZipFile` non era catturata:
+    usciva da `update_activity` portandosi via `refresh_recent_health`, cioe'
+    sonno, readiness e body battery restavano a ieri per colpa di un FIT. Qui
+    vale la regola del resto del ciclo: si avvisa e si va avanti."""
+    if data[:2] != b"PK":
+        print(f"  {label} ATTENZIONE: la risposta per l'attivita' {activity_id} "
+              f"non e' uno zip ({len(data)} byte)")
+        return False
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            zf.extractall(data_dir / "fit")
+    except (zipfile.BadZipFile, OSError) as exc:
+        print(f"  {label} ATTENZIONE: zip dell'attivita' {activity_id} illeggibile: {exc}")
+        return False
+    return True
 
 
 def _download_or_warn(api: Garmin, activity_id, label: str):
@@ -184,8 +228,9 @@ def download_activities_between(
             time.sleep(REQUEST_DELAY)
             continue
 
-        with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            zf.extractall(data_dir / "fit")
+        if not _extract_or_warn(data, data_dir, activity_id, f"[{i}/{len(to_download)}]"):
+            time.sleep(REQUEST_DELAY)
+            continue
 
         downloaded.append(activity_id)
         print(f"  [{i}/{len(to_download)}] estratta attivita' {activity_id}")
@@ -199,9 +244,11 @@ def update_activity(data_dir: Path = DATA_DIR) -> list:
     """Si connette a Garmin Connect e scarica in data_dir le attivita' piu'
     recenti di quella gia' presente, estraendo lo zip originale di ognuna.
 
-    Le attivita' vengono richieste dalla piu' recente alla piu' vecchia:
-    ci si ferma alla prima gia' presente in data_dir, assumendo che tutte
-    quelle precedenti siano gia' state scaricate.
+    Le attivita' vengono richieste dalla piu' recente alla piu' vecchia, e si
+    guardano tutte quelle degli ultimi `SCAN_LOOKBACK_DAYS` giorni: di quelle
+    si scarica cio' che non c'e' gia'. Fermarsi alla prima gia' presente
+    (come faceva prima) perdeva per sempre un'attivita' caricata fuori ordine,
+    perche' l'elenco e' ordinato per data di inizio e non di caricamento.
 
     Alla fine rinfresca anche le metriche di salute degli ultimi giorni
     (`refresh_recent_health`): le card Recovery e Health della Day le leggono
@@ -219,55 +266,62 @@ def update_activity(data_dir: Path = DATA_DIR) -> list:
 
     api = init_api()
 
-    print("Recupero le attivita' piu' recenti da Garmin Connect...")
-    new_ids = []
-    start, limit = 0, 100
-    while True:
-        batch = safe_call(api.get_activities, start, limit)
-        if not batch:
-            break
-
-        stop = False
-        for act in batch:
-            activity_id = act.get("activityId")
-            if activity_id is None:
-                continue
-            _remember(act, names, types)
-            if activity_id in existing_ids:
-                stop = True
-                break
-            new_ids.append(activity_id)
-
-        if stop or len(batch) < limit:
-            break
-        start += limit
-        time.sleep(REQUEST_DELAY)
-
-    _save_activity_names(data_dir, names)
-    _save_activity_types(data_dir, types)
-
-    if not new_ids:
-        print("Nessuna nuova attivita' da scaricare.")
-        refresh_recent_health(api, data_dir)
-        return []
-
-    print(f"Trovate {len(new_ids)} nuove attivita'. Scarico ed estraggo in {data_dir.resolve()}...")
     downloaded = []
-    for i, activity_id in enumerate(new_ids, 1):
-        data = _download_or_warn(api, activity_id, f"[{i}/{len(new_ids)}]")
-        if data is None:
+    # La salute non dipende dalle attivita': si rinfresca comunque, anche se
+    # l'elenco non arriva o lo scaricamento finisce male a meta'.
+    try:
+        print("Recupero le attivita' piu' recenti da Garmin Connect...")
+        new_ids = []
+        cutoff = date.today() - timedelta(days=SCAN_LOOKBACK_DAYS)
+        start, limit = 0, 100
+        while True:
+            batch = safe_call(api.get_activities, start, limit)
+            if not batch:
+                break
+
+            past_cutoff = False
+            for act in batch:
+                activity_id = act.get("activityId")
+                if activity_id is None:
+                    continue
+                _remember(act, names, types)
+                if _started_before(act, cutoff):
+                    # Ordinate per data di inizio: da qui in giu' sono tutte fuori
+                    # dalla finestra.
+                    past_cutoff = True
+                    break
+                if activity_id not in existing_ids:
+                    new_ids.append(activity_id)
+
+            if past_cutoff or len(batch) < limit:
+                break
+            start += limit
             time.sleep(REQUEST_DELAY)
-            continue
 
-        with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            zf.extractall(data_dir / "fit")
+        _save_activity_names(data_dir, names)
+        _save_activity_types(data_dir, types)
 
-        downloaded.append(activity_id)
-        print(f"  [{i}/{len(new_ids)}] estratta attivita' {activity_id}")
-        time.sleep(REQUEST_DELAY)
+        if not new_ids:
+            print("Nessuna nuova attivita' da scaricare.")
+        else:
+            print(f"Trovate {len(new_ids)} nuove attivita'. Scarico ed estraggo in {data_dir.resolve()}...")
+            for i, activity_id in enumerate(new_ids, 1):
+                data = _download_or_warn(api, activity_id, f"[{i}/{len(new_ids)}]")
+                if data is None:
+                    time.sleep(REQUEST_DELAY)
+                    continue
 
-    print(f"Fatto: {len(downloaded)} nuove attivita' aggiunte a {data_dir.resolve()}")
-    refresh_recent_health(api, data_dir)
+                if not _extract_or_warn(data, data_dir, activity_id, f"[{i}/{len(new_ids)}]"):
+                    time.sleep(REQUEST_DELAY)
+                    continue
+
+                downloaded.append(activity_id)
+                print(f"  [{i}/{len(new_ids)}] estratta attivita' {activity_id}")
+                time.sleep(REQUEST_DELAY)
+
+            print(f"Fatto: {len(downloaded)} nuove attivita' aggiunte a {data_dir.resolve()}")
+    finally:
+        refresh_recent_health(api, data_dir)
     return downloaded
 
 
