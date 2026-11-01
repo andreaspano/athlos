@@ -669,6 +669,25 @@ h2 {
   display: grid;
   align-content: start;
 }
+/* La seduta prevista in due righe (todo 89): sopra il riassunto, sotto le
+   parole del piano. In una colonna, non affiancate: il dettaglio e' una
+   frase e su una riga sola spingerebbe i km a destra fuori vista. */
+.plan-session {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+/* Il dettaglio in tono minore e piu' piccolo: e' il documento che parla, e
+   la riga di sopra resta quella che si legge per prima. Va a capo quanto
+   serve — e' la ragione per cui le righe del piano e delle sedute stanno
+   sulla stessa griglia (todo 77): una riga che si alza alza anche quella di
+   fronte, e i due giorni restano affiancati. */
+.plan-detail {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
 /* Il giorno in tono minore: e' la chiave della riga, non il contenuto. */
 .plan-day {
   color: var(--muted);
