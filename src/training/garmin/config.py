@@ -203,8 +203,6 @@ _config = load_config(CONFIG_PATH)
 # prendono come argomento di default e che `api/cache.py` usa come chiave.
 # Le sottocartelle se le costruisce chi legge, dove serve.
 DATA_DIR = DATA_ROOT
-# Lo stesso posto: il backup completo e l'interfaccia lavorano sugli stessi file.
-OUTPUT_DIR = DATA_ROOT
 TOKEN_STORE = _config.token_store
 LOCAL_TZ = _config.local_tz
 HISTORY_START = _config.history_start

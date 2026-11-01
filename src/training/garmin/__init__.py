@@ -19,7 +19,6 @@ except ImportError:
     )
 
 from .activities import backfill_activity_names, update_activity
-from .cli import main
 from .health import backfill_health
 
-__all__ = ["backfill_activity_names", "backfill_health", "main", "update_activity"]
+__all__ = ["backfill_activity_names", "backfill_health", "update_activity"]

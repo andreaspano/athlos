@@ -19,7 +19,6 @@ dependencies = [
 
 [project.scripts]
 training = "training:main"
-garmin-export-all = "training.garmin:main"
 training-fitness-status = "training.garmin.fitness_status:main"
 training-weekly-data = "training.interface.weekly_data:main"
 training-daily-data = "training.interface.daily_data:main"

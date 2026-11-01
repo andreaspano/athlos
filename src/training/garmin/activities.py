@@ -134,52 +134,6 @@ def _download_or_warn(api: Garmin, activity_id, label: str):
         return None
 
 
-def export_activities(api: Garmin, out_dir: Path) -> list:
-    activities_dir = out_dir / "activities"
-    fit_dir = activities_dir / "fit"
-    fit_dir.mkdir(parents=True, exist_ok=True)
-
-    summary_path = activities_dir / "activities_summary.json"
-    all_activities = []
-
-    print("Recupero l'elenco di tutte le attivita'...")
-    start, limit = 0, 100
-    while True:
-        batch = safe_call(api.get_activities, start, limit)
-        if not batch:
-            break
-        all_activities.extend(batch)
-        print(f"  ...{len(all_activities)} attivita' trovate finora")
-        if len(batch) < limit:
-            break
-        start += limit
-        time.sleep(REQUEST_DELAY)
-
-    with open(summary_path, "w", encoding="utf-8") as f:
-        json.dump(all_activities, f, ensure_ascii=False, indent=2, default=str)
-    print(f"Totale attivita' trovate: {len(all_activities)} (elenco salvato in {summary_path})")
-
-    print("Scarico i file originali (FIT, zippati da Garmin) di ogni attivita'...")
-    for i, act in enumerate(all_activities, 1):
-        activity_id = act.get("activityId")
-        if activity_id is None:
-            continue
-        target = fit_dir / f"{activity_id}.zip"
-        if target.exists():
-            continue  # gia' scaricata in un run precedente
-        data = _download_or_warn(api, activity_id, f"[{i}/{len(all_activities)}]")
-        if data:
-            with open(target, "wb") as f:
-                f.write(data)
-            if i % 25 == 0 or i == len(all_activities):
-                print(f"  [{i}/{len(all_activities)}] scaricate finora...")
-        else:
-            print(f"  [{i}/{len(all_activities)}] ATTENZIONE: impossibile scaricare l'attivita' {activity_id}")
-        time.sleep(REQUEST_DELAY)
-
-    return all_activities
-
-
 def _existing_activity_ids(data_dir: Path) -> set:
     ids = set()
     for path in (data_dir / "fit").glob("*_ACTIVITY.fit"):
