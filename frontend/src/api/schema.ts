@@ -348,6 +348,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/weekly/planned": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Weeks with a plan
+         * @description The Mondays of the weeks that have a written plan in `summary/05.plan/`, oldest first.
+         *
+         *     This is how far the Week page lets you walk forward (todo 88): past the last planned week
+         *     there is nothing to look at, and an arrow that lights up on empty weeks is an arrow that
+         *     lies. No plans means no forward, which is the right answer and not a failure.
+         *
+         *     The Monday is the **file name**, which is the rule of the format
+         *     (`summary/05.plan/README.md`), so a file whose front matter cannot be read still counts:
+         *     if the file is there, the week can be looked at.
+         *
+         *     **Declared before `/api/weekly/{monday}`**, or the path would be read as a date and
+         *     answered with a 422.
+         *
+         *     It does not come from the block of the current goal (`block_start` + `block_weeks` in
+         *     `/api/plans`): that is what the goal *declares*, and the two diverge — changing goal
+         *     leaves the written weeks where they were (todo 86). The boundary is the files that exist.
+         */
+        get: operations["get_planned_weeks_api_weekly_planned_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/weekly/{monday}": {
         parameters: {
             query?: never;
@@ -1519,6 +1554,17 @@ export interface components {
              * @description The day's row of the plan's table, Markdown; null when it has none.
              */
             text: string | null;
+        };
+        /**
+         * PlannedWeeks
+         * @description The weeks that have a written plan.
+         */
+        PlannedWeeks: {
+            /**
+             * Weeks
+             * @description Mondays of the weeks with a file in `summary/05.plan/`, oldest first.
+             */
+            weeks: string[];
         };
         /** Range */
         Range: {
@@ -2843,6 +2889,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_planned_weeks_api_weekly_planned_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlannedWeeks"];
                 };
             };
         };

@@ -11,20 +11,31 @@ import { addDays, isoWeek, shortDayLabel, weekMonthLabel } from "../format";
 // senza fare una lista infinita. Piu' lontano si arriva con le frecce.
 const WEEKS = 52;
 
-/** Le settimane da mostrare, dalla piu' vecchia alla corrente. */
-function weekList(current: string): string[] {
+/** Le settimane da mostrare, dalla piu' vecchia all'ultima che si puo'
+ * guardare.
+ *
+ * L'ultima e' la corrente, o il confine del piano quando avanti si puo'
+ * andare (todo 88): l'anno indietro resta un anno indietro, e in cima si
+ * aggiungono le settimane previste. */
+function weekList(current: string, limit: string): string[] {
+  const last = limit > current ? limit : current;
   const weeks: string[] = [];
   for (let k = WEEKS - 1; k >= 0; k -= 1) weeks.push(addDays(current, -7 * k));
+  for (let week = addDays(current, 7); week <= last; week = addDays(week, 7)) weeks.push(week);
   return weeks;
 }
 
 export function WeekCalendar({
   monday,
   current,
+  limit,
   onSelect,
 }: {
   monday: string;
   current: string;
+  /** L'ultima settimana elencata: il confine del piano (todo 88). Senza, la
+   * corrente. */
+  limit?: string;
   onSelect: (monday: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -59,7 +70,7 @@ export function WeekCalendar({
     }
   }, [open]);
 
-  const weeks = weekList(current);
+  const weeks = weekList(current, limit ?? current);
   let mese = "";
 
   return (

@@ -685,40 +685,6 @@ h2 {
 /* Un giorno di riposo senza icona lascia la colonna vuota e il testo
    allineato con gli altri: la griglia tiene la colonna, non il contenuto. */
 
-/* Le quattro settimane che vengono (todo 87): quattro gruppi di sette righe,
-   in fondo alla vista Training e a tutta larghezza.
-   Le righe sono quelle del piano, `.plan-day-row`, quindi il passo e'
-   identico a quello della colonna di sopra: la card si legge come il suo
-   seguito. */
-.weeks-ahead .ahead-week + .ahead-week {
-  margin-top: 18px;
-}
-/* L'intestazione del gruppo: dove sta la settimana nel blocco. Separata da
-   una riga sopra invece che sotto, cosi' la prima seduta le resta attaccata
-   e quattro settimane si leggono come quattro blocchi e non come ventotto
-   righe. Il `border-top` delle righe del piano non la riguarda: e' un
-   paragrafo, non una riga. */
-.ahead-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  margin: 0 0 2px;
-  padding: 0 8px;
-  color: var(--muted);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-/* Il goal, quando quella settimana ne dichiara uno diverso da questa: non e'
-   una decorazione, e' l'avviso del todo 85 dove si guarda avanti. In tono
-   pieno, perche' e' l'unica cosa di questa card che segnala qualcosa. */
-.ahead-goal {
-  color: var(--text);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
 /* Le sedute della settimana (todo 51): una riga per seduta, e un clic porta
    alla Day di quel giorno. */
 .week-session {

@@ -29,6 +29,7 @@ export type WeekTrendData = Schemas["WeekTrendData"];
 export type WeekTrendPanel = Schemas["WeekTrendPanel"];
 export type WeekMeasure = Schemas["WeekMeasure"];
 export type WeekPlan = Schemas["WeekPlan"];
+export type PlannedWeeks = Schemas["PlannedWeeks"];
 export type DayPlan = Schemas["DayPlan"];
 export type PlannedSession = Schemas["PlannedSession"];
 export type Terrain = NonNullable<Activity["terrain"]>;
@@ -223,6 +224,12 @@ export const api = {
   // non ce l'hanno, e non e' un errore da annunciare.
   weekPlan: (monday: string, signal?: AbortSignal) =>
     getOrNull<WeekPlan>(`/api/weekly/${monday}/plan`, signal),
+
+  // I lunedi' che hanno un piano (todo 88): il confine fin dove la pagina
+  // Week lascia andare avanti. Una volta sola all'apertura — i file cambiano
+  // quando qualcuno lancia `make week_plans`, non mentre si guarda la pagina.
+  plannedWeeks: (signal?: AbortSignal) =>
+    getJson<PlannedWeeks>("/api/weekly/planned", signal),
 
   // La seduta prevista per un giorno (todo 63), dallo stesso file. `null`
   // quando per quel giorno un piano non c'e': i giorni fuori da un blocco, e

@@ -816,6 +816,17 @@ class WeekPlan(BaseModel):
     body: str = Field(description="Markdown, without the front matter and without the title.")
 
 
+# Il confine della navigazione della Week (todo 88): quali settimane hanno un
+# piano. Una lista di lunedi' e niente altro — la pagina ne tiene il massimo,
+# e di una settimana per volta chiede il piano a `/api/weekly/<lunedi>/plan`.
+class PlannedWeeks(BaseModel):
+    """The weeks that have a written plan."""
+
+    weeks: list[Date] = Field(
+        description="Mondays of the weeks with a file in `summary/05.plan/`, oldest first."
+    )
+
+
 # La seduta prevista per un giorno (todo 63), con attorno da che file viene:
 # la chiede la vista Training della Day, per il giorno che sta mostrando.
 class DayPlan(PlannedSession):

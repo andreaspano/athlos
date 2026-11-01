@@ -280,6 +280,35 @@ def weeks_following(summary_dir: Path, since: date) -> dict[str, int]:
 WEEK_PLAN_FOLDER = "05.plan"
 
 
+def planned_weeks(summary_dir: Path) -> list[date]:
+    """I lunedi' di `summary/05.plan/` che hanno un file, dal piu' vecchio.
+
+    E' il **confine della navigazione** della pagina Week (todo 88): fin dove
+    si puo' andare avanti, perche' oltre il piano non c'e' niente da vedere e
+    una freccia che si accende su settimane vuote e' una freccia che mente.
+
+    Il lunedi' e' il **nome del file**, che e' la regola del formato
+    (`summary/05.plan/README.md`): si legge da li' e non dal front matter,
+    cosi' un file illeggibile non sparisce dal conto — se c'e', la settimana
+    si puo' guardare. I nomi che non sono una data si saltano, che in quella
+    cartella c'e' anche il README.
+
+    `glob("*.md")` non scende nelle sottocartelle, quindi ne' le settimane
+    scartate in `.staging/` ne' quelle nel cestino entrano nel confine."""
+    folder = summary_dir / WEEK_PLAN_FOLDER
+    if not folder.is_dir():
+        return []
+    weeks = []
+    for path in folder.glob("*.md"):
+        if not path.is_file():
+            continue
+        try:
+            weeks.append(date.fromisoformat(path.stem))
+        except ValueError:
+            continue
+    return sorted(weeks)
+
+
 def week_plan_path(summary_dir: Path, day: date) -> Path | None:
     """Il file del piano della settimana in cui cade `day`, se c'e'.
 
