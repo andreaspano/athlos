@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 
 # Avanti nelle settimane, fin dove arriva il piano
@@ -141,8 +141,75 @@ avere separato — ed e' quello che la colonna del piano usa.
   — allunga la navigazione fin la'. Non fa danno, ma il confine e' quello che
   i file dicono, non quello che il piano dice.
 
+## Come e' andata
+
+Fatto. La pagina Week va avanti fino al **2027-02-22**, la settimana di gara,
+e su una settimana prevista mostra il suo piano.
+
+Tre cose decise strada facendo.
+
+**Il confine sta in `/api/weekly/planned`, dichiarata prima di
+`/api/weekly/{monday}`.** Senza quell'ordine il percorso `planned` si legge
+come una data e l'API risponde 422. C'era gia' il precedente di
+`/api/weekly/trend`, quindi e' la riga al posto giusto e non un trucco.
+
+**Il lunedi' si legge dal nome del file** e non dal front matter: se il file
+c'e', la settimana si puo' guardare, anche se il suo YAML e' rotto. I nomi
+che non sono una data si saltano, che in quella cartella c'e' anche il README.
+
+**`mondayFromUrl` non riporta piu' indietro, e il rimedio arriva dopo.** Il
+confine lo sa l'API, cioe' un istante dopo l'apertura: la pagina parte dal
+lunedi' dell'indirizzo qualunque sia, e quando il confine arriva, se e'
+oltre, torna a questa settimana riscrivendo l'indirizzo **senza** lasciare
+una voce nella cronologia. L'alternativa — tenere il clamp e allargarlo poi —
+avrebbe fatto lampeggiare la settimana sbagliata.
+
+### Verificato
+
+Questa volta **la pagina intera in un DOM**, non solo il markup di un
+componente: l'app impacchettata in formato classico (rolldown con il CSS
+neutralizzato, che jsdom non esegue i moduli ES) e messa in jsdom contro
+l'API accesa. Un buco di jsdom tappato a mano: `Element.scrollTo`, che la
+fila delle settimane usa per portarsi in vista.
+
+| Caso | Cosa esce |
+|---|---|
+| ora, Training | `W39 W40 W41 W42 W43 W44`, tasto riscrivi **c'e'**, commento + due colonne, 7 righe di piano |
+| W46, Training | `W43 W44 W45 W46 W47 W48`, tasto riscrivi **via**, nessun commento, 7 righe di piano (`Mon 9 Nov · Rest · or Cycling`), *The week has not started* |
+| W46, Snap | solo la riga *has not started: nothing is measured yet* |
+| W46, Plan | la card del documento, come sempre |
+| W46, Trend | i cinque pannelli, fermi sulle settimane misurate |
+| `monday=2027-02-22` (ultima pianificata) | freccia avanti **spenta**, il suo piano |
+| `monday=2027-04-05` (oltre il piano) | torna a `2026-10-26`, indirizzo riscritto |
+| `monday=2026-11-11` (un mercoledi') | riportato al suo lunedi', W46 |
+
+**Nessun errore in console in nessuno dei casi, e nessun avviso di API
+giu'** — che era il guasto da evitare.
+
+Poi: `GET /api/weekly/planned` rende i 19 lunedi' dal `2026-09-28` al
+`2027-02-22`, e `/api/weekly/2026-10-26` e `/api/weekly/2026-10-26/plan`
+rispondono ancora 200 (la rotta nuova non ruba il percorso). `import training`
+e `training.api.app` ok, `npm run typecheck` pulito, `npm run build` ok, tipi
+rigenerati dall'OpenAPI, servizio riavviato.
+
+### Quello che non ho provato
+
+**Lo schermo.** jsdom non ha un motore di stile: che il tutto stia bene in
+una pagina — e come ci stia sul telefono — non l'ho visto. E **i clic**: ho
+aperto gli indirizzi direttamente, non ho premuto la freccia quattro volte di
+fila.
+
 ## Revert
 
-Il revert del codice basta. Effetti fuori dal repo: nessuno — e' navigazione
-e letture. Resta solo la pagina compilata in `frontend/dist/`, che si rifa'
-con `make frontend_build`.
+```bash
+git revert -m 1 $(git log main --merges --grep="^Merge branch 'todo_88'$" --format=%H -1)
+```
+
+Effetti fuori dal repo: nessuno — navigazione e letture. Resta solo la pagina
+compilata in `frontend/dist/`, che si rifa' con `make frontend_build`.
+
+Attenzione a **cosa riporta indietro** il revert: anche la rimozione della
+card del todo 87, che tornerebbe in fondo alla Training.
+
+Dopo il revert, rifare il merge di `todo_88` non riporta le modifiche (git le
+considera gia' unite): per riaverle serve il revert del revert.

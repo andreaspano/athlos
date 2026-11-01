@@ -28,6 +28,7 @@ from training.api.plans import (
     load_day_plan,
     load_plans,
     load_week_plan,
+    planned_weeks,
     set_current,
     weeks_following,
 )
@@ -54,6 +55,7 @@ from training.api.models import (
     Route,
     RunTypeUpdate,
     Sport,
+    PlannedWeeks,
     SportList,
     TerrainUpdate,
     TrendData,
@@ -455,6 +457,27 @@ def get_weekly_trend_charts(
         if item["key"] == panel:
             return week_trend_panel_charts(item, weeks, theme)
     raise HTTPException(status_code=404, detail=f"No panel named {panel!r}.")
+
+
+@app.get("/api/weekly/planned", response_model=PlannedWeeks, summary="Weeks with a plan")
+def get_planned_weeks(ctx: Context) -> PlannedWeeks:
+    """The Mondays of the weeks that have a written plan in `summary/05.plan/`, oldest first.
+
+    This is how far the Week page lets you walk forward (todo 88): past the last planned week
+    there is nothing to look at, and an arrow that lights up on empty weeks is an arrow that
+    lies. No plans means no forward, which is the right answer and not a failure.
+
+    The Monday is the **file name**, which is the rule of the format
+    (`summary/05.plan/README.md`), so a file whose front matter cannot be read still counts:
+    if the file is there, the week can be looked at.
+
+    **Declared before `/api/weekly/{monday}`**, or the path would be read as a date and
+    answered with a 422.
+
+    It does not come from the block of the current goal (`block_start` + `block_weeks` in
+    `/api/plans`): that is what the goal *declares*, and the two diverge — changing goal
+    leaves the written weeks where they were (todo 86). The boundary is the files that exist."""
+    return PlannedWeeks(weeks=planned_weeks(ctx.summary_dir))
 
 
 @app.get("/api/weekly/{monday}", response_model=WeeklyData, summary="Weekly data")

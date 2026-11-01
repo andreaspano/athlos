@@ -240,9 +240,8 @@ Dal todo 68 la Week ha le **stesse quattro viste della Day, nello stesso
 ordine**. Lo **Snap** e' il corpo: il verdetto a tutta larghezza e le quattro
 card. La **Training** e' il lavoro: in cima il **Plan**, cosa chiedeva la
 settimana (todo 71), poi l'elenco delle sedute (un clic su una seduta apre la
-Day di quel giorno), il commento sulla forma della settimana, e in fondo le
-**quattro settimane che vengono** (todo 87). Le sedute avevano sopra un
-grafico del lavoro per sport, tolto col todo 72.
+Day di quel giorno) e il commento sulla forma della settimana. Le sedute
+avevano sopra un grafico del lavoro per sport, tolto col todo 72.
 Prima stavano tutte nello Snap, sette riquadri in fila, insieme a un **Next**
 che dal todo 69 non c'e' piu'.
 
@@ -306,28 +305,46 @@ i quattro riquadri del blocco a trattino e nessuna riga: le sedute a macchina
 non ci sono, e ricavarle dalla prosa e' la strada che il todo 14 aveva
 scartato.
 
-In fondo alla Training, sotto le due colonne, ci sono le **quattro settimane
-che vengono** (todo 87): quelle dopo la settimana mostrata, ognuna coi suoi
-sette giorni nelle stesse righe della card Plan. Prima si rispondeva alla
-domanda cambiando settimana col selettore quattro volte, tenendo a mente la
-prima mentre si guardava la quarta.
+**La Week va anche avanti** (todo 88), fin dove arriva il piano: la freccia
+`›`, la fila dei riquadri e il calendario arrivano all'**ultima settimana che
+ha un file** in `summary/05.plan/` — oggi la settimana di gara. Lo dice
+`GET /api/weekly/planned`, i lunedi' che hanno un piano, e la pagina ne tiene
+il massimo. Nessun piano vuol dire nessun avanti, che e' la risposta giusta e
+non un guasto. Il confine non si ricava dal blocco del goal
+(`block_start + block_weeks`): quello e' quello che il goal **dichiara**, e il
+todo 86 ha mostrato che le due cose divergono — si cambia goal e le settimane
+restano quelle di prima.
 
-Stanno **sotto** le due colonne e non dentro quella del piano: le settimane
-che vengono non hanno il lato destro — non sono state corse — e nella colonna
-di sinistra sarebbero ventotto righe con ventuno di bianco di fronte. Sopra
-ogni gruppo di sette una riga dice dove sta quella settimana nel blocco (`Week
-6 of 18 · build · 30 Nov – 6 Dec`), che per quattro gruppi serve e per uno no
-(todo 75); gara e bersaglio restano alla vista Plan, che non cambiano da un
-lunedi' all'altro.
+Camminando avanti la fila scorre con la sua regola di sempre (finisce due
+settimane dopo quella guardata), quindi dalla corrente si arriva a vedere
+W45..W48 un passo per volta. Il tasto `›|` resta **questa settimana**: da
+gennaio la casa e' oggi.
 
-**Quattro e non un numero a scelta**: niente `?weeks=`, che quanto si guarda
-avanti non e' uno stato della pagina. Sono quattro chiamate alla rotta del
-piano che c'e' gia', in un effetto solo; una settimana senza file non si
-disegna — verso la fine di un blocco le quattro diventano tre, due, una — e
-se non ne ha nessuna la card non c'e' affatto. Se una di quelle settimane
-dichiara **un altro goal** lo si scrive sulla sua riga: e' l'avviso della
-pagina Goal (todo 85) nel posto dove si guarda avanti, e senza di lui si
-leggerebbero quattro settimane coerenti venute da un bersaglio abbandonato.
+**Una settimana che non e' cominciata non si chiede all'API.** I fatti
+(`/api/weekly/<lunedi>`) rispondono **422** — *the week has not started* — e
+quella risposta finirebbe nell'avviso che l'API e' giu'. Non e' giu': la
+domanda e' senza senso, e a non farla e' la pagina, che di una settimana
+prevista chiede **solo il piano**. Da cui quattro viste con due stati:
+
+- **Training**: la colonna del piano come sempre, e in quella delle sedute
+  *The week has not started* invece di *No sessions this week* — una settimana
+  finita senza sedute e una che non e' cominciata sono due cose diverse. Il
+  commento non c'e': nessun agente scrive il verdetto di qualcosa che deve
+  ancora succedere.
+- **Snap**: una riga che lo dice, e niente card. I numeri di una settimana che
+  non e' cominciata non sono zero, non esistono.
+- **Trend**: la finestra resta sulle settimane misurate. E' una carta di
+  controllo, e dei punti che non ci sono non fanno un grafico vuoto, fanno un
+  grafico sbagliato.
+- **Plan**: era gia' quello che serve, e non cambia.
+
+Anche il tasto che riscrive la settimana sparisce: `POST .../refresh` risponde
+422 per scelta, ed e' la regola del todo 56 — chiudere un periodo che deve
+ancora succedere vuol dire giudicarlo prima del tempo.
+
+Un `?monday=` oltre il confine torna a questa settimana e l'indirizzo si
+riscrive **senza** lasciare una voce nella cronologia: non e' un passo che
+qualcuno ha fatto.
 
 Comune a tutte e quattro e' l'intestazione — titolo, frecce, calendario, il
 tasto che riscrive la settimana — e il selettore: cambiando settimana la

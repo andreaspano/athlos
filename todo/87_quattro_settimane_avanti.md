@@ -4,6 +4,11 @@ status: done
 
 # Le quattro settimane che vengono, nella Training della Week
 
+> **Sostituito dal todo 88.** La card che questo todo ha fatto non c'e'
+> piu': la risposta giusta alla stessa domanda era far andare **avanti** la
+> pagina, una settimana per volta, col suo piano dentro. Di qui resta
+> `PlanDayRow`, la riga di un giorno, che la colonna del piano usa ancora.
+
 La vista Training della Week (todo 68, 73, 74, 77) risponde a due domande
 affiancate: a sinistra **cosa chiedeva** la settimana — le sette sedute del
 piano, una riga per giorno — e a destra **cosa e' successo**, sulla stessa
