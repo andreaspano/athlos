@@ -8,8 +8,15 @@
 //
 // Due assi, come il menu a due righe: `?period=` dice il periodo (day o
 // week), `?view=` che cosa se ne guarda. Le viste sono **di ogni periodo**
-// (todo 59): `snap|training|trend` sotto Day, `snap|training|trend|plan`
-// sotto Week.
+// (todo 59): `snap|training|trend`, le stesse tre per Day e Week.
+//
+// La Week ne aveva una quarta, **Plan**, col documento della settimana: e'
+// andata col todo 90. I ritmi e le regole di scarico che portava sono quelli
+// del blocco e si leggono nella pagina Goal; la tabella dei giorni e' nelle
+// righe della Training (todo 89); e quello che restava scritto solo per quella
+// settimana — l'inquadramento, i totali, le note — sta in una card della
+// Training. Un `?view=plan` nei segnalibri ricade sullo Snap, che e' quello
+// che `viewFromUrl` fa con qualunque vista che non esiste.
 // Sono elencate in `VIEWS`, nell'ordine in cui stanno nel menu, e la prima
 // e' quella che si apre senza `?view=`.
 //
@@ -31,7 +38,7 @@
 // non fra Day e Week; il piano aperto e' `?plan=<slug>`, cioe' il nome del
 // suo file senza `.md`. Viste non ne ha.
 export type Page = "day" | "week" | "plan";
-export type View = "snap" | "training" | "trend" | "plan";
+export type View = "snap" | "training" | "trend";
 
 /** Le viste di ogni periodo, nell'ordine del menu (todo 59).
  *
@@ -40,8 +47,7 @@ export type View = "snap" | "training" | "trend" | "plan";
  * quello che quel link apriva prima che le viste esistessero.
  *
  * Il Trend sta in tutte e due le liste perche' e' la stessa domanda — come
- * si muove nel tempo — e cambiando periodo la vista si porta dietro. Quello
- * della Week e' ancora vuoto, come il suo Plan.
+ * si muove nel tempo — e cambiando periodo la vista si porta dietro.
  *
  * Dal todo 68 anche il **Training** sta in tutte e due: nel giorno e' la
  * seduta, nella settimana le sette — il grafico, l'elenco, il commento sulla
@@ -49,7 +55,7 @@ export type View = "snap" | "training" | "trend" | "plan";
  * Snap della Week, che adesso e' il solo corpo come quello del giorno. */
 export const VIEWS: Record<Page, View[]> = {
   day: ["snap", "training", "trend"],
-  week: ["snap", "training", "trend", "plan"],
+  week: ["snap", "training", "trend"],
   plan: [],
 };
 
@@ -62,7 +68,6 @@ export const ETICHETTE: Record<View, string> = {
   snap: "Snap",
   training: "Training",
   trend: "Trend",
-  plan: "Plan",
 };
 
 /** La vista che un periodo apre quando l'URL non ne chiede nessuna. */

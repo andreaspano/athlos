@@ -159,10 +159,10 @@ una fila sola. A destra, staccato, c'e' **Goal**, che un periodo non e': un
 obiettivo guarda avanti a una gara, non indietro a un giorno.
 
 Si chiamava **Plan** come la sua pagina, e nella barra erano due: questo e la
-vista Plan della Week, che e' un'altra cosa — la settimana del piano, dentro
-la settimana. Goal dice quello che la pagina mostra, la gara a cui si va e
-quanto manca; il piano e' il come, ed e' una scheda dentro. **L'indirizzo
-resta `?period=plan`**, cosi' i link scritti prima continuano ad aprirla.
+vista Plan della Week — che dal todo 90 non c'e' piu', e il nome adesso e'
+di uno solo. Goal dice quello che la pagina mostra, la gara a cui si va e
+quanto manca. **L'indirizzo resta `?period=plan`**, cosi' i link scritti
+prima continuano ad aprirla.
 
 **Nella barra non ci sono voci grigie.** Month, Year e Activities si
 aggiungeranno quando esisteranno, non prima: Activities e' stata per mesi una
@@ -236,23 +236,17 @@ ISO per le settimane a cavallo — e una striscia di sei settimane. **Ogni card
 porta il testo della sua sezione del report settimanale** (todo 53), con
 l'ora e il tasto per rifarla, come nella Day.
 
-Dal todo 68 la Week ha le **stesse quattro viste della Day, nello stesso
-ordine**. Lo **Snap** e' il corpo: il verdetto a tutta larghezza e le quattro
-card. La **Training** e' il lavoro: in cima il **Plan**, cosa chiedeva la
-settimana (todo 71), poi l'elenco delle sedute (un clic su una seduta apre la
+Dal todo 68 la Week ha le **stesse viste della Day, nello stesso ordine** —
+tre dal todo 90, che le ha portate da quattro a tre. Lo **Snap** e' il corpo:
+il verdetto a tutta larghezza e le quattro card. La **Training** e' il lavoro:
+in cima il **Plan**, cosa chiedeva la settimana (todo 71), poi l'elenco delle
+sedute (un clic su una seduta apre la
 Day di quel giorno, sulla sua **Training**: si e' cliccato una seduta, e la
-seduta sta li') e il commento sulla forma della settimana. Le sedute
+seduta sta li'), il commento sulla forma della settimana e, in fondo, la
+**settimana spiegata** — quello che era la vista Plan (todo 90). Le sedute
 avevano sopra un grafico del lavoro per sport, tolto col todo 72.
 Prima stavano tutte nello Snap, sette riquadri in fila, insieme a un **Next**
 che dal todo 69 non c'e' piu'.
-
-Il **Plan** e' la stessa settimana dall'altra parte: **come doveva andare**
-(todo 60). E' il file `summary/05.plan/<lunedi>.md` — le sette sedute con
-dentro il perche', i totali, i ritmi e i segnali per scaricare — con in cima
-da che blocco viene, a che settimana del blocco siamo, la gara e il
-bersaglio. Una settimana senza file non e' un
-errore, e la vista lo dice: le settimane prima dell'inizio di un blocco non ne
-hanno.
 
 Il **Trend** e' la fila delle settimane (todo 78): gli stessi cinque pannelli
 della Day, ma con **un punto per settimana** invece che per giorno, in una
@@ -283,12 +277,10 @@ limiti.
 Sotto tre giorni misurati la fascia non si disegna, e il pannello Training non
 ce l'ha affatto.
 
-La card Plan della Training e la vista Plan leggono **lo stesso file e
-rispondono a due domande** (todo 71): la vista ha il **documento**, che si
-apre e si legge — la tabella con il perche' di ogni seduta, i ritmi, i
-segnali per scaricare — la card ha le sette sedute come **dati**, una riga
-per giorno, da scorrere con un'occhiata accanto alle sedute fatte due
-riquadri sotto:
+Il file della settimana si legge **tutto nella Training**, in due pezzi che
+rispondono a due domande (todo 71, riunite dal todo 90): la colonna ha le
+sette sedute come **dati**, una riga per giorno, da scorrere con un'occhiata
+accanto alle sedute fatte nella colonna di fianco —
 
 ```
 Mon 26 Oct   Rest
@@ -306,6 +298,20 @@ nei dati da sempre (`text`, come nella card della Day) e questa colonna la
 buttava via, cosi' una qualita' e un lento si somigliavano. Il riassunto
 resta sopra perche' e' lui che sta sulla riga della seduta fatta nella colonna
 accanto.
+
+— e **sotto le due colonne** c'e' il resto del file: a cosa serve quella
+settimana, i totali, le note, i ritmi, quando scaricare. Era una vista a
+parte col documento intero, e dal todo 90 non lo e' piu' per due ragioni
+misurate sui file: la tabella dei giorni era la stessa cosa detta due volte
+nella stessa vista (dal todo 89 le righe portano il testo di quella tabella),
+e i ritmi e le deroghe sono **copiati dal blocco** — gli stessi valori di
+«Ritmi e frequenze» e le stesse regole di «Quando scaricare», che si leggono
+nella pagina Goal. Quello che resta e' scritto per quella settimana e solo
+li': 1.300-1.800 caratteri, e dentro ci puo' stare una regola di scarico in
+piu' che il blocco non ha. Per questo la card mostra **tutto tranne la
+tabella dei giorni**, tagliata per forma — il blocco di tabella in cui una
+prima cella e' un giorno — e non per nome di sezione, che le sezioni le
+scrive un agente.
 
 Le sedute arrivano dal front matter (`sessions` in `WeekPlan`), **in ordine
 di data e non di file**: il file di settembre 2026 ha la tabella che parte
@@ -334,7 +340,7 @@ gennaio la casa e' oggi.
 (`/api/weekly/<lunedi>`) rispondono **422** — *the week has not started* — e
 quella risposta finirebbe nell'avviso che l'API e' giu'. Non e' giu': la
 domanda e' senza senso, e a non farla e' la pagina, che di una settimana
-prevista chiede **solo il piano**. Da cui quattro viste con due stati:
+prevista chiede **solo il piano**. Da cui tre viste con due stati:
 
 - **Training**: la colonna del piano come sempre, e in quella delle sedute
   *The week has not started* invece di *No sessions this week* — una settimana
@@ -348,7 +354,6 @@ prevista chiede **solo il piano**. Da cui quattro viste con due stati:
 - **Trend**: la finestra resta sulle settimane misurate. E' una carta di
   controllo, e dei punti che non ci sono non fanno un grafico vuoto, fanno un
   grafico sbagliato.
-- **Plan**: era gia' quello che serve, e non cambia.
 
 Anche il tasto che riscrive la settimana sparisce: `POST .../refresh` risponde
 422 per scelta, ed e' la regola del todo 56 — chiudere un periodo che deve
@@ -358,7 +363,7 @@ Un `?monday=` oltre il confine torna a questa settimana e l'indirizzo si
 riscrive **senza** lasciare una voce nella cronologia: non e' un passo che
 qualcuno ha fatto.
 
-Comune a tutte e quattro e' l'intestazione — titolo, frecce, calendario, il
+Comune a tutte e tre e' l'intestazione — titolo, frecce, calendario, il
 tasto che riscrive la settimana — e il selettore: cambiando settimana la
 vista resta, e tutte parlano degli stessi sette giorni.
 
@@ -573,10 +578,11 @@ matter del todo 14 e la tabella dei sette giorni. Il formato e' documentato in
 dei piani di `plan/`: `WEEK_PLAN_FOLDER` e `week_plan_path` sono li', una
 definizione sola per l'orchestratore e per l'API.
 
-Dal todo 60 **si vedono anche**, nella vista Plan della Week
-(`GET /api/weekly/<lunedi>/plan`, 404 quella settimana non ne ha). Li' le sette
-sedute del front matter (`sessions`) l'API non le manda: la tabella del testo
-dice le stesse cose col perche' dentro.
+Dal todo 60 **si vedono anche**, nella vista Training della Week
+(`GET /api/weekly/<lunedi>/plan`, 404 quella settimana non ne ha): fino al
+todo 90 in una vista Plan tutta sua, adesso in una card sotto le sette righe.
+Il testo e le sedute del front matter arrivano insieme e dicono le stesse
+cose — la tabella col perche' dentro, i campi a macchina.
 
 Dal todo 63 **`sessions` si legge, per un giorno alla volta**:
 `GET /api/daily/<giorno>/plan` rende la seduta prevista per quel giorno nei suoi
