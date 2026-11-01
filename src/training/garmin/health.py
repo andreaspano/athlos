@@ -1,12 +1,13 @@
 """Esportazione delle metriche giornaliere di salute/wellness."""
 
 import json
+import os
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from garminconnect import Garmin
+from garminconnect import Garmin, GarminConnectAuthenticationError
 
 from .auth import init_api
 from .client import safe_call
@@ -47,7 +48,35 @@ def _is_complete(path: Path, day: date) -> bool:
         saved = datetime.fromtimestamp(path.stat().st_mtime)
     except OSError:
         return False
-    return saved >= datetime.combine(day + timedelta(days=1), datetime.min.time())
+    if saved < datetime.combine(day + timedelta(days=1), datetime.min.time()):
+        return False
+    # Anche un file troncato ha un mtime dopo la fine del suo giorno: senza
+    # questa lettura resterebbe "completo" per sempre e quel giorno non si
+    # riscaricherebbe mai piu'. Costa una lettura di pochi kB per file, contro
+    # le 11 chiamate a Garmin che fa risparmiare.
+    try:
+        with open(path, encoding="utf-8") as f:
+            json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    return True
+
+
+def _write_json(path: Path, data) -> None:
+    """Scrive `data` in `path` senza poter lasciare un file a meta': prima un
+    temporaneo nella stessa cartella, poi `os.replace`, che e' atomico.
+
+    Serve perche' il Ctrl+C e' una via d'uscita dichiarata (vedi sotto e il
+    Makefile): scrivendo direttamente sul file giusto, un'interruzione a meta'
+    della `json.dump` lasciava un file troncato che `_is_complete` dava per
+    buono."""
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def export_daily_health(
@@ -76,6 +105,7 @@ def export_daily_health(
     d = start_date
     day_count = 0
     downloaded = 0
+    failures: list[str] = []
     while d <= end_date:
         date_str = d.strftime("%Y-%m-%d")
         day_count += 1
@@ -84,11 +114,21 @@ def export_daily_health(
             target = health_dir / name / f"{date_str}.json"
             if _is_complete(target, d) and d not in force_dates:
                 continue
-            data = safe_call(func, api, date_str)
-            if data is not None:
-                with open(target, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-                downloaded += 1
+            try:
+                data = safe_call(func, api, date_str)
+            except GarminConnectAuthenticationError:
+                # Inutile provare gli altri 4000: serve un login.
+                raise
+            except Exception as exc:
+                # Un anno di storico non si butta per una chiamata, quindi si
+                # tira avanti; ma il conto finisce nell'errore finale, cosi'
+                # chi ha lanciato (o `api/refresh.py`) lo sa.
+                print(f"  ATTENZIONE: {name} del {date_str} non scaricato: {exc}")
+                failures.append(f"{name} {date_str}: {exc}")
+            else:
+                if data is not None:
+                    _write_json(target, data)
+                    downloaded += 1
             time.sleep(REQUEST_DELAY)
 
         if day_count % 30 == 0 or d == end_date:
@@ -99,17 +139,30 @@ def export_daily_health(
 
         d += timedelta(days=1)
 
+    if failures:
+        raise RuntimeError(
+            f"{len(failures)} metriche non scaricate su {total_days} giorni "
+            f"({downloaded} file scritti). La prima: {failures[0]}"
+        )
+
 
 def export_lactate_threshold(api: Garmin, out_dir: Path) -> None:
     """Scarica l'ultima soglia del lattato in `health/LACTATE_THRESHOLD_FILE`,
     sopra quella di prima. Se Garmin non risponde il file vecchio resta."""
-    data = safe_call(lambda: api.get_lactate_threshold(latest=True))
+    try:
+        data = safe_call(lambda: api.get_lactate_threshold(latest=True))
+    except GarminConnectAuthenticationError:
+        raise
+    except Exception as exc:
+        # Il docstring promette che il file vecchio resta: qui l'eccezione si
+        # ferma, ma a voce alta.
+        print(f"  ATTENZIONE: soglia del lattato non aggiornata: {exc}")
+        return
     if data is None:
         return
     health_dir = out_dir / "health"
     health_dir.mkdir(parents=True, exist_ok=True)
-    with open(health_dir / LACTATE_THRESHOLD_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+    _write_json(health_dir / LACTATE_THRESHOLD_FILE, data)
 
 
 def refresh_recent_health(api: Garmin, data_dir: Path = DATA_DIR) -> None:

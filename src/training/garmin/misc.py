@@ -5,7 +5,7 @@ import time
 from datetime import date
 from pathlib import Path
 
-from garminconnect import Garmin
+from garminconnect import Garmin, GarminConnectAuthenticationError
 
 from .client import safe_call
 from .config import REQUEST_DELAY
@@ -28,7 +28,15 @@ def export_misc(api: Garmin, out_dir: Path, start_date: date, end_date: date) ->
 
     print("Scarico profilo, dispositivi, peso e record personali...")
     for filename, func in calls.items():
-        data = safe_call(func)
+        try:
+            data = safe_call(func)
+        except GarminConnectAuthenticationError:
+            raise
+        except Exception as exc:
+            # Come prima: una delle cinque che non risponde non ferma le
+            # altre. Ora il motivo si vede.
+            print(f"  Non disponibile ({exc}): {filename}")
+            data = None
         if data is not None:
             with open(misc_dir / filename, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
