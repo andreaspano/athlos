@@ -1436,38 +1436,3 @@ h2 {
 .plan-path {
   margin-top: 22px;
 }
-
-/* --- Il piano della settimana: la tabella dei sette giorni (todo 61) --- */
-
-/* Vestita solo qui, sotto `.week-plan-card`: nel blocco di `plan/` le tabelle
-   sono di sei colonne di numeri, e una prima colonna a fondo tinto le
-   leggerebbe come una cosa che non sono. Qui invece la prima colonna e' il
-   giorno — la chiave della riga, come dice il commento di `.prose
-   tbody td:first-child` — e la seconda e' un paragrafo: due parti diverse,
-   non due celle uguali. */
-.week-plan-card .prose table {
-  /* A misura del contenuto la colonna del testo si stringeva e andava a capo
-     tre volte mentre a destra restava bianco. */
-  width: 100%;
-  font-size: 1rem;
-}
-.week-plan-card .prose thead th {
-  border-bottom: 1px solid var(--border-strong);
-  padding-bottom: 8px;
-}
-/* Il giorno: etichetta su fondo tenue, in cima alla sua riga, larga quanto
-   la parola e non un carattere di piu'. */
-.week-plan-card .prose tbody td:first-child {
-  width: 1%;
-  background: var(--track);
-  font-weight: 700;
-  font-size: 0.85rem;
-  padding: 12px;
-  vertical-align: top;
-}
-/* La seduta: aria intorno e riga alta, che qui si legge come un paragrafo e
-   non come una cella. */
-.week-plan-card .prose tbody td + td {
-  padding: 12px 0 12px 16px;
-  line-height: 1.55;
-}

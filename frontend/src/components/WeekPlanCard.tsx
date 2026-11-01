@@ -1,11 +1,13 @@
-// Il piano della settimana (todo 60): la card in fondo alla vista Training,
-// e la colonna dei sette giorni accanto alle sedute fatte.
+// Il piano della settimana (todo 60): la colonna dei sette giorni accanto
+// alle sedute fatte, nella vista Training.
 //
-// Fino al todo 90 era **una vista a parte**, col documento intero. Non lo e'
-// piu': i ritmi e le regole di scarico che quel documento porta sono quelli
-// del blocco e si leggono nella pagina Goal, la tabella dei giorni e' nelle
-// righe della colonna (todo 89), e quello che restava scritto solo per quella
-// settimana sta in questa card, sotto le righe che spiega.
+// **Del documento della settimana resta questa colonna, e basta.** Era una
+// vista a parte col file intero (todo 60), poi una card in fondo alla Training
+// (todo 90), e adesso niente: i ritmi e le regole di scarico che portava sono
+// quelli del blocco e si leggono nella pagina Goal, le sedute giorno per
+// giorno sono in queste righe col loro dettaglio (todo 89), e il resto — a
+// cosa serviva quella settimana, le decisioni prese strada facendo — resta
+// scritto nei file di `summary/05.plan/`, che si aprono anche da soli.
 //
 // Il file e' `summary/05.plan/<lunedi>.md`, uno per settimana del blocco. Lo
 // scriveva solo l'agente Next, dentro il prompt, e all'utente arrivava di
@@ -20,145 +22,14 @@
 // Una settimana senza file non e' un errore — prima dell'inizio del blocco
 // non ce n'e' nessuno — e la vista lo dice invece di restare muta.
 import { iconUrl, type PlannedSession, type WeekPlan } from "../api/client";
-import { addDays, raceLabel, shortDayLabel, targetLabel, weekdayShort } from "../format";
-import { inline, markdown } from "../markdown";
+import { addDays, shortDayLabel, weekdayShort } from "../format";
+import { inline } from "../markdown";
 import { sessionIcon, sessionLabel, type Sport } from "./PlanSession";
-import { CardHead, Stat, WrittenAt } from "./Stat";
+import { CardHead, WrittenAt } from "./Stat";
 
 // L'icona di Next, come nella pagina Plan: il riquadro che dice cosa fare
 // dopo. Un piano e' la stessa domanda, su sette giorni invece che su domani.
 const PLAN_ICON = "next.png";
-
-/** I numeri del piano, sopra il testo: dove sta questa settimana nel blocco e
- * verso cosa. Quelli che il front matter non ha restano un trattino, come in
- * tutte le altre card.
- *
- * Tutti e quattro **su una riga sola** (`stats four`, la stessa griglia della
- * card Training): si leggono come una didascalia del titolo — fase, settimana
- * del blocco, gara, bersaglio — e su due righe la griglia a tre colonne ne
- * lasciava uno spaiato in fondo. */
-function WeekPlanStats({ plan }: { plan: WeekPlan }) {
-  const of =
-    plan.block_week != null && plan.block_weeks != null
-      ? `${plan.block_week} of ${plan.block_weeks}`
-      : plan.block_week != null
-        ? `${plan.block_week}`
-        : "–";
-  return (
-    <div className="stats four">
-      <Stat label="Phase" value={plan.phase ?? "–"} />
-      <Stat
-        label="Block week"
-        value={of}
-        sub={plan.plan ? <span className="muted">{plan.plan}</span> : undefined}
-      />
-      <Stat label="Race" value={plan.race ? raceLabel(plan.race) : "–"} />
-      <Stat label="Target" value={targetLabel(plan.target_time)} />
-    </div>
-  );
-}
-
-// La prima cella di una riga di giorno, come la scrive il piano:
-// `**Mon 9 Nov**`. La stessa forma che cerca `_day_row` nell'API, perche' e'
-// la stessa riga — qui per **non** mostrarla, li' per mostrarla nella sua
-// riga.
-const DAY_CELL = /^\s*\*{0,2}\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{1,2}\s+[A-Z][a-z]{2}/;
-
-/** Il corpo del piano **senza la tabella dei giorni** (todo 90).
- *
- * Quella tabella si legge nelle sette righe della colonna accanto, una per
- * giorno, col dettaglio sotto il riassunto (todo 89): ripeterla qui vorrebbe
- * dire la stessa cosa due volte nella stessa vista. Quello che resta e' la
- * settimana spiegata — a cosa serve, i totali, le note, i ritmi, quando
- * scaricare.
- *
- * Si taglia **per forma e non per titolo**: si butta il blocco di righe di
- * tabella in cui una prima cella e' un giorno, e si tengono le altre tabelle
- * (i ritmi). Un filtro sul nome della sezione sarebbe fragile — le sezioni le
- * scrive un agente (todo 86), e basta che un giorno chiami «Pace» quella
- * tabella perche' il filtro mangi la cosa sbagliata.
- *
- * Le altre sezioni **non si toccano**, nemmeno quelle che ripetono il blocco:
- * «When to back off» e' quattro quinti le deroghe del goal e un quinto una
- * regola scritta per quella settimana — il 9 novembre *«if Sunday morning
- * readiness is under 50 … cut the long run to 12 km»*, che nel blocco non
- * c'e'. Buttare la sezione butterebbe anche quella. */
-export function withoutDayTable(body: string): string {
-  const lines = body.split("\n");
-  const out: string[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    if (!lines[i].trimStart().startsWith("|")) {
-      out.push(lines[i]);
-      i += 1;
-      continue;
-    }
-    let j = i;
-    while (j < lines.length && lines[j].trimStart().startsWith("|")) j += 1;
-    const block = lines.slice(i, j);
-    const days = block.some((line) =>
-      DAY_CELL.test(line.trim().replace(/^\|/, "").split("|")[0] ?? ""),
-    );
-    if (!days) out.push(...block);
-    i = j;
-  }
-  // Il buco lasciato dalla tabella non deve diventare un salto: due righe
-  // vuote di fila tornano una.
-  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-
-/** Il corpo senza il **paragrafo di apertura**, quando quel paragrafo dice
- * quello che i quattro numeri dicono gia' (todo 90).
- *
- * Ogni settimana scritta da `p_week` comincia con la stessa riga: *«Half
- * marathon in 2h20 (6'38"/km) on Sunday 28 February 2027. Phase: base. The
- * whole block… is in `plan/half_marathon_2.20.md`»*. Nel file ci sta bene —
- * si apre anche da solo, e li' dire a quale blocco appartiene la settimana e'
- * l'unico modo di saperlo — ma nella card sta a venti centimetri dalla riga
- * che dice fase, settimana, gara e bersaglio, e rimanda a un file che e' una
- * pagina dell'app.
- *
- * **Si riconosce dai dati e non dalle parole**: si salta il primo blocco solo
- * se contiene lo slug del blocco o il bersaglio, cioe' due cose che la card
- * mostra gia' nei suoi riquadri. Un'apertura che parlasse d'altro resta dov'e'
- * — e il taglio vale **solo** per il primo blocco, mai per quelli dopo.
- *
- * Il file non si tocca, e l'agente non cambia: il documento resta intero per
- * chi lo legge fuori dall'app. */
-export function withoutOpening(body: string, slug: string | null, target: string | null): string {
-  const blocks = body.split(/\n\s*\n/);
-  const first = blocks[0] ?? "";
-  // Un titolo o una tabella non sono l'apertura: l'apertura e' prosa.
-  if (first.startsWith("#") || first.trimStart().startsWith("|")) return body;
-  const says = [slug, target].filter((v): v is string => Boolean(v)).some((v) => first.includes(v));
-  return says ? blocks.slice(1).join("\n\n").trim() : body;
-}
-
-export function WeekPlanCard({
-  plan,
-  monday,
-}: {
-  plan: WeekPlan | null;
-  monday: string;
-}) {
-  // Niente piano, niente card (todo 90): la colonna delle sedute previste,
-  // qui sopra, e' gia' la cornice che lo dice — una settimana prima
-  // dell'inizio del blocco non ne ha uno, e dirlo due volte nella stessa
-  // vista e' dirlo male. Lo stesso mentre la chiamata e' in volo: la card
-  // compare col testo.
-  if (plan === null) return null;
-  const prose = withoutOpening(withoutDayTable(plan.body), plan.plan, plan.target_time);
-  return (
-    <section className="card plan-card week-plan-card" aria-label="Weekly plan">
-      <CardHead icon={PLAN_ICON} title={plan.title} />
-      <WeekPlanStats plan={plan} />
-      {prose && <div className="prose plan-prose">{markdown(prose)}</div>}
-      <p className="caption plan-file">summary/05.plan/{plan.file}</p>
-      <WrittenAt when={plan.written_at} day={monday} />
-    </section>
-  );
-}
-
 
 /** La riga di un giorno del piano: il giorno, l'icona dello sport, la seduta
  * in una riga di testo e **sotto, quello che il piano chiede davvero**.
