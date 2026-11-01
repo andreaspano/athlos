@@ -735,6 +735,11 @@ class PlanSummary(BaseModel):
     block_start: date | None = Field(description="First day of the block.")
     weeks: int | None = Field(description="How many weeks the block lasts.")
     peak_weekly_km: float | None = Field(description="The heaviest week of the block.")
+    current: bool = Field(
+        description="The goal being followed right now: `current: true` in the front matter. "
+        "Exactly one plan at most has it — when more than one file carries the flag, the "
+        "first of this list keeps it."
+    )
     written_at: datetime | None = Field(description="When the file was last written.")
 
 
@@ -744,10 +749,24 @@ class Plan(PlanSummary):
     body: str = Field(description="Markdown, without the front matter and without the title.")
 
 
+class WeeksFollowing(BaseModel):
+    """How many weekly plans, this Monday on, were written from one goal."""
+
+    slug: str = Field(description="The goal those weeks declare in their `plan:` key.")
+    weeks: int = Field(description="How many weekly plan files, from this Monday on.")
+
+
 class PlanList(BaseModel):
     """The plans in `plan/`, the nearest race first."""
 
     plans: list[PlanSummary]
+    ahead: list[WeeksFollowing] = Field(
+        description="Which goal the weekly plans of `summary/05.plan/` still follow, counted "
+        "from this Monday on. An entry whose `slug` is not the current goal means those weeks "
+        "were written from another one and nothing has rewritten them: changing the flag does "
+        "not regenerate them (todo 85). Weeks already past are not counted — they are the "
+        "record of what was planned then."
+    )
 
 
 # La seduta che il piano prevede per un giorno (todo 71): i campi del front
@@ -795,6 +814,17 @@ class WeekPlan(BaseModel):
     )
     written_at: datetime | None = Field(description="When the file was last written.")
     body: str = Field(description="Markdown, without the front matter and without the title.")
+
+
+# Il confine della navigazione della Week (todo 88): quali settimane hanno un
+# piano. Una lista di lunedi' e niente altro — la pagina ne tiene il massimo,
+# e di una settimana per volta chiede il piano a `/api/weekly/<lunedi>/plan`.
+class PlannedWeeks(BaseModel):
+    """The weeks that have a written plan."""
+
+    weeks: list[Date] = Field(
+        description="Mondays of the weeks with a file in `summary/05.plan/`, oldest first."
+    )
 
 
 # La seduta prevista per un giorno (todo 63), con attorno da che file viene:

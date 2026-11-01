@@ -168,10 +168,6 @@ h2 {
   color: var(--accent);
   font-weight: 600;
 }
-.tab.disabled {
-  opacity: 0.55;
-  cursor: default;
-}
 /* La seconda riga, la vista, ha pillole piu' piccole e grigie: si legge
    come un sottomenu del periodo. */
 .tab.sub {
@@ -1303,6 +1299,105 @@ h2 {
 .plan-file {
   margin-top: 22px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* --- L'elenco dei goal (todo 84) --- */
+
+/* Righe separate da una linea, senza bordo sopra la prima e sotto l'ultima:
+   dentro la card le fa leggere come un elenco e non come tre schede. */
+.goal-list > .goal + .goal {
+  border-top: 1px solid var(--border);
+}
+.goal {
+  padding: 4px 0;
+}
+/* L'intestazione: il bersaglio grande a sinistra, il titolo e la gara al
+   centro, la pillola a destra. La freccia la mette il browser; `list-item`
+   resta perche' togliendola scomparirebbe anche quella. */
+.goal-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 12px 0;
+  cursor: pointer;
+}
+.goal-head::marker {
+  color: var(--muted);
+}
+.goal-target {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.goal-title {
+  flex: 1;
+  font-weight: 600;
+  line-height: 1.45;
+}
+/* `current` non e' una decorazione: e' il goal che le settimane di
+   `summary/05.plan/` stanno seguendo. Quindi la pillola dell'accento, la
+   stessa della voce attiva nella barra in alto. */
+.goal-flag {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* I due comandi della riga: stanno nel `<summary>`, quindi si vedono senza
+   aprirla. Scoloriti finche' non ci si passa sopra, che su tre righe tre
+   cestini accesi sarebbero la cosa piu' vistosa della pagina. */
+.goal-make-current,
+.goal-bin {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  opacity: 0.75;
+}
+.goal-make-current {
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.goal-bin {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 6px;
+}
+.goal-make-current:hover:not(:disabled),
+.goal-bin:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+  opacity: 1;
+}
+/* Il cestino acceso e' rosso solo al passaggio: e' l'unico comando della
+   pagina da cui si torna indietro solo andando a pescare nel cestino. */
+.goal-bin:hover:not(:disabled) {
+  border-color: var(--warn-text);
+  color: var(--warn-text);
+}
+.goal-make-current:disabled,
+.goal-bin:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.goal-body {
+  padding: 4px 0 18px;
+}
+/* Aperta, la riga attuale si stacca da sinistra: si trova con l'occhio anche
+   scorrendo, senza rileggere le pillole. */
+.goal.current[open] > .goal-body {
+  border-left: 2px solid var(--accent-soft);
+  padding-left: 14px;
 }
 
 /* --- Il piano di un giorno (todo 63) --- */

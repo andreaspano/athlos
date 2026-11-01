@@ -29,6 +29,7 @@ export type WeekTrendData = Schemas["WeekTrendData"];
 export type WeekTrendPanel = Schemas["WeekTrendPanel"];
 export type WeekMeasure = Schemas["WeekMeasure"];
 export type WeekPlan = Schemas["WeekPlan"];
+export type PlannedWeeks = Schemas["PlannedWeeks"];
 export type DayPlan = Schemas["DayPlan"];
 export type PlannedSession = Schemas["PlannedSession"];
 export type Terrain = NonNullable<Activity["terrain"]>;
@@ -78,6 +79,15 @@ async function putJson<T>(url: string, body: unknown): Promise<T> {
 // Il tasto Refresh (todo 41): fa partire il lavoro, senza corpo.
 async function postJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { method: "POST" });
+  if (!response.ok) throw new ApiError(response.status, url);
+  return (await response.json()) as T;
+}
+
+// Le due scritture senza corpo della pagina Goal (todo 85): il goal attuale e
+// il cestino. Rispondono con l'elenco rimasto, cosi' una chiamata fa la cosa
+// e aggiorna la pagina.
+async function sendNoBody<T>(url: string, method: "PUT" | "DELETE"): Promise<T> {
+  const response = await fetch(url, { method });
   if (!response.ok) throw new ApiError(response.status, url);
   return (await response.json()) as T;
 }
@@ -215,6 +225,12 @@ export const api = {
   weekPlan: (monday: string, signal?: AbortSignal) =>
     getOrNull<WeekPlan>(`/api/weekly/${monday}/plan`, signal),
 
+  // I lunedi' che hanno un piano (todo 88): il confine fin dove la pagina
+  // Week lascia andare avanti. Una volta sola all'apertura — i file cambiano
+  // quando qualcuno lancia `make week_plans`, non mentre si guarda la pagina.
+  plannedWeeks: (signal?: AbortSignal) =>
+    getJson<PlannedWeeks>("/api/weekly/planned", signal),
+
   // La seduta prevista per un giorno (todo 63), dallo stesso file. `null`
   // quando per quel giorno un piano non c'e': i giorni fuori da un blocco, e
   // le settimane il cui file e' piu' vecchio del front matter.
@@ -228,6 +244,16 @@ export const api = {
   // con un link vecchio, o con un piano rinominato.
   plan: (slug: string, signal?: AbortSignal) =>
     getOrNull<Plan>(`/api/plans/${encodeURIComponent(slug)}`, signal),
+
+  // Fa di questo il goal attuale (todo 85): scrive `current: true` nel suo
+  // file e lo toglie dagli altri. **Non rigenera i piani settimanali**, e
+  // l'`ahead` della risposta e' quello che lo dice.
+  setCurrentPlan: (slug: string) =>
+    sendNoBody<PlanList>(`/api/plans/${encodeURIComponent(slug)}/current`, "PUT"),
+
+  // Sposta il goal nel cestino (`plan/.trash/`), non lo cancella.
+  deletePlan: (slug: string) =>
+    sendNoBody<PlanList>(`/api/plans/${encodeURIComponent(slug)}`, "DELETE"),
 
   // Lo stato del lavoro in corso, di qualunque tipo: `kind` dice se e' il
   // report di un giorno o di una settimana, e le chiavi delle sezioni

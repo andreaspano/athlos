@@ -23,7 +23,15 @@ from training.api import refresh
 from training.api.cache import invalidate, load_activities, load_health
 from training.api.context import DIST_DIR, ICONS_DIR, REPO_ROOT, UserContext, get_user_context
 from training.api.daily import daily_payload
-from training.api.plans import load_day_plan, load_plans, load_week_plan
+from training.api.plans import (
+    delete_plan,
+    load_day_plan,
+    load_plans,
+    load_week_plan,
+    planned_weeks,
+    set_current,
+    weeks_following,
+)
 from training.api.sections import DAILY, SECTIONS, WEEKLY
 from training.api.sections import Report as Report_
 from training.api.weekly import weekly_payload
@@ -47,10 +55,12 @@ from training.api.models import (
     Route,
     RunTypeUpdate,
     Sport,
+    PlannedWeeks,
     SportList,
     TerrainUpdate,
     TrendData,
     WeeklyData,
+    WeeksFollowing,
     WeekTrendData,
     WeekPlan,
     ZoneBand,
@@ -449,6 +459,27 @@ def get_weekly_trend_charts(
     raise HTTPException(status_code=404, detail=f"No panel named {panel!r}.")
 
 
+@app.get("/api/weekly/planned", response_model=PlannedWeeks, summary="Weeks with a plan")
+def get_planned_weeks(ctx: Context) -> PlannedWeeks:
+    """The Mondays of the weeks that have a written plan in `summary/05.plan/`, oldest first.
+
+    This is how far the Week page lets you walk forward (todo 88): past the last planned week
+    there is nothing to look at, and an arrow that lights up on empty weeks is an arrow that
+    lies. No plans means no forward, which is the right answer and not a failure.
+
+    The Monday is the **file name**, which is the rule of the format
+    (`summary/05.plan/README.md`), so a file whose front matter cannot be read still counts:
+    if the file is there, the week can be looked at.
+
+    **Declared before `/api/weekly/{monday}`**, or the path would be read as a date and
+    answered with a 422.
+
+    It does not come from the block of the current goal (`block_start` + `block_weeks` in
+    `/api/plans`): that is what the goal *declares*, and the two diverge — changing goal
+    leaves the written weeks where they were (todo 86). The boundary is the files that exist."""
+    return PlannedWeeks(weeks=planned_weeks(ctx.summary_dir))
+
+
 @app.get("/api/weekly/{monday}", response_model=WeeklyData, summary="Weekly data")
 def get_weekly(monday: date, ctx: Context) -> WeeklyData:
     """Everything known about one ISO week, Monday to Sunday (todo 52).
@@ -670,14 +701,69 @@ def get_plans(ctx: Context) -> PlanList:
     text.
 
     Every plan in the folder is listed, front matter or not: a plan the page cannot show is
-    worse than a plan without its numbers."""
-    found = load_plans(ctx.plan_dir)
+    worse than a plan without its numbers.
+
+    At most one carries `current`, the goal being followed right now (todo 84). The order does
+    not put it first: the list is the calendar of what he means to do, and `current` is a badge
+    on one of its rows.
+
+    `ahead` says which goal the weekly plans from this Monday on were written from, so the page
+    can tell when they no longer match the current one."""
+    return _plan_list(ctx)
+
+
+def _plan_list(ctx: UserContext) -> PlanList:
+    """The list as the three plan endpoints return it: the two that change a goal answer with
+    it too, so one call both acts and refreshes the page."""
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
     return PlanList(
         plans=[
             PlanSummary(**{name: plan[name] for name in PlanSummary.model_fields})
-            for plan in found
-        ]
+            for plan in load_plans(ctx.plan_dir)
+        ],
+        ahead=[
+            WeeksFollowing(slug=slug, weeks=weeks)
+            for slug, weeks in sorted(weeks_following(ctx.summary_dir, monday).items())
+        ],
     )
+
+
+@app.put("/api/plans/{slug}/current", response_model=PlanList, summary="Make a goal the current one")
+def put_plan_current(slug: str, ctx: Context) -> PlanList:
+    """Make this goal the current one: `current: true` goes into its file and leaves the others.
+
+    Only the flag is written — the rest of the file is left byte for byte as the person wrote
+    it, comments and key order included.
+
+    **It does not regenerate the weekly plans**, and nothing else does either: the files in
+    `summary/05.plan/` were written from a goal by hand, and there is no generator to call. The
+    `ahead` field of the answer is how the page says so. 404 when no goal has that slug."""
+    try:
+        set_current(ctx.plan_dir, slug)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No plan named {slug!r}.")
+    return _plan_list(ctx)
+
+
+@app.delete("/api/plans/{slug}", response_model=PlanList, summary="Delete a goal")
+def delete_plan_file(slug: str, ctx: Context) -> PlanList:
+    """Move this goal out of `plan/` and answer with the list that is left.
+
+    **The file is moved to `plan/.trash/`, not removed**: a goal is a document a person wrote,
+    this API has no login, and the page that calls this is reachable by the whole tailnet. The
+    name carries the moment, so deleting twice never covers the first copy.
+
+    Deleting the current goal is allowed and leaves no goal current — refusing would mean a
+    goal one keeps only because it is flagged. The weekly plans that declared it keep saying so
+    and are reported in `ahead`, pointing at a goal that is no longer in the folder.
+
+    404 when no goal has that slug."""
+    try:
+        delete_plan(ctx.plan_dir, slug)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"No plan named {slug!r}.")
+    return _plan_list(ctx)
 
 
 @app.get("/api/plans/{slug}", response_model=Plan, summary="Training plan")

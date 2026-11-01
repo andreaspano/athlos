@@ -348,6 +348,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/weekly/planned": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Weeks with a plan
+         * @description The Mondays of the weeks that have a written plan in `summary/05.plan/`, oldest first.
+         *
+         *     This is how far the Week page lets you walk forward (todo 88): past the last planned week
+         *     there is nothing to look at, and an arrow that lights up on empty weeks is an arrow that
+         *     lies. No plans means no forward, which is the right answer and not a failure.
+         *
+         *     The Monday is the **file name**, which is the rule of the format
+         *     (`summary/05.plan/README.md`), so a file whose front matter cannot be read still counts:
+         *     if the file is there, the week can be looked at.
+         *
+         *     **Declared before `/api/weekly/{monday}`**, or the path would be read as a date and
+         *     answered with a 422.
+         *
+         *     It does not come from the block of the current goal (`block_start` + `block_weeks` in
+         *     `/api/plans`): that is what the goal *declares*, and the two diverge — changing goal
+         *     leaves the written weeks where they were (todo 86). The boundary is the files that exist.
+         */
+        get: operations["get_planned_weeks_api_weekly_planned_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/weekly/{monday}": {
         parameters: {
             query?: never;
@@ -547,9 +582,43 @@ export interface paths {
          *
          *     Every plan in the folder is listed, front matter or not: a plan the page cannot show is
          *     worse than a plan without its numbers.
+         *
+         *     At most one carries `current`, the goal being followed right now (todo 84). The order does
+         *     not put it first: the list is the calendar of what he means to do, and `current` is a badge
+         *     on one of its rows.
+         *
+         *     `ahead` says which goal the weekly plans from this Monday on were written from, so the page
+         *     can tell when they no longer match the current one.
          */
         get: operations["get_plans_api_plans_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{slug}/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Make a goal the current one
+         * @description Make this goal the current one: `current: true` goes into its file and leaves the others.
+         *
+         *     Only the flag is written — the rest of the file is left byte for byte as the person wrote
+         *     it, comments and key order included.
+         *
+         *     **It does not regenerate the weekly plans**, and nothing else does either: the files in
+         *     `summary/05.plan/` were written from a goal by hand, and there is no generator to call. The
+         *     `ahead` field of the answer is how the page says so. 404 when no goal has that slug.
+         */
+        put: operations["put_plan_current_api_plans__slug__current_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -575,7 +644,21 @@ export interface paths {
         get: operations["get_plan_api_plans__slug__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a goal
+         * @description Move this goal out of `plan/` and answer with the list that is left.
+         *
+         *     **The file is moved to `plan/.trash/`, not removed**: a goal is a document a person wrote,
+         *     this API has no login, and the page that calls this is reachable by the whole tailnet. The
+         *     name carries the moment, so deleting twice never covers the first copy.
+         *
+         *     Deleting the current goal is allowed and leaves no goal current — refusing would mean a
+         *     goal one keeps only because it is flagged. The weekly plans that declared it keep saying so
+         *     and are reported in `ahead`, pointing at a goal that is no longer in the folder.
+         *
+         *     404 when no goal has that slug.
+         */
+        delete: operations["delete_plan_file_api_plans__slug__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1340,6 +1423,11 @@ export interface components {
              */
             peak_weekly_km: number | null;
             /**
+             * Current
+             * @description The goal being followed right now: `current: true` in the front matter. Exactly one plan at most has it — when more than one file carries the flag, the first of this list keeps it.
+             */
+            current: boolean;
+            /**
              * Written At
              * @description When the file was last written.
              */
@@ -1357,6 +1445,11 @@ export interface components {
         PlanList: {
             /** Plans */
             plans: components["schemas"]["PlanSummary"][];
+            /**
+             * Ahead
+             * @description Which goal the weekly plans of `summary/05.plan/` still follow, counted from this Monday on. An entry whose `slug` is not the current goal means those weeks were written from another one and nothing has rewritten them: changing the flag does not regenerate them (todo 85). Weeks already past are not counted — they are the record of what was planned then.
+             */
+            ahead: components["schemas"]["WeeksFollowing"][];
         };
         /**
          * PlanSummary
@@ -1415,6 +1508,11 @@ export interface components {
              */
             peak_weekly_km: number | null;
             /**
+             * Current
+             * @description The goal being followed right now: `current: true` in the front matter. Exactly one plan at most has it — when more than one file carries the flag, the first of this list keeps it.
+             */
+            current: boolean;
+            /**
              * Written At
              * @description When the file was last written.
              */
@@ -1456,6 +1554,17 @@ export interface components {
              * @description The day's row of the plan's table, Markdown; null when it has none.
              */
             text: string | null;
+        };
+        /**
+         * PlannedWeeks
+         * @description The weeks that have a written plan.
+         */
+        PlannedWeeks: {
+            /**
+             * Weeks
+             * @description Mondays of the weeks with a file in `summary/05.plan/`, oldest first.
+             */
+            weeks: string[];
         };
         /** Range */
         Range: {
@@ -2246,6 +2355,22 @@ export interface components {
             };
         };
         /**
+         * WeeksFollowing
+         * @description How many weekly plans, this Monday on, were written from one goal.
+         */
+        WeeksFollowing: {
+            /**
+             * Slug
+             * @description The goal those weeks declare in their `plan:` key.
+             */
+            slug: string;
+            /**
+             * Weeks
+             * @description How many weekly plan files, from this Monday on.
+             */
+            weeks: number;
+        };
+        /**
          * ZoneBand
          * @description A stretch of time in one heart-rate zone. Times in minutes from the start.
          */
@@ -2768,6 +2893,26 @@ export interface operations {
             };
         };
     };
+    get_planned_weeks_api_weekly_planned_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlannedWeeks"];
+                };
+            };
+        };
+    };
     get_weekly_api_weekly__monday__get: {
         parameters: {
             query?: never;
@@ -3038,6 +3183,37 @@ export interface operations {
             };
         };
     };
+    put_plan_current_api_plans__slug__current_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_plan_api_plans__slug__get: {
         parameters: {
             query?: never;
@@ -3056,6 +3232,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_plan_file_api_plans__slug__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanList"];
                 };
             };
             /** @description Validation Error */

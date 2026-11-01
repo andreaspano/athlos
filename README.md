@@ -19,6 +19,9 @@ FIT, JSON, salute e database tutti piatti nella stessa cartella.
   plan/      i blocchi scritti a mano
 ```
 
+Che cosa c'e' dentro ognuna, lo schema di `activities.db` e da quale file di
+Garmin viene ogni colonna stanno in **[`docs/data.md`](docs/data.md)**.
+
 **Due file di configurazione, in quest'ordine.**
 
 `data.yaml`, nella radice del repo, dice una cosa sola — dove sta la cartella
@@ -152,13 +155,21 @@ report giornaliero non legge nessuna delle tre.
 `frontend/` e' l'interfaccia (React, TypeScript, Vite), l'unica dal todo 40.
 La barra in alto ha **due menu su due righe** (todo 55): sopra il periodo —
 la **Day** e la **Week** — sotto che cosa se ne guarda. Sono due assi, non
-una fila sola: Activities non e' un periodo e sta a destra, staccata e ancora
-grigia. Accanto a lei, a destra per lo stesso motivo, c'e' **Plan**: un piano
-guarda avanti a una gara, non indietro a un giorno. Month e Year si
-aggiungeranno quando esisteranno, non prima.
+una fila sola. A destra, staccato, c'e' **Goal**, che un periodo non e': un
+obiettivo guarda avanti a una gara, non indietro a un giorno.
+
+Si chiamava **Plan** come la sua pagina, e nella barra erano due: questo e la
+vista Plan della Week, che e' un'altra cosa — la settimana del piano, dentro
+la settimana. Goal dice quello che la pagina mostra, la gara a cui si va e
+quanto manca; il piano e' il come, ed e' una scheda dentro. **L'indirizzo
+resta `?period=plan`**, cosi' i link scritti prima continuano ad aprirla.
+
+**Nella barra non ci sono voci grigie.** Month, Year e Activities si
+aggiungeranno quando esisteranno, non prima: Activities e' stata per mesi una
+pillola disattivata e non portava in nessun posto.
 
 **Le viste sono di ogni periodo** (todo 59): **Snap**, **Training** e
-**Trend** sotto Day, **Snap**, **Trend** e **Plan** sotto Week; la Plan, che
+**Trend** sotto Day, **Snap**, **Trend** e **Plan** sotto Week; la Goal, che
 un periodo non e', non ne ha e apre la barra con una riga sola. Stanno in `VIEWS`
 (`src/navigation.ts`) nell'ordine in cui si leggono, e **la prima e' quella
 che il periodo apre da solo** — lo Snap, per tutti e due.
@@ -178,12 +189,18 @@ continuano ad aprire quello che aprivano. Cambiando vista **il periodo
 resta**: da Day/Snap si clicca Trend e si resta sul giorno che si stava
 guardando. E **la vista si porta dietro dove esiste**: da Day/Trend si clicca
 Week e si arriva sul Trend della Week, mentre da Week/Plan si torna a
-Day/Snap, che il Plan la Day non ce l'ha. La forma vecchia `?page=week`
-continua a valere, e senza niente si apre Day/Snap; anche `?view=report`,
-che non e' piu' una chiave, ricade sulla vista di partenza — la stessa
-pagina con un altro nome. Niente router di
-libreria: `URLSearchParams` e `history.pushState`
+Day/Snap, che il Plan la Day non ce l'ha. Senza niente si apre Day/Snap.
+Niente router di libreria: `URLSearchParams` e `history.pushState`
 (`src/navigation.ts`).
+
+**Le forme vecchie non si leggono piu'.** `?page=week` valeva fino al todo
+55 e ha smesso: era compatibilita' verso i link di un'app con un utente
+solo, e in `summary/` e in `plan/` non ce n'era nessuno. Oggi apre Day/Snap,
+che e' la ricaduta di qualunque indirizzo che non si capisce. Una chiave
+sparita non ha comunque bisogno di codice: `?view=report`, la vista del
+giorno fino al todo 67, ricade sulla vista di partenza perche' `view` si
+valida contro `VIEWS` — e quella validazione serve a se stessa, non alla
+compatibilita'.
 
 Il **Trend** della Day (todo 55) disegna quello che lo Snap racconta: le
 misure giorno per giorno nei cinque pannelli delle card, in una finestra che
@@ -287,6 +304,49 @@ pero' il front matter non ce l'ha, quindi per la sua settimana la card mostra
 i quattro riquadri del blocco a trattino e nessuna riga: le sedute a macchina
 non ci sono, e ricavarle dalla prosa e' la strada che il todo 14 aveva
 scartato.
+
+**La Week va anche avanti** (todo 88), fin dove arriva il piano: la freccia
+`›`, la fila dei riquadri e il calendario arrivano all'**ultima settimana che
+ha un file** in `summary/05.plan/` — oggi la settimana di gara. Lo dice
+`GET /api/weekly/planned`, i lunedi' che hanno un piano, e la pagina ne tiene
+il massimo. Nessun piano vuol dire nessun avanti, che e' la risposta giusta e
+non un guasto. Il confine non si ricava dal blocco del goal
+(`block_start + block_weeks`): quello e' quello che il goal **dichiara**, e il
+todo 86 ha mostrato che le due cose divergono — si cambia goal e le settimane
+restano quelle di prima.
+
+Camminando avanti la fila scorre con la sua regola di sempre (finisce due
+settimane dopo quella guardata), quindi dalla corrente si arriva a vedere
+W45..W48 un passo per volta. Il tasto `›|` resta **questa settimana**: da
+gennaio la casa e' oggi.
+
+**Una settimana che non e' cominciata non si chiede all'API.** I fatti
+(`/api/weekly/<lunedi>`) rispondono **422** — *the week has not started* — e
+quella risposta finirebbe nell'avviso che l'API e' giu'. Non e' giu': la
+domanda e' senza senso, e a non farla e' la pagina, che di una settimana
+prevista chiede **solo il piano**. Da cui quattro viste con due stati:
+
+- **Training**: la colonna del piano come sempre, e in quella delle sedute
+  *The week has not started* invece di *No sessions this week* — una settimana
+  finita senza sedute e una che non e' cominciata sono due cose diverse. La
+  card del commento **c'e' e resta vuota**, come nella Day (todo 63): nessun
+  agente scrive il verdetto di qualcosa che deve ancora succedere, e la
+  cornice vuota e' la risposta. Il tasto che lo scriverebbe no, che quella
+  rotta risponde 422.
+- **Snap**: una riga che lo dice, e niente card. I numeri di una settimana che
+  non e' cominciata non sono zero, non esistono.
+- **Trend**: la finestra resta sulle settimane misurate. E' una carta di
+  controllo, e dei punti che non ci sono non fanno un grafico vuoto, fanno un
+  grafico sbagliato.
+- **Plan**: era gia' quello che serve, e non cambia.
+
+Anche il tasto che riscrive la settimana sparisce: `POST .../refresh` risponde
+422 per scelta, ed e' la regola del todo 56 — chiudere un periodo che deve
+ancora succedere vuol dire giudicarlo prima del tempo.
+
+Un `?monday=` oltre il confine torna a questa settimana e l'indirizzo si
+riscrive **senza** lasciare una voce nella cronologia: non e' un passo che
+qualcuno ha fatto.
 
 Comune a tutte e quattro e' l'intestazione — titolo, frecce, calendario, il
 tasto che riscrive la settimana — e il selettore: cambiando settimana la
@@ -422,10 +482,35 @@ leggere da li'.
 ### I piani di allenamento
 
 In `plan/` stanno i piani scritti a mano: un file Markdown per piano, e la
-pagina **Plan** li mostra tutti, la gara piu' vicina per prima. Nessun elenco
+pagina **Goal** li mostra tutti, la gara piu' vicina per prima. Nessun elenco
 nel codice — un file nuovo nella cartella si vede ricaricando la pagina — e
 nessun agente: questi li scrive una persona, mentre `summary/` lo riscrivono
-gli agenti. Per questo `plan/` sta nel repo e `summary/` no.
+gli agenti.
+
+**L'elenco si apre e si chiude** (todo 84): una riga per goal, e aperte
+quante se ne vuole. I tre piani di una mezza sono tre bersagli della stessa
+gara, e la domanda che si fa guardandoli e' *quale di questi*: una pagina che
+ne mostrava uno per volta la rendeva un andare avanti e indietro.
+
+**Uno e' quello attuale, e lo dice `current: true`** nel suo front matter:
+porta la pillola e si apre da solo. Dal todo 85 si sceglie dalla pagina
+(`make current` sulle righe che non lo sono) e un goal si butta col cestino:
+**il file va in `plan/.trash/`, non si cancella** — un goal e' un documento
+scritto a mano e l'API non ha login.
+
+**Cambiare goal non rigenera i piani settimanali.** Dal todo 86 un
+generatore c'e', ma e' un comando da lanciare (`make week_plans`, qui sotto)
+e non un effetto del clic: siccome i tre piani hanno ritmi e chilometraggi
+diversi, finche' non si lancia le settimane prescrivono il bersaglio vecchio —
+quindi la pagina lo dice e nomina il comando: *18 weekly plans from this
+Monday on still follow `half_marathon_2.20`*. Il passato non si conta e non si riscrive: le
+settimane finite sono il registro di quello che era previsto allora, e i
+report di allora le hanno giudicate. Prima lo si sapeva solo di rimbalzo —
+le diciotto settimane di `summary/05.plan/` portano `plan: half_marathon_2.20`
+— cioe' stava scritto nei file generati e non in quello scritto a mano. Il
+flag e' uno o nessuno: se due file ce l'hanno, lo tiene il primo dell'elenco
+e gli altri lo perdono, che due obiettivi attuali non sono una cosa da
+mostrare.
 
 Davanti al testo c'e' un front matter YAML, nello spirito del todo 14 ma per
 un blocco intero invece che per una settimana: le chiavi dicono la gara, non
@@ -439,6 +524,7 @@ distance_km: 21.097
 target_time: "2:20:00"
 target_pace_min_km: "6:38"
 target_speed_kmh: 9.04
+current: true          # il goal che si sta seguendo: uno solo fra i file
 block_start: 2026-10-26
 block_weeks: 18
 peak_weekly_km: 46
@@ -519,6 +605,68 @@ come prima, dalle sole sedute presenti e passate. All'agente non si dice
 **ne' che un piano c'e' ne' che non c'e'**: "per questo giorno non era
 previsto niente" e' peggio del silenzio, perche' si legge come un verdetto
 sulla seduta.
+
+### Le settimane si generano dal goal
+
+Fino al todo 86 nessuno le scriveva: i diciannove file di `summary/05.plan/`
+li ha scritti un giro a mano il 26 ottobre 2026, e cambiare goal li lasciava
+dov'erano. Adesso c'e' `make week_plans`, cioe' `api/weekplans.py` — `plans.py`
+e' chi legge, questo e' chi genera.
+
+```
+make week_plans                           # il goal attuale, da lunedi' prossimo
+make week_plans DRY=1                     # cosa farebbe, senza agenti
+make week_plans GOAL=half_marathon_2.10
+make week_plans FROM=2026-12-07 TO=2027-01-04
+```
+
+**Le scrive un agente, una settimana per volta** (`.claude/agents/p_week.md`,
+lanciato come le sezioni dei report) e non una funzione: il blocco e' prosa —
+la tabella delle diciotto settimane, le tabelle di fase, i ritmi, le deroghe —
+e un parser di quelle tabelle sarebbe il parser del markdown di una persona,
+che si rompe sul primo blocco scritto diversamente e si rompe in silenzio. Ogni
+agente riceve il blocco, l'identita' della sua settimana e **il file della
+settimana prima**, che e' da dove la sua continua. Lo stile dei report
+(`_style.md`) non si attacca: dice "nessun titolo, un paragrafo, niente
+tabelle", e una settimana e' tutto il contrario.
+
+**Le date non sono dell'agente.** Il lunedi', `block_week`, `block_weeks`,
+`plan`, `race` e `target_time` li calcola il modulo dal front matter del blocco
+e li mette nel prompt, perche' un front matter sbagliato non da' un errore:
+`load_day_plan` cerca la seduta per data, quindi una data storta diventa un
+giorno senza piano, e si scopre a dicembre guardando una card vuota. Quello che
+l'agente scrive si **ricontrolla** (`check`): il front matter si legge,
+l'identita' e' quella chiesta, `sessions` ha sette voci coi sette giorni,
+`sport`/`kind`/`distance_km` sono valori che i lettori sanno leggere, e la
+tabella ha una riga per ogni giorno — cercata con `_day_row`, che e' chi la
+cerca davvero.
+
+**Il file nasce in `summary/05.plan/.staging/` e arriva al suo posto solo se
+passa.** Un file rotto e' peggio di un file che non c'e': quello che manca lo
+gestiscono apposta tutti e tre i lettori, quello rotto gira, e il Training del
+giorno ne scrive il verdetto. Una settimana scartata resta nella staging da
+leggere, e al suo posto resta quella di prima.
+
+**Si genera dal lunedi' prossimo.** Il passato non si tocca — le settimane
+finite sono il registro di quello che era previsto allora, e i report di allora
+le hanno giudicate — e la settimana **in corso** sta col passato: i suoi giorni
+sono stati corsi e giudicati, e una settimana che cambia sotto i piedi a meta'
+e' peggio di una che finisce sul piano vecchio. Per questo l'avviso della
+pagina Goal, che conta da questo lunedi', resta su una settimana anche dopo una
+generazione, e si spegne da se' il lunedi'.
+
+**Quello che c'e' va in `summary/05.plan/.trash/`**, non si sovrascrive: una
+settimana si puo' essere riscritta a mano avvicinandosi alla data. Generare e'
+l'unico gesto distruttivo dentro `summary/`, e rilanciare il comando non e'
+innocuo come rilanciare un backfill.
+
+Il comando **prende il lock dei report** (`.refresh.lock`): due serie di
+`claude` sugli stessi file non si fanno. Sono una sessione per settimana,
+mezz'ora in tutto, quindi non si lancia vicino ai giri delle 8 e delle 21, che
+troverebbero il lock occupato e salterebbero il report. E stampa una riga per
+settimana — numero del blocco, fase, km, lungo, quante qualita': **quelle righe
+sono la verifica**, da leggere accanto alla tabella del blocco, perche' i
+controlli sono strutturali e non sanno niente di allenamento.
 
 ### I due giri dei timer: una pagina per giro
 

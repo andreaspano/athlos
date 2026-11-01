@@ -37,6 +37,7 @@ import {
   fixed,
   longDayLabel,
   mondayOf,
+  shortDayLabel,
   timeOf,
   weekdayShort,
   today,
@@ -57,16 +58,19 @@ import { WeekPlanBrief, WeekPlanCard } from "./WeekPlanCard";
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
 
-/** Il lunedi dell'URL, se e' una data valida e non nel futuro; se no quello
- * della settimana di oggi. Un giorno qualunque viene riportato al suo
- * lunedi, cosi' un link storto apre comunque la settimana giusta. */
+/** Il lunedi dell'URL, se e' una data valida; se no quello della settimana
+ * di oggi. Un giorno qualunque viene riportato al suo lunedi, cosi' un link
+ * storto apre comunque la settimana giusta. */
 function mondayFromUrl(now: string): string {
   const value = paramFromUrl("monday");
   const current = mondayOf(now);
   if (!value || !DAY_PATTERN.test(value) || Number.isNaN(Date.parse(value)))
     return current;
-  const monday = mondayOf(value);
-  return monday > current ? current : monday;
+  // **Una settimana futura si tiene** (todo 88): fin dove si possa andare
+  // avanti lo dice il piano, e il piano qui non si sa ancora — arriva da
+  // `/api/weekly/planned` un istante dopo. Chi esagera lo riporta indietro
+  // quel confine, quando c'e'; prima di questo todo tornava subito a oggi.
+  return mondayOf(value);
 }
 
 /** Quanti decimali vuole una misura: dall'unita', come fa la Day. */
@@ -203,6 +207,10 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
   const [report, setReport] = useState<Report | null>(null);
   const [plan, setPlan] = useState<WeekPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  // I lunedi' che hanno un piano (todo 88): il confine fin dove si puo'
+  // andare avanti. Vuoto finche' non arriva, e allora avanti non si va —
+  // che e' la pagina di prima.
+  const [planned, setPlanned] = useState<string[]>([]);
   const [refresh, setRefresh] = useState<RefreshStatus | null>(null);
   // Vero da quando si e' premuto un tasto: prima di allora un lavoro
   // fallito e' roba di qualcun altro, e non si annuncia.
@@ -212,9 +220,16 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
   const theme = useColorScheme();
   const [weeks, setWeeks] = useState(() => weeksFromUrl());
   const sunday = addDays(monday, 6);
+  // Fin dove si guarda: l'ultima settimana che ha un piano, o questa se non
+  // ce n'e' nessuno (todo 88). Oltre il piano non c'e' niente da vedere.
+  const limit = planned.length > 0 ? planned[planned.length - 1] : currentMonday;
+  const last = limit > currentMonday ? limit : currentMonday;
+  // Una settimana che **non e' cominciata**: non ha fatti, non ha report,
+  // non ha sedute. Ha un piano, e basta.
+  const future = monday > currentMonday;
 
   const changeWeek = (next: string) => {
-    if (next === monday || next > currentMonday) return;
+    if (next === monday || next > last) return;
     pushUrl({ period: "week", page: null, monday: next });
     setMonday(next);
   };
@@ -261,8 +276,39 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
     return () => controller.abort();
   }, [view]);
 
+  // Il confine (todo 88): i lunedi' che hanno un piano. Una volta sola — i
+  // file cambiano quando qualcuno lancia `make week_plans`, non mentre si
+  // guarda la pagina.
+  //
+  // Qui si rimedia anche a un `?monday=` che va oltre: `mondayFromUrl` non
+  // puo' saperlo, il confine arriva dopo. Si torna a questa settimana e
+  // l'indirizzo si riscrive **senza** lasciare una voce nella cronologia,
+  // che non e' un passo che qualcuno ha fatto.
   useEffect(() => {
-    if (view !== "training") return;
+    const controller = new AbortController();
+    api
+      .plannedWeeks(controller.signal)
+      .then(({ weeks }) => {
+        setPlanned(weeks);
+        const furthest = weeks.length > 0 ? weeks[weeks.length - 1] : currentMonday;
+        if (monday > furthest && monday > currentMonday) {
+          const url = new URL(window.location.href);
+          url.searchParams.set("monday", currentMonday);
+          window.history.replaceState(window.history.state, "", url);
+          setMonday(currentMonday);
+        }
+      })
+      .catch((e) => !isAbort(e) && setError(API_DOWN));
+    return () => controller.abort();
+    // Solo all'apertura: `monday` qui si legge, non si segue.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (view !== "training" || future) {
+      setActivities([]);
+      return;
+    }
     const controller = new AbortController();
     api
       .activities(monday, sunday, [], controller.signal)
@@ -274,29 +320,37 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
     return () => controller.abort();
   }, [monday, sunday, view]);
 
+  // I fatti della settimana. **Di una settimana futura non si chiedono**
+  // (todo 88): l'API risponde 422 — *the week has not started* — e quella
+  // risposta finirebbe nell'avviso che l'API e' giu'. Non e' giu': la
+  // domanda e' senza senso, e a non farla e' la pagina.
   useEffect(() => {
-    const controller = new AbortController();
     setData(null);
+    if (future) return;
+    const controller = new AbortController();
     api
       .weekly(monday, controller.signal)
       .then(setData)
       .catch((e) => !isAbort(e) && setError(API_DOWN));
     return () => controller.abort();
-  }, [monday]);
+  }, [monday, future]);
 
   // Il testo della settimana: lo leggono lo Snap (il Summary e le quattro
   // card) e la Training (il commento e il Next). `reloads` lo rilegge quando
   // un lavoro finisce, senza ricaricare la pagina.
   useEffect(() => {
-    if (view !== "snap" && view !== "training") return;
-    const controller = new AbortController();
     setReport(null);
+    // Il report di una settimana futura non esiste e non esistera' prima del
+    // tempo: nessun agente scrive il verdetto di qualcosa che deve ancora
+    // succedere (todo 56).
+    if ((view !== "snap" && view !== "training") || future) return;
+    const controller = new AbortController();
     api
       .weeklyReport(monday, controller.signal)
       .then(setReport)
       .catch((e) => !isAbort(e) && setError(API_DOWN));
     return () => controller.abort();
-  }, [monday, reloads, view]);
+  }, [monday, reloads, view, future]);
 
   // Il piano della settimana (todo 60), sulle due viste che lo mostrano: il
   // documento nel Plan, i suoi totali nella Training (todo 70). Una
@@ -321,6 +375,7 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
       });
     return () => controller.abort();
   }, [monday, view]);
+
 
   // Lo stato del lavoro, solo se e' di questo tipo: giorno e settimana
   // condividono un lavoro alla volta, e le chiavi delle sezioni sono
@@ -444,7 +499,7 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
                 type="button"
                 className="btn icon-btn"
                 onClick={() => changeWeek(addDays(monday, 7))}
-                disabled={monday >= currentMonday}
+                disabled={monday >= last}
                 aria-label="Next week"
                 title="Next week"
               >
@@ -463,11 +518,18 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               <WeekCalendar
                 monday={monday}
                 current={currentMonday}
+                limit={last}
                 onSelect={changeWeek}
               />
               {/* Rifa' tutta la settimana: otto agenti in fila, qualche
                   minuto. Non scarica niente, a differenza del Refresh
-                  della Day: la settimana si scrive sui dati che ci sono. */}
+                  della Day: la settimana si scrive sui dati che ci sono.
+                  **Su una settimana futura non c'e'** (todo 88): l'API
+                  risponde 422 per scelta, ed e' la regola del todo 56 —
+                  chiudere un periodo che deve ancora succedere vuol dire
+                  giudicarlo prima del tempo. Un tasto che risponde 422 e'
+                  peggio di un tasto che non c'e'. */}
+              {!future && (
               <button
                 type="button"
                 className="btn icon-btn refresh-btn"
@@ -508,11 +570,13 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
                   />
                 </svg>
               </button>
+              )}
             </div>
           </div>
           <WeekPicker
             monday={monday}
             current={currentMonday}
+            limit={last}
             onSelect={changeWeek}
           />
         </div>
@@ -524,8 +588,17 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
         )}
         {/* La fila delle settimane: il Trend (todo 78). Un punto per
             settimana invece che per giorno, sulla stessa griglia della Day. */}
+        {/* Il Trend resta sulle settimane **misurate** anche guardando una
+            settimana prevista (todo 88): e' una carta di controllo, e dei
+            punti che non ci sono non fanno un grafico vuoto, fanno un
+            grafico sbagliato. La finestra finisce sulla settimana corrente. */}
         {view === "trend" && (
-          <WeekTrendPanels monday={monday} weeks={weeks} onWeeks={changeWeeks} theme={theme} />
+          <WeekTrendPanels
+            monday={future ? currentMonday : monday}
+            weeks={weeks}
+            onWeeks={changeWeeks}
+            theme={theme}
+          />
         )}
         {/* Come doveva andare la settimana: il Plan (todo 60). */}
         {view === "plan" && (
@@ -537,11 +610,20 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
             riquadri, che sono due cose — i fatti e il giudizio. */}
         {view === "training" && (
           <>
+            {/* Il commento e' il verdetto della settimana, e una settimana che
+                non e' cominciata non ne ha uno: la cornice c'e' comunque e
+                resta **vuota**, come nella Day (todo 63) — e' la stessa
+                risposta che da' una settimana passata di cui nessun agente ha
+                ancora scritto il Training, e la vista tiene la sua forma
+                invece di perdere un riquadro su tre.
+                Il tasto che lo scriverebbe no: su una settimana futura
+                `POST .../refresh/<sezione>` risponde 422 per scelta, come il
+                Refresh grande qui sopra. */}
             <section className="card comment-card" aria-label="Comment">
               <CardHead
                 icon={sectionIconFile("comment")}
                 title="Comment"
-                refresh={sectionButton("training")}
+                refresh={future ? undefined : sectionButton("training")}
               />
               {text("Training") && (
                 <div className="prose">{markdown(text("Training")!)}</div>
@@ -610,8 +692,14 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
                   })}
                 </div>
               ))}
+              {/* Due frasi diverse per due cose diverse (todo 88): una
+                  settimana finita senza sedute e' una settimana in cui non si
+                  e' fatto niente; una che non e' cominciata non ha ancora
+                  niente da dire. */}
               {ordered.length === 0 && (
-                <p className="caption week-days-foot">No sessions this week.</p>
+                <p className="caption week-days-foot">
+                  {future ? "The week has not started." : "No sessions this week."}
+                </p>
               )}
             </section>
             </div>
@@ -620,7 +708,19 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
         {/* Lo Snap e' il corpo, come quello del giorno (todo 68): il
             verdetto a tutta larghezza e le quattro card. Le sedute e il Next
             sono passati alla Training. */}
-        {view === "snap" && (
+        {/* Lo Snap di una settimana prevista: una riga, e niente card (todo
+            88). I numeri di una settimana che non e' cominciata non sono
+            zero, non esistono, e sette riquadri di trattini si leggono come
+            un guasto. Quello che di quella settimana si puo' guardare e' il
+            piano, e sta nelle altre due viste. */}
+        {view === "snap" && future && (
+          <p className="info">
+            The week of {shortDayLabel(monday)} has not started: nothing is measured yet.
+            What it asks for is in the <strong>Plan</strong> and the <strong>Training</strong>
+            {" "}views.
+          </p>
+        )}
+        {view === "snap" && !future && (
         <>
         <SummaryCard
           day={monday}
