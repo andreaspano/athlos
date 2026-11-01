@@ -34,4 +34,10 @@ build-backend = "uv_build"
 dev = [
     "httpx>=0.28.1",
     "ipython>=9.17.1",
+    "pytest>=9.0.1",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `conftest.py` e' anche un modulo da cui i test importano gli attrezzi.
+pythonpath = ["tests"]
