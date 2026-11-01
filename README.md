@@ -682,6 +682,59 @@ settimana — numero del blocco, fase, km, lungo, quante qualita': **quelle righ
 sono la verifica**, da leggere accanto alla tabella del blocco, perche' i
 controlli sono strutturali e non sanno niente di allenamento.
 
+### La faccia su ogni card
+
+Dal todo 92 ogni card porta in cima una delle cinque facce — `terrible`,
+`low`, `medium`, `high`, `perfect`, i file di `icons/` disegnati da
+`tools/scale_icons.py` — a dire **come sta andando quella cosa** prima di
+leggere i numeri e prima di leggere il testo. Sei card su tutte e due le
+pagine: Summary, Health, Recovery, Load, Fitness e il Comment della Training.
+
+**Il voto viene dai numeri** (`api/score.py`), non da un'opinione: le fasce
+che la pagina gia' disegna sotto ogni misura dicono dove sta il valore —
+dentro la prima e' normale, fuori merita un commento, fuori dalla seconda non
+e' un cavillo — ed e' la stessa lettura che `_style.md` chiede agli agenti a
+parole. Quello che mancava era **da che parte sta il male**: era scritto solo
+nel prompt, e adesso e' anche nel codice.
+
+| Dove sta il valore | Faccia |
+|---|---|
+| oltre due sigma dal lato buono | perfect |
+| fra una e due sigma dal lato buono | high |
+| dentro la fascia | medium |
+| fra una e due sigma dal lato cattivo | low |
+| oltre due sigma dal lato cattivo | terrible |
+
+Sotto e' male per HRV, prontezza, sonno e body battery; sopra e' male per FC
+a riposo, respiro nel sonno e stress; i punteggi di forma si leggono al
+contrario, perche' sopra la fascia stanno ancora salendo. La faccia di una
+card e' la **media dei gradini** delle sue misure, e una misura senza valore
+o senza fascia non vota: una card dove non vota nessuno **non ha faccia** —
+l'assenza di misure non e' un verdetto.
+
+**Il carico e' l'eccezione**: non ha un lato buono, tanto e' troppo e poco e'
+poco, quindi la regola e' centrata sulle sue fasce — dentro 0, fuori -1, ben
+fuori -2. Da cui il fatto che il Load **non prende mai `perfect` ne'
+`terrible`**: il massimo che quella misura sa dire e' «sei dove stai di
+solito».
+
+Il **Summary** non ha misure sue: e' la media delle quattro card, che e'
+esattamente quello che fa il suo agente leggendo i frammenti.
+
+Il **Comment** invece non ha numeri, ha un giudizio, e la parola la scrive
+chi il giudizio lo da': l'agente della Training comincia il frammento con una
+riga `verdict: high`, che `api/app.py` toglie dal testo e manda alla pagina
+in un campo suo. La riga la chiede il **prompt** dell'orchestratore e non il
+solo file dell'agente: `_style.md`, che viene attaccato dopo, dice "solo il
+corpo, nessun preambolo", e con la sola istruzione nell'agente il frammento
+tornava senza. I report scritti prima non ce l'hanno e la loro card resta
+senza faccia, che e' meglio di un voto inventato adesso su un testo di
+ottobre.
+
+**Una faccia e' una lettura relativa.** La fascia e' la storia di quella
+persona, quindi `perfect` vuol dire *insolitamente bene per te*, non *bene in
+assoluto*.
+
 ### I due giri dei timer: una pagina per giro
 
 Dal todo 47 il report si scrive da solo due volte al giorno, e dal todo 66

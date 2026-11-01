@@ -816,6 +816,20 @@ h2 {
   text-transform: uppercase;
   margin-bottom: 10px;
 }
+/* La faccia della card (todo 92): in fondo all'intestazione, spinta a
+   destra, prima del tasto che rifa' la sezione. Un filo sopra la linea di
+   base del titolo, che e' maiuscoletto piccolo e lascerebbe l'icona bassa. */
+.head-face {
+  margin-left: auto;
+  vertical-align: middle;
+}
+/* Nel Summary la cornice e' l'occhiello, che e' una riga di testo: li' la
+   faccia sta in fila con le parole e non spinta a destra, se no finirebbe
+   all'altro capo di una card larga quanto la pagina. */
+.eyebrow .head-face {
+  margin-left: 4px;
+}
+
 /* La nota accanto al titolo di un riquadro: contesto, non titolo. Fuori dal
    maiuscoletto e dal grassetto dell'intestazione, cosi' si legge come una
    didascalia e non come un secondo titolo. */

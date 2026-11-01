@@ -3,7 +3,7 @@
 // in "This morning"; le barre erano in HealthCard fino al todo 46).
 import type { ReactNode } from "react";
 
-import { iconUrl, type Band, type Measure } from "../api/client";
+import { iconUrl, type Band, type Measure, type Verdict } from "../api/client";
 import { writtenLabel } from "../format";
 
 export function num(value: number | null | undefined, digits = 0): string {
@@ -46,11 +46,17 @@ export function CardHead({
   icon,
   title,
   note,
+  face,
   refresh,
 }: {
   icon: string | null;
   title: string;
   note?: ReactNode;
+  /** Come sta andando quello che la card mostra (todo 92): una delle cinque
+   * parole della scala, e la faccia in fondo all'intestazione. `null` o
+   * assente vuol dire **niente da misurare**, non un voto basso: la card
+   * resta senza. */
+  face?: Verdict | null;
   refresh?: ReactNode;
 }) {
   return (
@@ -58,6 +64,18 @@ export function CardHead({
       {icon && <img src={iconUrl(icon)} alt="" width={22} height={22} />}
       <span>{title}</span>
       {note && <span className="head-note">{note}</span>}
+      {/* Col nome scritto nel `title`: un'icona senza nome e' un indovinello,
+          e cinque facce che si somigliano a 22 px lo sono due volte. */}
+      {face && (
+        <img
+          className="head-face"
+          src={iconUrl(`${face}.png`)}
+          alt={face}
+          title={face}
+          width={22}
+          height={22}
+        />
+      )}
       {refresh}
     </div>
   );

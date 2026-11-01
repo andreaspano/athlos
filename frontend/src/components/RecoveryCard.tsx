@@ -4,7 +4,7 @@
 // fa conti: valori e fasce vengono dall'API.
 import type { ReactNode } from "react";
 
-import type { DailyData } from "../api/client";
+import type { DailyData, Verdict } from "../api/client";
 import { durationLabel } from "../format";
 import { markdown } from "../markdown";
 import { CardHead, MeasureBar, Stat, WrittenAt, num } from "./Stat";
@@ -27,6 +27,7 @@ export function RecoveryCard({
   writtenAt,
   day,
   icon,
+  face,
   refresh,
 }: {
   data: DailyData;
@@ -34,6 +35,8 @@ export function RecoveryCard({
   writtenAt: string | null;
   day: string;
   icon: string | null;
+  /** La faccia della card (todo 92). */
+  face: Verdict | null;
   refresh?: ReactNode;
 }) {
   const m = data.morning;
@@ -43,7 +46,7 @@ export function RecoveryCard({
   // ricaricato, la seconda quanto gli ha chiesto la giornata di ieri.
   return (
     <section className="card recovery-card" aria-label="Recovery">
-      <CardHead icon={icon} title="Recovery" refresh={refresh} />
+      <CardHead icon={icon} title="Recovery" face={face} refresh={refresh} />
       <div className="stats two">
         <Stat
           label="Readiness"

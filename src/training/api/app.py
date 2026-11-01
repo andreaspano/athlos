@@ -10,6 +10,7 @@ Gli endpoint sono sincroni: i calcoli (`db`, `run_chart`, `daily_data`) sono
 codice bloccante, e FastAPI li serve su un pool di thread."""
 
 import math
+import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -547,13 +548,37 @@ def _fragment_sections(
 
     Niente testo senza titolo: la riga "Data: ..." del file unico la scartava
     gia' `parse_report`, quindi alla pagina non e' mai arrivata."""
-    found: list[tuple[str | None, str, datetime | None]] = []
+    found: list[tuple[str | None, str, datetime | None, str | None]] = []
     for section in kind.sections:
         path = _fragment_path(folder, section.key, kind)
         body = path.read_text(encoding="utf-8").strip() if path.exists() else ""
         written = datetime.fromtimestamp(path.stat().st_mtime) if body else None
-        found.append((section.title, body, written))
+        verdict, body = _verdict(body)
+        found.append((section.title, body, written, verdict))
     return found
+
+
+# La prima riga di un frammento, quando l'agente ha dato un voto (todo 92):
+# `verdict: high`. Solo in cima, e solo le cinque parole della scala — una
+# riga che dice altro e' testo, e il testo non si tocca.
+_VERDICT_LINE = re.compile(
+    r"\A\s*verdict\s*:\s*(terrible|low|medium|high|perfect)\s*\n?", re.IGNORECASE
+)
+
+
+def _verdict(body: str) -> tuple[str | None, str]:
+    """Il voto scritto dall'agente e il corpo senza quella riga.
+
+    La scrive la sola sezione Training (todo 92): le altre card prendono la
+    faccia dai numeri. Qui si toglie prima che il testo arrivi alla pagina —
+    se restasse, si leggerebbe come la prima frase del commento.
+
+    I frammenti scritti prima non ce l'hanno: niente voto, nessuna faccia, e
+    il corpo intero."""
+    match = _VERDICT_LINE.match(body)
+    if not match:
+        return None, body
+    return match.group(1).lower(), body[match.end() :].strip()
 
 
 @app.get("/api/reports/daily/{day}", response_model=Report, summary="Daily report")
@@ -576,7 +601,7 @@ def get_daily_report(day: date, ctx: Context) -> Report:
         raise HTTPException(status_code=404, detail=f"No daily report for {day}.")
     # Una cartella che esiste ma non ha ancora un frammento scritto vale come
     # un report che non c'e': le sezioni vuote da sole non sono un report.
-    if not any(body for _, body, _written in found):
+    if not any(body for _, body, _written, _verdict in found):
         raise HTTPException(status_code=404, detail=f"No daily report for {day}.")
     sections = [
         ReportSection(
@@ -584,8 +609,9 @@ def get_daily_report(day: date, ctx: Context) -> Report:
             body=body,
             icon=section_icon(title) if title else None,
             written_at=written,
+            verdict=verdict,
         )
-        for title, body, written in found
+        for title, body, written, verdict in found
     ]
     return Report(day=day, sections=sections)
 
@@ -638,7 +664,7 @@ def get_weekly_report(monday: date, ctx: Context) -> Report:
     if not folder.is_dir():
         raise HTTPException(status_code=404, detail=f"No weekly report for {monday}.")
     found = _fragment_sections(folder, WEEKLY)
-    if not any(body for _, body, _written in found):
+    if not any(body for _, body, _written, _verdict in found):
         raise HTTPException(status_code=404, detail=f"No weekly report for {monday}.")
     sections = [
         ReportSection(
@@ -646,8 +672,9 @@ def get_weekly_report(monday: date, ctx: Context) -> Report:
             body=body,
             icon=section_icon(title) if title else None,
             written_at=written,
+            verdict=verdict,
         )
-        for title, body, written in found
+        for title, body, written, verdict in found
     ]
     return Report(day=monday, sections=sections)
 

@@ -993,6 +993,8 @@ export interface components {
             /** Missing */
             missing: string[];
             fitness: components["schemas"]["Fitness"];
+            /** @description How each card is doing, from the bands (todo 92). */
+            scores: components["schemas"]["Scores"];
         };
         /** DayActivities */
         DayActivities: {
@@ -1697,6 +1699,11 @@ export interface components {
              */
             body: string;
             /**
+             * Verdict
+             * @description How the section's agent judged it, from a `verdict:` line at the top of its fragment (todo 92). Only the Training section writes one; the other cards get their face from the numbers, in `scores`. Null on the reports written before.
+             */
+            verdict?: ("terrible" | "low" | "medium" | "high" | "perfect") | null;
+            /**
              * Icon
              * @description Icon file name, served under /icons. Null when the section has none.
              */
@@ -1757,6 +1764,28 @@ export interface components {
             change: number | null;
             /** @description Where it has sat over the last 28 days. Read the other way round from the bands of `morning`: above the band means it is still climbing. Null with too few measured days. */
             band?: components["schemas"]["Band"] | null;
+        };
+        /**
+         * Scores
+         * @description How each card is doing, in one word (todo 92).
+         */
+        Scores: {
+            /** Health */
+            health: ("terrible" | "low" | "medium" | "high" | "perfect") | null;
+            /** Recovery */
+            recovery: ("terrible" | "low" | "medium" | "high" | "perfect") | null;
+            /**
+             * Load
+             * @description Never terrible or perfect: load has no good side, and the best this measure can say is that you are where you usually are.
+             */
+            load: ("terrible" | "low" | "medium" | "high" | "perfect") | null;
+            /** Fitness */
+            fitness: ("terrible" | "low" | "medium" | "high" | "perfect") | null;
+            /**
+             * Summary
+             * @description The average of the four cards above.
+             */
+            summary: ("terrible" | "low" | "medium" | "high" | "perfect") | null;
         };
         /**
          * SectionRefresh
@@ -2353,6 +2382,8 @@ export interface components {
             coverage: {
                 [key: string]: number;
             };
+            /** @description How each card is doing, from the bands (todo 92). */
+            scores: components["schemas"]["Scores"];
         };
         /**
          * WeeksFollowing

@@ -43,3 +43,37 @@ ride on Saturday, which on its own is nearly half the time. The hard day was
 Tuesday, with easy days either side of it, and that is how a week should be
 put together. Three rest days, none of them next to each other. A little more
 work than last week and spread better.
+
+## The first line: your verdict
+
+**Begin with one line, exactly in this form, and nothing else on it:**
+
+```
+verdict: high
+```
+
+One of five words — `terrible`, `low`, `medium`, `high`, `perfect` — and
+then a blank line, and then your paragraph. Whoever composes the report
+takes that line off: it never reaches the page as text, it becomes the face
+in the corner of your card (todo 92).
+
+It is **your judgement of the week's work**, the same one your paragraph
+makes, in one word:
+
+- `perfect` — the week the plan asked for: the sessions, the volume and the
+  balance of easy and hard, all where they should be.
+- `high` — a good week: the work got done, what slipped does not matter.
+- `medium` — a week that did its job and nothing more, or one that followed
+  the plan loosely.
+- `low` — a week that cost something: the long run missed, the quality work
+  skipped, or far more volume than was asked.
+- `terrible` — a week that did harm, or one in which nothing of the plan
+  survived.
+
+**A light week that was meant to be light is `high`**, not `medium`: a
+cutback week done properly is a week done properly. A week with no training
+and no plan is `medium` — nothing was asked and nothing happened.
+
+The word and the paragraph must agree. A paragraph that says "this was not
+the run that was asked for" over a `high` is a contradiction the reader sees
+at a glance.

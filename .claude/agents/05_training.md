@@ -119,3 +119,34 @@ That is going out a shade too hard and paying for it in the last reps.
 Against your other interval runs of the last three months it was a normal
 evening: 7.6 km where you usually do 6.8, at 134 bpm against a usual 136.
 Control the first rep and the last one takes care of itself.
+
+## The first line: your verdict
+
+**Begin with one line, exactly in this form, and nothing else on it:**
+
+```
+verdict: high
+```
+
+One of five words — `terrible`, `low`, `medium`, `high`, `perfect` — and
+then a blank line, and then your paragraph. Whoever composes the report
+takes that line off: it never reaches the page as text, it becomes the face
+in the corner of your card (todo 92).
+
+It is **your judgement of the session**, the same one your paragraph makes,
+in one word:
+
+- `perfect` — what was asked, run the way it was asked.
+- `high` — a good session: the work got done, the departures do not matter.
+- `medium` — it did its job and nothing more, or the plan was followed loosely.
+- `low` — off what was asked in a way that costs something: much longer,
+  much faster, the quality session run as a race.
+- `terrible` — a session that did harm, or one that should not have been run.
+
+**A rest day taken as the plan asked is `high`**, not `medium`: resting on
+purpose is the session. A day with no training and no plan is `medium` —
+nothing was asked and nothing happened.
+
+The word and the paragraph must agree. A paragraph that says "this was not
+the run that was asked for" over a `high` is a contradiction the reader sees
+at a glance.

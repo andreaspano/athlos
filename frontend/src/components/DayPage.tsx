@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, isAbort, type Activity, type DailyData, type DayPlan, type RefreshStatus, type Report, type SportList } from "../api/client";
 import { addDays, dayOf, today } from "../format";
-import { preamble, sectionBody, sectionIcon, sectionWrittenAt } from "../markdown";
+import { preamble, sectionBody, sectionIcon, sectionVerdict, sectionWrittenAt } from "../markdown";
 import { ETICHETTE, daysFromUrl, type View } from "../navigation";
 import { useColorScheme } from "../useColorScheme";
 import { DayHeader } from "./DayHeader";
@@ -322,6 +322,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
               comment={sectionBody(report, "Training")}
               writtenAt={sectionWrittenAt(report, "Training")}
               day={day}
+              face={sectionVerdict(report, "Training")}
               refresh={sectionButton("training")}
             />
           </>
@@ -334,6 +335,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
             Week ha smesso di usarla. */}
         <SummaryCard
           day={day}
+          face={data?.scores.summary ?? null}
           morning={{
             body: sectionBody(report, "Summary"),
             writtenAt: sectionWrittenAt(report, "Summary"),
@@ -348,6 +350,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
               writtenAt={sectionWrittenAt(report, "Health")}
               day={day}
               icon={sectionIcon(report, "Health")}
+              face={data.scores.health}
               refresh={sectionButton("health")}
             />
             <LoadCard
@@ -356,6 +359,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
               writtenAt={sectionWrittenAt(report, "Load")}
               day={day}
               icon={sectionIcon(report, "Load")}
+              face={data.scores.load}
               refresh={sectionButton("load")}
             />
             <RecoveryCard
@@ -364,6 +368,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
               writtenAt={sectionWrittenAt(report, "Recovery")}
               day={day}
               icon={sectionIcon(report, "Recovery")}
+              face={data.scores.recovery}
               refresh={sectionButton("recovery")}
             />
             <FitnessCard
@@ -372,6 +377,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
               writtenAt={sectionWrittenAt(report, "Fitness")}
               day={day}
               icon={sectionIcon(report, "Fitness")}
+              face={data.scores.fitness}
               refresh={sectionButton("fitness")}
             />
           </div>

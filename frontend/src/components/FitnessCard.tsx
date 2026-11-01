@@ -15,7 +15,7 @@
 // settembre.
 import type { ReactNode } from "react";
 
-import type { DailyData } from "../api/client";
+import type { DailyData, Verdict } from "../api/client";
 import { markdown } from "../markdown";
 import { CardHead, EmptyBar, RangeBar, Stat, WrittenAt, num } from "./Stat";
 
@@ -25,6 +25,7 @@ export function FitnessCard({
   writtenAt,
   day,
   icon,
+  face,
   refresh,
 }: {
   data: DailyData;
@@ -32,6 +33,8 @@ export function FitnessCard({
   writtenAt: string | null;
   day: string;
   icon: string | null;
+  /** La faccia della card (todo 92). */
+  face: Verdict | null;
   refresh?: ReactNode;
 }) {
   const vo2 = data.fitness.vo2max;
@@ -48,7 +51,7 @@ export function FitnessCard({
   // rado) e resta un numero nudo.
   return (
     <section className="card fitness-card" aria-label="Fitness">
-      <CardHead icon={icon} title="Fitness" refresh={refresh} />
+      <CardHead icon={icon} title="Fitness" face={face} refresh={refresh} />
       {/* Tre colonne e non due: i punteggi con la loro barra sulla prima
           riga, e sulla seconda la soglia e la quota a cui il corpo e'
           acclimatato, i due numeri nudi. */}

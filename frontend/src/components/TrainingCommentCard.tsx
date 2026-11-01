@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 
 import { markdown } from "../markdown";
 import { CardHead, WrittenAt } from "./Stat";
+import type { Verdict } from "../api/client";
 
 // Un fumetto, non il manubrio della sezione Training: fino a ieri la card
 // prendeva l'icona del report, la stessa della card della seduta che ha
@@ -26,16 +27,20 @@ export function TrainingCommentCard({
   comment,
   writtenAt,
   day,
+  face,
   refresh,
 }: {
   comment: string | null;
+  /** Il voto dell'agente (todo 92): questa card non ha misure, ha un
+   * giudizio, e la parola la scrive chi il giudizio lo da'. */
+  face: Verdict | null;
   writtenAt: string | null;
   day: string;
   refresh?: ReactNode;
 }) {
   return (
     <section className="card comment-card" aria-label="Comment">
-      <CardHead icon={COMMENT_ICON} title="Comment" refresh={refresh} />
+      <CardHead icon={COMMENT_ICON} title="Comment" face={face} refresh={refresh} />
       {comment && <div className="prose">{markdown(comment)}</div>}
       <WrittenAt when={writtenAt} day={day} />
     </section>
