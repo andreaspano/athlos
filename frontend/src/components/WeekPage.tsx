@@ -465,8 +465,12 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
   // Un giorno della striscia, o una seduta, aprono la Day di quel giorno:
   // `pushUrl` cambia l'URL e avvisa `App`, che scambia la pagina senza
   // ricaricare niente.
+  // Il clic su una seduta porta alla **Training** della Day e non allo Snap:
+  // si e' cliccato su quella seduta, e la seduta sta li' — il grafico, i
+  // giri, il verdetto dell'allenatore. Lo Snap e' il corpo del mattino, cioe'
+  // un'altra domanda, e ci si arriva dal menu in due tasti.
   const openDay = (day: string) =>
-    pushUrl({ period: null, page: null, view: null, monday: null, day });
+    pushUrl({ period: null, page: null, view: "training", monday: null, day });
 
   return (
     <>
