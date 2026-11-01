@@ -610,23 +610,26 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
             riquadri, che sono due cose — i fatti e il giudizio. */}
         {view === "training" && (
           <>
-            {/* Il commento e' il verdetto della settimana, e una settimana
-                che non e' cominciata non ne ha uno: su di lei la card non
-                c'e' affatto, invece di una cornice vuota col suo tasto per
-                scriverlo (todo 88). */}
-            {!future && (
+            {/* Il commento e' il verdetto della settimana, e una settimana che
+                non e' cominciata non ne ha uno: la cornice c'e' comunque e
+                resta **vuota**, come nella Day (todo 63) — e' la stessa
+                risposta che da' una settimana passata di cui nessun agente ha
+                ancora scritto il Training, e la vista tiene la sua forma
+                invece di perdere un riquadro su tre.
+                Il tasto che lo scriverebbe no: su una settimana futura
+                `POST .../refresh/<sezione>` risponde 422 per scelta, come il
+                Refresh grande qui sopra. */}
             <section className="card comment-card" aria-label="Comment">
               <CardHead
                 icon={sectionIconFile("comment")}
                 title="Comment"
-                refresh={sectionButton("training")}
+                refresh={future ? undefined : sectionButton("training")}
               />
               {text("Training") && (
                 <div className="prose">{markdown(text("Training")!)}</div>
               )}
               <WrittenAt when={when("Training")} day={monday} />
             </section>
-            )}
             {/* Il previsto e il fatto **affiancati** (todo 73): sono due
                 liste corte della stessa settimana, e una sotto l'altra a
                 tutta larghezza lasciavano tre quarti di riquadro bianchi e

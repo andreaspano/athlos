@@ -87,8 +87,10 @@ indistinguibile da un guasto:
 - **Training**: la colonna del piano come sempre; quella delle sedute dice
   *The week has not started* invece di *No sessions this week* — che e' la
   frase di una settimana passata in cui non si e' fatto niente, cioe' un'altra
-  cosa. Il commento non c'e': nessun agente lo ha scritto e nessuno lo
-  scrivera' prima del tempo.
+  cosa. La card del commento **c'e' e resta vuota**: nessun agente lo ha
+  scritto e nessuno lo scrivera' prima del tempo, e la cornice vuota e' la
+  risposta — la stessa regola della Day (todo 63). Il suo tasto no, che la
+  rotta risponde 422.
 - **Snap**: una riga che lo dice, e niente card. I numeri di una settimana
   che non e' cominciata non sono zero, non esistono.
 - **Trend**: la finestra resta quella delle settimane **misurate** e non
@@ -175,7 +177,7 @@ fila delle settimane usa per portarsi in vista.
 | Caso | Cosa esce |
 |---|---|
 | ora, Training | `W39 W40 W41 W42 W43 W44`, tasto riscrivi **c'e'**, commento + due colonne, 7 righe di piano |
-| W46, Training | `W43 W44 W45 W46 W47 W48`, tasto riscrivi **via**, nessun commento, 7 righe di piano (`Mon 9 Nov · Rest · or Cycling`), *The week has not started* |
+| W46, Training | `W43 W44 W45 W46 W47 W48`, tasto riscrivi **via**, card del commento vuota e senza il suo tasto, 7 righe di piano (`Mon 9 Nov · Rest · or Cycling`), *The week has not started* |
 | W46, Snap | solo la riga *has not started: nothing is measured yet* |
 | W46, Plan | la card del documento, come sempre |
 | W46, Trend | i cinque pannelli, fermi sulle settimane misurate |
@@ -191,6 +193,17 @@ Poi: `GET /api/weekly/planned` rende i 19 lunedi' dal `2026-09-28` al
 rispondono ancora 200 (la rotta nuova non ruba il percorso). `import training`
 e `training.api.app` ok, `npm run typecheck` pulito, `npm run build` ok, tipi
 rigenerati dall'OpenAPI, servizio riavviato.
+
+### Una correzione, subito dopo
+
+La prima versione **togliava** la card del commento su una settimana futura.
+Non va: la vista perde un riquadro su tre e cambia forma passando da una
+settimana all'altra, mentre la regola della casa (todo 63, e la colonna del
+piano) e' che la cornice resta e la risposta e' il suo essere vuota. Adesso
+c'e', vuota, senza testo, senza l'ora e **senza il tasto** che scriverebbe la
+sezione — quello risponde 422 come il Refresh grande. Verificato nel DOM: su
+W46 la card c'e' con la sola intestazione, su questa settimana ha testo,
+tasto e ora come prima.
 
 ### Quello che non ho provato
 

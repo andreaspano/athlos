@@ -328,9 +328,11 @@ prevista chiede **solo il piano**. Da cui quattro viste con due stati:
 
 - **Training**: la colonna del piano come sempre, e in quella delle sedute
   *The week has not started* invece di *No sessions this week* — una settimana
-  finita senza sedute e una che non e' cominciata sono due cose diverse. Il
-  commento non c'e': nessun agente scrive il verdetto di qualcosa che deve
-  ancora succedere.
+  finita senza sedute e una che non e' cominciata sono due cose diverse. La
+  card del commento **c'e' e resta vuota**, come nella Day (todo 63): nessun
+  agente scrive il verdetto di qualcosa che deve ancora succedere, e la
+  cornice vuota e' la risposta. Il tasto che lo scriverebbe no, che quella
+  rotta risponde 422.
 - **Snap**: una riga che lo dice, e niente card. I numeri di una settimana che
   non e' cominciata non sono zero, non esistono.
 - **Trend**: la finestra resta sulle settimane misurate. E' una carta di
