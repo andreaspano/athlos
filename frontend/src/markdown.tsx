@@ -10,7 +10,7 @@
 // stesso motivo: una libreria di Markdown costa piu' di trenta righe.
 import type { ReactNode } from "react";
 
-import type { Report } from "./api/client";
+import type { Report, Verdict } from "./api/client";
 
 /** Grassetto (`**...**`), corsivo (`*...*` o `_..._`) e codice (`` `...` ``)
  * dentro una riga. Il resto resta testo. */
@@ -155,6 +155,17 @@ export function markdown(body: string): ReactNode[] {
 /** Il corpo della sezione `title` del report, o `null`. */
 export function sectionBody(report: Report | null, title: string): string | null {
   return report?.sections.find((s) => s.title?.toLowerCase() === title.toLowerCase())?.body ?? null;
+}
+
+/** Il voto che l'agente ha dato alla sua sezione (todo 92), o `null`.
+ *
+ * Lo scrive la sola Training, in una riga `verdict:` in cima al frammento
+ * che l'API toglie dal testo: le altre card la faccia la prendono dai numeri
+ * (`scores`). `null` anche su tutti i report scritti prima di quel todo. */
+export function sectionVerdict(report: Report | null, title: string): Verdict | null {
+  return (
+    report?.sections.find((s) => s.title?.toLowerCase() === title.toLowerCase())?.verdict ?? null
+  );
 }
 
 /** Il testo prima della prima sezione ("Data: local cache, ..."). */

@@ -27,6 +27,7 @@ import {
   type Report,
   type SportList,
   type WeeklyData,
+  type Verdict,
   type WeekMeasure,
   type WeekPlan,
 } from "../api/client";
@@ -43,7 +44,7 @@ import {
   today,
   weekLabel,
 } from "../format";
-import { markdown, sectionBody, sectionWrittenAt } from "../markdown";
+import { markdown, sectionBody, sectionVerdict, sectionWrittenAt } from "../markdown";
 import { ETICHETTE, paramFromUrl, pushUrl, weeksFromUrl, type View } from "../navigation";
 import { useColorScheme } from "../useColorScheme";
 import { WeekCalendar } from "./WeekCalendar";
@@ -111,6 +112,7 @@ function MeasureCard({
   text,
   writtenAt,
   monday,
+  face,
   refresh,
 }: {
   title: string;
@@ -120,11 +122,13 @@ function MeasureCard({
   text: string | null;
   writtenAt: string | null;
   monday: string;
+  /** La faccia della card (todo 92). */
+  face: Verdict | null;
   refresh?: ReactNode;
 }) {
   return (
     <section className={cls ? `card ${cls}` : "card"} aria-label={title}>
-      <CardHead icon={icon} title={title} refresh={refresh} />
+      <CardHead icon={icon} title={title} face={face} refresh={refresh} />
       <div className="stats two">
         {measures.map((m) => (
           <WeekStat key={m.label} m={m} />
@@ -624,6 +628,7 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               <CardHead
                 icon={sectionIconFile("comment")}
                 title="Comment"
+                face={sectionVerdict(report, "Training")}
                 refresh={future ? undefined : sectionButton("training")}
               />
               {text("Training") && (
@@ -725,6 +730,7 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
         <>
         <SummaryCard
           day={monday}
+          face={data?.scores.summary ?? null}
           morning={{
             body: text("Summary"),
             writtenAt: when("Summary"),
@@ -741,12 +747,14 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               text={text("Health")}
               writtenAt={when("Health")}
               monday={monday}
+              face={data.scores.health}
               refresh={sectionButton("health")}
             />
             <section className="card load-card" aria-label="Load">
               <CardHead
                 icon={sectionIconFile("load")}
                 title="Load"
+                face={data.scores.load}
                 refresh={sectionButton("load")}
               />
               {/* Numeri della settimana, non del mese (todo 54): il carico
@@ -810,12 +818,14 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               text={text("Recovery")}
               writtenAt={when("Recovery")}
               monday={monday}
+              face={data.scores.recovery}
               refresh={sectionButton("recovery")}
             />
             <section className="card fitness-card" aria-label="Fitness">
               <CardHead
                 icon={sectionIconFile("fitness")}
                 title="Fitness"
+                face={data.scores.fitness}
                 refresh={sectionButton("fitness")}
               />
               <div className="stats">

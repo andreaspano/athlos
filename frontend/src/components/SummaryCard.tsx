@@ -13,6 +13,7 @@
 // senza aggiungere altro: non c'e' niente da cui distinguerlo.
 import type { ReactNode } from "react";
 
+import { iconUrl, type Verdict } from "../api/client";
 import { markdown } from "../markdown";
 import { WrittenAt } from "./Stat";
 
@@ -28,12 +29,14 @@ function Part({
   glyph,
   when,
   tone,
+  face,
 }: {
   part: SummaryPart;
   day: string;
   glyph: string;
   when: string;
   tone?: string;
+  face?: Verdict | null;
 }) {
   if (!part.body) return null;
   return (
@@ -47,6 +50,18 @@ function Part({
       <div>
         <div className="eyebrow">
           Summary{when && ` · ${when}`}
+          {/* La faccia del verdetto (todo 92): la media delle quattro card
+              sotto, che e' quello che questo testo riassume. */}
+          {face && (
+            <img
+              className="head-face"
+              src={iconUrl(`${face}.png`)}
+              alt={face}
+              title={face}
+              width={20}
+              height={20}
+            />
+          )}
           {part.refresh}
         </div>
         <div className="next-reason">{markdown(part.body)}</div>
@@ -61,6 +76,7 @@ export function SummaryCard({
   evening,
   day,
   week,
+  face,
 }: {
   morning: SummaryPart;
   // Senza di lui la card e' un pezzo solo: e' il caso del giorno (todo 66).
@@ -70,6 +86,9 @@ export function SummaryCard({
   // qui il primo e' di mattina (il lunedi) e il secondo di sera (la
   // domenica), quindi i due glifi restano il sole e la luna.
   week?: boolean;
+  /** La faccia del verdetto (todo 92): la media delle quattro card. Sta sul
+   * primo pezzo, che e' quello che c'e' sempre. */
+  face?: Verdict | null;
 }) {
   return (
     <section className="next-card summary-card" aria-label="Summary">
@@ -78,6 +97,7 @@ export function SummaryCard({
         day={day}
         glyph="☀"
         when={evening ? (week ? "week start" : "morning") : ""}
+        face={face}
       />
       {evening && (
         <Part

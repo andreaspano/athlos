@@ -3,7 +3,7 @@
 // report. Il frontend non fa conti: medie e fasce vengono dall'API.
 import type { ReactNode } from "react";
 
-import type { DailyData } from "../api/client";
+import type { DailyData, Verdict } from "../api/client";
 import { markdown } from "../markdown";
 import { CardHead, MeasureBar, Stat, WrittenAt, num } from "./Stat";
 
@@ -13,6 +13,7 @@ export function HealthCard({
   writtenAt,
   day,
   icon,
+  face,
   refresh,
 }: {
   data: DailyData;
@@ -20,6 +21,8 @@ export function HealthCard({
   writtenAt: string | null;
   day: string;
   icon: string | null;
+  /** La faccia della card (todo 92). */
+  face: Verdict | null;
   refresh?: ReactNode;
 }) {
   const m = data.morning;
@@ -30,7 +33,7 @@ export function HealthCard({
   // resta nei dati e la usano il report e l'allarme dell'HRV, non la card.
   return (
     <section className="card" aria-label="Health">
-      <CardHead icon={icon} title="Health" refresh={refresh} />
+      <CardHead icon={icon} title="Health" face={face} refresh={refresh} />
       <div className="stats two">
         <Stat
           label="Resting heart rate"

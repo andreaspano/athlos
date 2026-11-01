@@ -12,7 +12,7 @@
 // quello che la barra fa vedere.
 import type { ReactNode } from "react";
 
-import type { DailyData } from "../api/client";
+import type { DailyData, Verdict } from "../api/client";
 import { markdown } from "../markdown";
 import { CardHead, EmptyBar, RangeBar, Stat, WrittenAt, num } from "./Stat";
 
@@ -42,6 +42,7 @@ export function LoadCard({
   writtenAt,
   day,
   icon,
+  face,
   refresh,
 }: {
   data: DailyData;
@@ -49,13 +50,15 @@ export function LoadCard({
   writtenAt: string | null;
   day: string;
   icon: string | null;
+  /** La faccia della card (todo 92). */
+  face: Verdict | null;
   refresh?: ReactNode;
 }) {
   const now = data.load.now;
   const bands = data.load.bands;
   return (
     <section className="card load-card" aria-label="Load">
-      <CardHead icon={icon} title="Load" refresh={refresh} />
+      <CardHead icon={icon} title="Load" face={face} refresh={refresh} />
       {/* La fascia e' quella di `_band`, come in Health, Recovery e Fitness:
           dove il carico sta di solito, non dove Garmin vorrebbe che stesse.
           Quindi due livelli, come le altre card. */}

@@ -30,6 +30,10 @@ export type WeekTrendPanel = Schemas["WeekTrendPanel"];
 export type WeekMeasure = Schemas["WeekMeasure"];
 export type WeekPlan = Schemas["WeekPlan"];
 export type PlannedWeeks = Schemas["PlannedWeeks"];
+// La faccia di una card (todo 92): una delle cinque parole della scala, o
+// `null` quando non c'e' niente da misurare.
+export type Scores = Schemas["Scores"];
+export type Verdict = NonNullable<Scores["health"]>;
 export type DayPlan = Schemas["DayPlan"];
 export type PlannedSession = Schemas["PlannedSession"];
 export type Terrain = NonNullable<Activity["terrain"]>;

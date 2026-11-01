@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from training.api.cache import load_activities, load_health
+from training.api.score import daily_scores
 from training.interface.daily_data import build_daily_data, fitness_on
 from training.interface.health import load_lactate_threshold
 
@@ -39,8 +40,15 @@ def daily_payload(day: date, data_dir: Path) -> dict[str, Any]:
     # Garmin l'ha rilevata in poi, prima no.
     lactate = load_lactate_threshold(data_dir)
     fitness["lactate_threshold"] = lactate if lactate and lactate["as_of"] <= day.isoformat() else None
-    return {
+    payload = {
         **data,
         "sleep_minutes": round(hours * 60) if hours is not None else None,
         "fitness": fitness,
     }
+    # La faccia di ogni card (todo 92): si calcola qui, sopra il payload
+    # finito, perche' legge misure che stanno in tre blocchi diversi —
+    # `morning`, `load` e `fitness` — e perche' **la pagina e gli agenti
+    # devono vedere lo stesso voto**: questo dizionario e' quello che
+    # l'orchestratore scrive nel file dei fatti.
+    payload["scores"] = daily_scores(payload)
+    return payload

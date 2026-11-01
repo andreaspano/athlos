@@ -427,6 +427,24 @@ def _planned(
     return ""
 
 
+# La riga del voto, che la Training scrive in cima al suo frammento (todo
+# 92): da li' la toglie `_verdict` in `api/app.py`, e diventa la faccia nella
+# cornice della card.
+#
+# **Sta nel prompt e non solo nel file dell'agente** perche' `_style.md` —
+# che l'orchestratore attacca *dopo* il file dell'agente — dice "solo il
+# corpo, nessun preambolo", e quella riga sembra un preambolo. Provato: col
+# solo file dell'agente il frammento tornava senza. Il prompt e' l'ultima
+# cosa che l'agente legge ed e' la piu' specifica, e chiedere qui una cosa
+# che qui si toglie tiene le due meta' nello stesso posto.
+VERDICT_LINE = (
+    "Begin the file with one line, `verdict: ` and one of terrible, low, medium, high, "
+    "perfect, then a blank line, then your text. That line is not part of the body: it is "
+    "taken off when the report is composed, and becomes the face on your card. Your agent "
+    "file says how to choose the word. "
+)
+
+
 def _prompt(
     kind: Report,
     section: Section,
@@ -437,6 +455,8 @@ def _prompt(
     summary_dir: Path | None = None,
 ) -> str:
     where = f"Write the body of the section (no `## ` heading) to {folder / f'{section.key}.md'}."
+    if section.key == "training":
+        where = VERDICT_LINE + where
     planned = _planned(kind, section, subject, moment, summary_dir)
     when = kind.moment_lines[moment]
     period = kind.period(subject)

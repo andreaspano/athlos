@@ -158,6 +158,12 @@ class Route(BaseModel):
 class ReportSection(BaseModel):
     title: str | None = Field(description="Null for the text before the first section.")
     body: str = Field(description="Markdown.")
+    verdict: Verdict | None = Field(
+        default=None,
+        description="How the section's agent judged it, from a `verdict:` line at the top of "
+        "its fragment (todo 92). Only the Training section writes one; the other cards get "
+        "their face from the numbers, in `scores`. Null on the reports written before.",
+    )
     icon: str | None = Field(description="Icon file name, served under /icons. Null when the section has none.")
     written_at: datetime | None = Field(
         default=None,
@@ -680,6 +686,28 @@ class WeekTrendData(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+# La faccia di ogni card (todo 92): una parola per card, che la pagina
+# traduce in una delle cinque icone della scala. Le regole stanno in
+# `api/score.py`, e il voto viene dalle fasce che la pagina disegna gia'.
+#
+# `null` vuol dire **nessuna faccia**, cioe' niente da misurare: non e' un
+# voto basso, e la card resta senza icona.
+Verdict = Literal["terrible", "low", "medium", "high", "perfect"]
+
+
+class Scores(BaseModel):
+    """How each card is doing, in one word (todo 92)."""
+
+    health: Verdict | None
+    recovery: Verdict | None
+    load: Verdict | None = Field(
+        description="Never terrible or perfect: load has no good side, and the best this "
+        "measure can say is that you are where you usually are."
+    )
+    fitness: Verdict | None
+    summary: Verdict | None = Field(description="The average of the four cards above.")
+
+
 class WeeklyData(BaseModel):
     """Everything known about one ISO week, Monday to Sunday (todo 52)."""
 
@@ -694,6 +722,7 @@ class WeeklyData(BaseModel):
     days: list[dict[str, Any]] = Field(description="One entry per day of the week.")
     activities: list[dict[str, Any]]
     coverage: dict[str, int] = Field(description="Measured days per metric, out of seven.")
+    scores: Scores = Field(description="How each card is doing, from the bands (todo 92).")
 
 
 class DailyData(BaseModel):
@@ -714,6 +743,7 @@ class DailyData(BaseModel):
     hr_zones: dict[str, Any] | None
     missing: list[str]
     fitness: Fitness
+    scores: Scores = Field(description="How each card is doing, from the bands (todo 92).")
 
 
 # I piani di allenamento scritti a mano in `plan/`: il front matter da' i
