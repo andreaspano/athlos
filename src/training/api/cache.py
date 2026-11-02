@@ -23,37 +23,50 @@ from training.interface.health_db import load_health_db
 # senza riavviarlo.
 ACTIVITIES_TTL_SECONDS = 60
 
-_lock = threading.Lock()
-_cache: dict[Path, tuple[float, pd.DataFrame]] = {}
-# Un lucchetto a parte: la salute impiega un secondo, le attivita' non
-# devono aspettarla.
-_health_lock = threading.Lock()
-_health_cache: dict[Path, tuple[float, pd.DataFrame]] = {}
+
+class _Cached:
+    """Un lettore tenuto in memoria per `ACTIVITY_TTL_SECONDS`, con il suo
+    lucchetto.
+
+    **Uno per lettore, non uno per tutti**: la salute impiega un secondo e le
+    attivita' non devono aspettarla. Era scritto due volte, identico a meno
+    del lettore e di quale coppia lock/dizionario toccava, e `invalidate`
+    doveva ricordarsi di svuotare entrambi a mano."""
+
+    def __init__(self, loader):
+        self._loader = loader
+        self._lock = threading.Lock()
+        self._store: dict[Path, tuple[float, pd.DataFrame]] = {}
+
+    def get(self, data_dir: Path) -> pd.DataFrame:
+        """Il frame, riletto al piu' una volta al minuto per cartella dati.
+        Rende una copia: chi la riceve puo' filtrarla e aggiungere colonne
+        senza sporcare la cache."""
+        key = Path(data_dir)
+        with self._lock:
+            cached = self._store.get(key)
+            if cached is None or time.monotonic() - cached[0] > ACTIVITIES_TTL_SECONDS:
+                cached = (time.monotonic(), self._loader(key))
+                self._store[key] = cached
+        return cached[1].copy()
+
+    def forget(self, data_dir: Path) -> None:
+        with self._lock:
+            self._store.pop(Path(data_dir), None)
+
+
+_ACTIVITIES = _Cached(list_activities)
+_HEALTH = _Cached(load_health_db)
 
 
 def load_activities(data_dir: Path) -> pd.DataFrame:
-    """Le attivita' come `list_activities()`, ricaricate al piu' una volta al
-    minuto per cartella dati. Rende una copia: chi la riceve puo' filtrarla e
-    aggiungere colonne senza sporcare la cache."""
-    key = Path(data_dir)
-    with _lock:
-        cached = _cache.get(key)
-        if cached is None or time.monotonic() - cached[0] > ACTIVITIES_TTL_SECONDS:
-            cached = (time.monotonic(), list_activities(key))
-            _cache[key] = cached
-    return cached[1].copy()
+    """Le attivita' come `list_activities()`, dalla cache."""
+    return _ACTIVITIES.get(data_dir)
 
 
 def load_health(data_dir: Path) -> pd.DataFrame:
-    """La salute come `load_health_db()`, ricaricata al piu' una volta al
-    minuto come `load_activities()`. Rende una copia."""
-    key = Path(data_dir)
-    with _health_lock:
-        cached = _health_cache.get(key)
-        if cached is None or time.monotonic() - cached[0] > ACTIVITIES_TTL_SECONDS:
-            cached = (time.monotonic(), load_health_db(key))
-            _health_cache[key] = cached
-    return cached[1].copy()
+    """La salute come `load_health_db()`, dalla cache."""
+    return _HEALTH.get(data_dir)
 
 
 def invalidate(data_dir: Path) -> None:
@@ -61,7 +74,5 @@ def invalidate(data_dir: Path) -> None:
     rilegge. Dopo una scrittura (il terreno, todo 35; il tipo di corsa, todo
     36) e alla fine di un Refresh (todo 41), cosi' la modifica si vede subito
     e non dopo un minuto."""
-    with _lock:
-        _cache.pop(Path(data_dir), None)
-    with _health_lock:
-        _health_cache.pop(Path(data_dir), None)
+    _ACTIVITIES.forget(data_dir)
+    _HEALTH.forget(data_dir)

@@ -28,6 +28,18 @@ class Section:
     agent: str
     # Vera per chi legge i frammenti degli altri invece dei numeri.
     reads_fragments: bool
+    # Vera per chi deve scrivere la riga `verdict:` in cima al frammento
+    # (todo 92). Le due meta' del patto — chiederla nel prompt
+    # (`refresh._prompt`) e toglierla quando si compone il report
+    # (`app._verdict`) — stanno in due moduli, e prima erano tenute insieme
+    # dalla stringa "training" battuta a mano in entrambi.
+    writes_verdict: bool = False
+    # Vera per chi legge il piano della settimana (todo 14 e 64). Solo la
+    # Training del **giorno**: quella della settimana giudica sette giorni,
+    # non la seduta di domani — da cui il vecchio `and kind is DAILY`, che
+    # serviva solo perche' la bandiera era una stringa condivisa fra i due
+    # registri.
+    reads_plan: bool = False
 
 
 # Nell'ordine in cui si leggono nella pagina.
@@ -42,7 +54,7 @@ class Section:
 # c'e' piu', e le regole di deroga del piano non le applica piu' nessuno.
 SECTIONS: tuple[Section, ...] = (
     Section("summary", "Summary", "07_summary", True),
-    Section("training", "Training", "05_training", False),
+    Section("training", "Training", "05_training", False, writes_verdict=True, reads_plan=True),
     Section("recovery", "Recovery", "03_recovery", False),
     Section("health", "Health", "01_health", False),
     Section("load", "Load", "02_load", False),
@@ -65,29 +77,22 @@ SECTIONS: tuple[Section, ...] = (
 # sei sezioni raccontano, nessuna prescrive.
 WEEK_SECTIONS: tuple[Section, ...] = (
     Section("summary", "Summary", "w7_summary", True),
-    Section("training", "Training", "w5_training", False),
+    Section("training", "Training", "w5_training", False, writes_verdict=True),
     Section("recovery", "Recovery", "w3_recovery", False),
     Section("health", "Health", "w1_health", False),
     Section("load", "Load", "w2_load", False),
     Section("fitness", "Fitness", "w4_fitness", False),
 )
 
-BY_KEY = {section.key: section for section in SECTIONS}
-
 # Nell'ordine in cui si lanciano, che e' quello dei numeri degli agenti e non
 # quello di lettura: prima quelle che guardano i numeri, poi quelle che
 # leggono i frammenti delle altre. Il primo verdetto prima del secondo,
 # perche' quando girano insieme (il tasto della pagina) il secondo deve
 # trovare il primo scritto.
+# Uno solo: le sei chiavi sono le stesse per il giorno e per la settimana —
+# cambiano gli agenti (`01_health` e `w1_health`), non l'ordine — e scriverlo
+# due volte voleva dire due liste da tenere d'accordo a mano.
 _RUN_KEYS = (
-    "health",
-    "load",
-    "recovery",
-    "fitness",
-    "training",
-    "summary",
-)
-_WEEK_RUN_KEYS = (
     "health",
     "load",
     "recovery",
@@ -109,7 +114,7 @@ def _ordered(sections: tuple[Section, ...], keys: tuple[str, ...]) -> tuple[Sect
 
 
 RUN_ORDER: tuple[Section, ...] = _ordered(SECTIONS, _RUN_KEYS)
-WEEK_RUN_ORDER: tuple[Section, ...] = _ordered(WEEK_SECTIONS, _WEEK_RUN_KEYS)
+WEEK_RUN_ORDER: tuple[Section, ...] = _ordered(WEEK_SECTIONS, _RUN_KEYS)
 
 
 # I due giri dei timer (todo 47, riscritti dal todo 66). Adesso **ogni giro
@@ -142,9 +147,9 @@ WEEK_MOMENT_SECTIONS: dict[str, tuple[str, ...]] = {
     "end": ("health", "recovery", "load", "fitness", "training", "summary"),
 }
 
-MOMENTS = tuple(MOMENT_SECTIONS)
-WEEK_MOMENTS = tuple(WEEK_MOMENT_SECTIONS)
-assert all(set(keys) <= set(BY_KEY) for keys in MOMENT_SECTIONS.values())
+assert all(
+    set(keys) <= {s.key for s in SECTIONS} for keys in MOMENT_SECTIONS.values()
+)
 assert all(
     set(keys) <= {s.key for s in WEEK_SECTIONS} for keys in WEEK_MOMENT_SECTIONS.values()
 )
@@ -181,9 +186,9 @@ _DAY_BACKFILL = (
 # nella chiusura. Erano due, e il secondo era l'apertura, che del report
 # della settimana **precedente** aveva bisogno — da cui il ciclo dalla piu'
 # vecchia alla piu' recente, che resta giusto comunque.
-_WEEK_BACKFILL = (
-    ("end", ("health", "recovery", "load", "fitness", "training", "summary")),
-)
+# Un momento solo, quindi il giro del backfill **e'** quello dei momenti: si
+# deriva, invece di ripetere le sei chiavi in un terzo posto.
+_WEEK_BACKFILL = tuple(WEEK_MOMENT_SECTIONS.items())
 
 
 @dataclass(frozen=True)
@@ -197,6 +202,13 @@ class Report:
     name: str
     # Come si chiama nel prompt dell'agente.
     what: str
+    # Vera per il giro che prima di scrivere richiama Garmin. **La settimana
+    # non scarica mai** (todo 53): gira in coda al giro del giorno, che ha
+    # appena chiamato, e un secondo scaricamento sarebbe solo un'altra
+    # occasione di fallire.
+    downloads: bool
+    # Quanto dura un periodo: un giorno, o una settimana.
+    step: timedelta
     # La cartella sotto `summary/`.
     folder: str
     # Nell'ordine in cui si leggono nella pagina.
@@ -222,6 +234,14 @@ class Report:
     def by_key(self) -> dict[str, Section]:
         return {section.key: section for section in self.sections}
 
+    def start_of(self, day: date) -> date:
+        """Il periodo che contiene `day`: il giorno stesso, o il suo
+        lunedi'. Era riderivato in cinque punti di `refresh.py`, ognuno col
+        suo `if kind is WEEKLY`."""
+        if self.step == timedelta(weeks=1):
+            return day - timedelta(days=day.weekday())
+        return day
+
     def period(self, subject: date) -> str:
         """Il periodo come lo legge l'agente: un giorno, o una settimana con
         i suoi due estremi."""
@@ -233,6 +253,8 @@ class Report:
 DAILY = Report(
     name="daily",
     what="daily report",
+    downloads=True,
+    step=timedelta(days=1),
     folder="01.daily",
     sections=SECTIONS,
     run_order=RUN_ORDER,
@@ -244,6 +266,8 @@ DAILY = Report(
 WEEKLY = Report(
     name="weekly",
     what="weekly report",
+    downloads=False,
+    step=timedelta(weeks=1),
     folder="02.weekly",
     sections=WEEK_SECTIONS,
     run_order=WEEK_RUN_ORDER,

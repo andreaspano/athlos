@@ -13,6 +13,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from training.api.score import Verdict
+
 # I terreni di `interface/terrain.TERRAINS`, nello stesso ordine.
 Terrain = Literal["track", "road", "gravel", "trail", "mountain"]
 # I tipi di corsa di `interface/run_type.RUN_TYPES`, nello stesso ordine.
@@ -692,7 +694,11 @@ class WeekTrendData(BaseModel):
 #
 # `null` vuol dire **nessuna faccia**, cioe' niente da misurare: non e' un
 # voto basso, e la card resta senza icona.
-Verdict = Literal["terrible", "low", "medium", "high", "perfect"]
+# `Verdict` arriva da `score.py`, che e' il modulo che la scala la calcola e
+# che spiega da che parte sta il bene misura per misura (vedi gli import in
+# cima). Scriverla anche qui voleva dire poterla allungare in uno dei due e
+# non accorgersene nell'altro — e questo e' il lato che finisce nell'OpenAPI
+# e in `schema.ts`.
 
 
 class Scores(BaseModel):
