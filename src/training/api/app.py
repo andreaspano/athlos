@@ -774,9 +774,11 @@ def put_plan_current(slug: str, ctx: Context) -> PlanList:
     Only the flag is written — the rest of the file is left byte for byte as the person wrote
     it, comments and key order included.
 
-    **It does not regenerate the weekly plans**, and nothing else does either: the files in
-    `summary/05.plan/` were written from a goal by hand, and there is no generator to call. The
-    `ahead` field of the answer is how the page says so. 404 when no goal has that slug."""
+    **It does not regenerate the weekly plans.** There is a generator since todo 86 — `make
+    week_plans`, one agent per week — but it writes ~3 h of agent runs over a whole block, so
+    it is a command a person runs, not something a click sets off. The `ahead` field of the
+    answer says how many weeks in `summary/05.plan/` still come from each goal, which is how
+    the page tells you there is generating to do. 404 when no goal has that slug."""
     try:
         set_current(ctx.plan_dir, slug)
     except FileNotFoundError:
