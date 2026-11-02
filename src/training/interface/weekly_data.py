@@ -525,9 +525,11 @@ def _week_zones(activities: pd.DataFrame, monday: date) -> dict[str, Any]:
     if not week.empty and "min_low_aerobic" in week:
         missing = int(week["min_low_aerobic"].isna().sum())
     zones["sessions_without_hr"] = missing
-    zones["measured_min"] = _value(
-        sum(v for v in (totals[k] for k, _ in ZONE_MINUTES) if v is not None), 0
-    )
+    # Con tutte e tre le zone senza misura, la somma di niente faceva "0
+    # minuti misurati", che si legge come "misurati, e sono zero". Nessuna
+    # misura e' `None`, come ogni altro valore di questo payload.
+    measured = [totals[k] for k, _ in ZONE_MINUTES if totals[k] is not None]
+    zones["measured_min"] = _value(sum(measured), 0) if measured else None
     return zones
 
 

@@ -247,8 +247,16 @@ def get_activity_chart(activity_id: int, ctx: Context) -> ChartData:
     if records.empty:
         return ChartData(bins=[], zone_bands=[], pauses=[], hr_zone_bounds=bounds, threshold_hr=threshold)
     bands = zone_bands(records, bounds) if bounds else pd.DataFrame()
+    binned = bins(records)
+    # Gli sport senza distanza (il tapis roulant, todo 45) non hanno una
+    # velocita' da dare: quella nei record e' la stima del polso, che il
+    # grafico di riferimento non disegna (`run_chart.py`, `has_speed`) e che
+    # le schede e i giri non mostrano. Qui usciva comunque: 107 punti fino a
+    # 9.55 km/h su una camminata al tapis roulant, e 23 attivita' cosi'.
+    if not has_distance(row["sport"]):
+        binned = binned.assign(speed=None, equiv=None)
     return ChartData(
-        bins=[ChartBin(**r) for r in _records_dicts(bins(records), list(ChartBin.model_fields))],
+        bins=[ChartBin(**r) for r in _records_dicts(binned, list(ChartBin.model_fields))],
         zone_bands=[ZoneBand(**r) for r in _records_dicts(bands, list(ZoneBand.model_fields))],
         pauses=[Pause(start=a, end=b) for a, b in pauses(records)],
         hr_zone_bounds=bounds,
@@ -286,9 +294,12 @@ def get_activity_route(
         return Route(points=[])
     points = records[["lat", "lon"]].dropna().to_numpy()
     if len(points) > max_points:
-        step = math.ceil((len(points) - 1) / (max_points - 1))
-        keep = list(range(0, len(points) - 1, step)) + [len(points) - 1]
-        points = points[np.array(keep)]
+        # Indici distribuiti sull'intero percorso, primo e ultimo compresi:
+        # con il passo arrotondato all'intero in su, chiedendone 2000 su 2001
+        # punti il passo diventava 2 e tornavano 1001, cioe' meta' della
+        # risoluzione chiesta. Qui ne tornano esattamente `max_points`.
+        keep = np.unique(np.linspace(0, len(points) - 1, max_points).round().astype(int))
+        points = points[keep]
     return Route(points=[(float(lat), float(lon)) for lat, lon in points])
 
 
