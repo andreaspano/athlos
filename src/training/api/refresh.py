@@ -930,8 +930,12 @@ def _cli(kind: Report) -> None:
     # sono quelli di oggi, e chi lancia deve poterlo sapere senza leggere
     # il registro: il 21 ottobre due giri hanno scritto su dati vecchi
     # (`uv: not found`) uscendo 0, e non se n'e' accorto nessuno.
-    stale = bool(state["download"]) and not state["download"]["ok"]
-    raise SystemExit(1 if state["status"] == "failed" or stale else 0)
+    download = outcome["download"]
+    stale = bool(download) and not download["ok"]
+    broken = bool(outcome["message"]) or any(
+        row["status"] != "done" for row in outcome["sections"].values()
+    )
+    raise SystemExit(1 if broken or stale else 0)
 
 
 def main() -> None:

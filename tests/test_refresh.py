@@ -272,3 +272,49 @@ class TestCollisionExitCode:
         # e il comando, davanti a None, esce 1: vedi `_cli`.
         source = (R.__file__,)
         assert "raise SystemExit(1)" in open(source[0], encoding="utf-8").read()
+
+
+class TestCliExitCode:
+    """Il codice d'uscita del comando: e' quello che systemd guarda, e con
+    `OnFailure=mygarmin-alert@` e' anche l'unico modo in cui un giro andato
+    male si fa sentire. Non era coperto, ed e' il buco da cui e' passato un
+    `NameError` nel ramo finale."""
+
+    def outcome(self, message=None, download=None, failed=()):
+        rows = {
+            s.key: {"status": "failed" if s.key in failed else "done", "message": None}
+            for s in DAILY.run_order
+        }
+        return {"message": message, "download": download, "sections": rows}
+
+    def run_cli(self, monkeypatch, outcome, argv=("--moment", "morning")):
+        import sys
+
+        monkeypatch.setattr(sys, "argv", ["training-daily-report", *argv])
+        monkeypatch.setattr(R, "_run", lambda *a, **k: outcome)
+        with pytest.raises(SystemExit) as caught:
+            R._cli(DAILY)
+        return caught.value.code
+
+    def test_a_clean_run_exits_zero(self, monkeypatch):
+        code = self.run_cli(monkeypatch, self.outcome(download={"ok": True, "message": None}))
+        assert code == 0
+
+    def test_a_failed_section_exits_one(self, monkeypatch):
+        code = self.run_cli(
+            monkeypatch,
+            self.outcome(message="These sections kept their previous text: load", failed=("load",)),
+        )
+        assert code == 1
+
+    def test_a_failed_download_exits_one(self, monkeypatch):
+        """Todo 81: il report c'e' lo stesso, ma e' scritto su dati vecchi."""
+        code = self.run_cli(
+            monkeypatch,
+            self.outcome(download={"ok": False, "message": "uv: not found"}),
+        )
+        assert code == 1
+
+    def test_a_run_that_never_started_exits_one(self, monkeypatch):
+        code = self.run_cli(monkeypatch, None)
+        assert code == 1
