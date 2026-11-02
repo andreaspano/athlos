@@ -781,6 +781,10 @@ def put_plan_current(slug: str, ctx: Context) -> PlanList:
         set_current(ctx.plan_dir, slug)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"No plan named {slug!r}.")
+    except ValueError as exc:
+        # Un file col front matter illeggibile non si riscrive: meglio dirlo
+        # che rovinare un documento scritto a mano (vedi `_set_current_flag`).
+        raise HTTPException(status_code=409, detail=str(exc))
     return _plan_list(ctx)
 
 

@@ -22,6 +22,7 @@ vengono, e tutte e diciotto dicono `half_marathon_2.20`. Quello era il goal
 attuale senza che il goal lo sapesse — si leggeva nei file generati, non in
 quello scritto a mano. Adesso sta dove lo si decide."""
 
+import os
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -29,8 +30,12 @@ from typing import Any
 
 import yaml
 
-# Il front matter: fra due righe di soli tre trattini, in cima al file.
-_FRONT_MATTER = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n", re.DOTALL)
+# Il front matter: fra due righe di soli tre trattini, in cima al file. Il
+# `\r?` c'e' perche' questi file li scrive una persona, a volte su Windows o
+# dentro un editor che salva CRLF: senza, il front matter non si vedeva — i
+# riquadri restavano vuoti, e `_set_current_flag` ne scriveva un secondo
+# davanti al primo.
+_FRONT_MATTER = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n", re.DOTALL)
 # Il titolo del piano: il primo `# ...`, da solo sulla sua riga.
 _TITLE = re.compile(r"\A\s*#[ \t]+(.+?)[ \t]*(?:\n|\Z)")
 
@@ -85,9 +90,27 @@ def _as_text(value: Any) -> str | None:
     return str(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
+def _read(path: Path) -> str:
+    """Il testo del file, anche quando non e' UTF-8.
+
+    Un piano scritto a mano e salvato in latin-1 — basta un accento — alzava
+    `UnicodeDecodeError`, che e' un `ValueError` e non un `OSError`: non lo
+    prendeva nessuno, e i quattro endpoint dei goal rispondevano 500. Fra
+    quelli c'era `DELETE`, cioe' l'unico modo di togliere di mezzo il file
+    che li rompeva, quindi la pagina non si poteva nemmeno riparare da se'.
+
+    Con `errors="replace"` il piano si vede, con un carattere storto dove
+    c'era l'accento, e si puo' cancellare o riscrivere. E' la stessa scelta
+    del front matter che YAML non legge: il piano non si salta."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return path.read_text(encoding="utf-8", errors="replace")
+
+
 def _plan(path: Path) -> dict[str, Any]:
     """Un piano, dal suo file."""
-    meta, body = _front_matter(path.read_text(encoding="utf-8"))
+    meta, body = _front_matter(_read(path))
     title, text = _title(body)
     return {
         "slug": path.stem,
@@ -164,6 +187,12 @@ def load_plans(folder: Path) -> list[dict[str, Any]]:
 # La chiave `current` in cima al front matter: senza rientro, che una
 # `current:` rientrata starebbe dentro un'altra struttura e non e' questa.
 _CURRENT_KEY = re.compile(r"^current[ \t]*:")
+# Una riga che continua quella prima: comincia con uno spazio o un trattino di
+# elenco. Togliendo `current:` vanno via anche le sue, altrimenti restano
+# attaccate alla chiave di sopra (`block_weeks: 18` + `  true` lo faceva
+# leggere come la stringa "18 true", e la generazione delle settimane si
+# fermava su "manca block_weeks" davanti a un file che ce l'aveva).
+_CONTINUATION = re.compile(r"^([ \t]+|-[ \t])")
 
 # Dove finiscono i goal cancellati. Un goal e' un documento che una persona ha
 # scritto a mano in mezz'ora, e l'API non ha login: cancellare per sempre dal
@@ -184,10 +213,29 @@ def _set_current_flag(text: str, wanted: bool) -> str:
     rimpagina a ogni clic e' un'API che si fa odiare.
 
     Il flag si cerca **solo dentro il front matter**: una riga `current:` nel
-    testo — dentro un esempio, o in un blocco di codice — non e' la chiave."""
+    testo — dentro un esempio, o in un blocco di codice — non e' la chiave.
+
+    Un file che **comincia** per `---` ma il cui front matter non si legge non
+    si tocca: alza `ValueError`. Scrivergliene un altro davanti vorrebbe dire
+    retrocedere il suo a testo del corpo, e con lui la gara, il bersaglio e le
+    settimane del blocco — un documento scritto a mano rovinato da un clic."""
     match = _FRONT_MATTER.match(text)
+    if not match and text.lstrip().startswith("---"):
+        raise ValueError(
+            "il front matter di questo file non si legge: il flag non si scrive "
+            "per non rovinarlo"
+        )
     front, rest = (match.group(1), text[match.end() :]) if match else ("", text)
-    kept = [line for line in front.splitlines() if not _CURRENT_KEY.match(line)]
+    kept = []
+    dropping = False
+    for line in front.splitlines():
+        if _CURRENT_KEY.match(line):
+            dropping = True
+            continue
+        if dropping and _CONTINUATION.match(line):
+            continue
+        dropping = False
+        kept.append(line)
     if wanted:
         kept.append("current: true")
     if not kept:
@@ -195,6 +243,21 @@ def _set_current_flag(text: str, wanted: bool) -> str:
         # di trattini con niente in mezzo.
         return rest
     return "---\n" + "\n".join(kept) + "\n---\n" + rest
+
+
+def _write(path: Path, text: str) -> None:
+    """Riscrive il file senza poterlo lasciare a meta': un temporaneo nella
+    stessa cartella, poi `os.replace`, che e' atomico.
+
+    Come `garmin/files.py:write_json` e `interface/fit.py:save_json_map`, e
+    qui conta di piu': quelli riscrivono dati che un comando riscarica, questo
+    un documento scritto a mano in mezz'ora."""
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def set_current(folder: Path, slug: str) -> None:
@@ -212,10 +275,10 @@ def set_current(folder: Path, slug: str) -> None:
     if not any(path.stem == slug for path in paths):
         raise FileNotFoundError(slug)
     for path in paths:
-        text = path.read_text(encoding="utf-8")
+        text = _read(path)
         changed = _set_current_flag(text, path.stem == slug)
         if changed != text:
-            path.write_text(changed, encoding="utf-8")
+            _write(path, changed)
 
 
 def delete_plan(folder: Path, slug: str) -> Path:
@@ -253,7 +316,7 @@ def weeks_following(summary_dir: Path, since: date) -> dict[str, int]:
         if not path.is_file():
             continue
         try:
-            meta, _ = _front_matter(path.read_text(encoding="utf-8"))
+            meta, _ = _front_matter(_read(path))
         except OSError:
             continue
         slug = _as_text(meta.get("plan"))
@@ -436,7 +499,7 @@ def load_day_plan(summary_dir: Path, day: date) -> dict[str, Any] | None:
     path = week_plan_path(summary_dir, day)
     if path is None:
         return None
-    meta, body = _front_matter(path.read_text(encoding="utf-8"))
+    meta, body = _front_matter(_read(path))
     sessions = meta.get("sessions")
     if not isinstance(sessions, list):
         return None
@@ -473,7 +536,7 @@ def load_week_plan(summary_dir: Path, day: date) -> dict[str, Any] | None:
     path = week_plan_path(summary_dir, day)
     if path is None:
         return None
-    meta, body = _front_matter(path.read_text(encoding="utf-8"))
+    meta, body = _front_matter(_read(path))
     title, text = _title(body)
     return {
         "week": _as_date(meta.get("week")) or day - timedelta(days=day.weekday()),
