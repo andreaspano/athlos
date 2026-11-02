@@ -149,13 +149,34 @@ def _read_json(path: Path) -> Any:
         return None
 
 
+def _when(entry: dict) -> datetime:
+    """Il momento di una misura di readiness, per ordinarle. Senza
+    timestamp va in fondo."""
+    stamp = entry.get("timestamp")
+    if isinstance(stamp, str):
+        try:
+            return datetime.fromisoformat(stamp)
+        except ValueError:
+            pass
+    return datetime.max
+
+
 def _readiness_score(payload: Any) -> float | None:
     """Il punteggio di readiness del risveglio, fra le misure del giorno.
 
-    Se il risveglio non c'e', si prende la prima della giornata: "prima" per
-    ora dell'orologio, non per posizione nella lista. La lista che arriva da
-    Garmin non e' ordinata nel tempo (il 21 settembre ha prima quella delle
-    17:54 e poi quella delle 06:04), quindi prendere `[0]` darebbe l'ultima."""
+    **La prima per ora dell'orologio, non per posizione nella lista**, e vale
+    per tutte e due le vie: quella del risveglio e il ripiego quando il
+    risveglio non c'e'. La lista che arriva da Garmin non e' ordinata nel
+    tempo (il 21 settembre ha prima quella delle 17:54 e poi quella delle
+    06:04), e **il risveglio puo' esserci piu' di una volta**: l'orologio
+    rifa' il conto quando si rimette al polso, o dopo un sonnellino.
+
+    Prendere `[0]` fra quelle del risveglio e' quello che si faceva, e su
+    diciassette giorni dell'archivio con piu' di un risveglio ne sbagliava
+    tredici, in media di dieci punti. Il 18 ottobre dava 13 (una misura delle
+    10:08) dove la lettura al risveglio era 68: la card Recovery diceva
+    `low`, il valore cadeva sotto il fondo della fascia, e per un mese ha
+    tirato giu' la media a 28 giorni. Il 1 novembre dava 61 invece di 77."""
     if not isinstance(payload, list):
         return None
     entries = [e for e in payload if isinstance(e, dict) and _number(e.get("score")) is not None]
@@ -163,19 +184,7 @@ def _readiness_score(payload: Any) -> float | None:
         return None
 
     wakeup = [e for e in entries if e.get("inputContext") == _WAKEUP_CONTEXT]
-    if wakeup:
-        return _number(wakeup[0].get("score"))
-
-    def _when(entry: dict) -> datetime:
-        stamp = entry.get("timestamp")
-        if isinstance(stamp, str):
-            try:
-                return datetime.fromisoformat(stamp)
-            except ValueError:
-                pass
-        return datetime.max
-
-    return _number(min(entries, key=_when).get("score"))
+    return _number(min(wakeup or entries, key=_when).get("score"))
 
 
 def _resting_hr(payload: Any) -> float | None:
