@@ -77,7 +77,9 @@ from training.interface.daily_data import (
     trend_data,
     week_trend_data,
 )
-from training.interface.db import _clean, load_activity_laps, load_activity_records
+from training.interface.db import _clean
+from training.interface.db import cache_state as db_cache_state
+from training.interface.db import load_activity_laps, load_activity_records
 from training.interface.health import load_lactate_threshold
 from training.interface.report_text import parse_report, section_icon
 from training.interface.run_chart import (
@@ -861,9 +863,15 @@ def get_plan(slug: str, ctx: Context) -> Plan:
 
 
 @app.get("/api/refresh", response_model=RefreshStatus, summary="Refresh job status")
-def get_refresh() -> RefreshStatus:
-    """The state of the latest Refresh job."""
-    return RefreshStatus(**refresh.status())
+def get_refresh(ctx: Context) -> RefreshStatus:
+    """The state of the latest Refresh job, and whether the activity cache is current.
+
+    The two travel together because both pages already poll this one route, and both already
+    know how to show an `ok: false` with a message — that is how a failed download is told.
+    A stale cache is the same kind of fact: what you are reading is true, and older than the
+    code that computes it."""
+    state = db_cache_state(ctx.data_dir)
+    return RefreshStatus(**refresh.status(), cache=None if state["ok"] else state)
 
 
 # La pagina compilata sotto `/`, **in fondo a tutto**: un mount su `/` prende

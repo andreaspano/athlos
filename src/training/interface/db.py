@@ -25,10 +25,14 @@ file intero e quindi anche lei; il primo `health_db.sync_health()` dopo la
 riempie di nuovo dai JSON.
 """
 
+import fcntl
 import json
+import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from typing import Iterator
 
 import pandas as pd
 
@@ -107,10 +111,24 @@ def sport_from_garmin_type(
         return sport
     return type_key
 
-# Bump when parsing/derivation logic changes (e.g. the UTC->local timezone
-# fix): sync() compares this against the value stored in schema_meta and
-# transparently triggers a full rebuild() when they differ, instead of
-# silently serving rows computed under old logic.
+# Due versioni, e **quale si alza non e' lo stesso** (todo 93):
+#
+# - `LOGIC_VERSION`: cambia quello che si ricava **dai file**. Rifarla vuol
+#   dire rileggere tutti i FIT, e non c'e' scorciatoia: `make rebuild`, mezz'ora.
+#   Esempi: una colonna nuova letta dal FIT, una lettura sbagliata dei tempi.
+# - `DERIVED_VERSION`: cambia quello che si ricava **da cio' che la tabella ha
+#   gia'** — i minuti per zona dai `records`, la soglia prestata dalle altre
+#   righe. Si rifa' da se' al primo `sync()`, in secondi.
+#
+# Alzare quella sbagliata e' silenzioso: alzare `DERIVED_VERSION` quando
+# serviva `LOGIC_VERSION` rifa' i conti sui dati vecchi e non lo dice nessuno.
+# La domanda da farsi e' una: **questo numero si puo' ricavare dalle righe che
+# ci sono?** Se si', e' derivato.
+#
+# `sync()` le confronta entrambe con `schema_meta`. Su `LOGIC_VERSION` diversa
+# **non ricostruisce**: serve i dati che ci sono e lo dice (`cache_state`),
+# perche' una ricostruzione dentro una richiesta HTTP ferma la pagina per
+# mezz'ora. Su `DERIVED_VERSION` diversa rifa' i conti derivati e va avanti.
 #
 # "3": colonna `vo2max`, letta dal messaggio 140 dei file FIT. I file gia' in
 # cache non la avevano, e sync() rilegge solo i file nuovi: il salto di versione
@@ -152,6 +170,18 @@ def sport_from_garmin_type(
 # poteva piu' sapere quali. Va riletto dai file perche' il valore misurato
 # di quelle righe e' andato perso nella colonna.
 LOGIC_VERSION = "11"
+
+# I conti che si ricavano dalle righe in tabella. "1": il primo numero, da
+# quando le due versioni si sono separate (todo 93).
+DERIVED_VERSION = "1"
+
+_LOGIC_KEY = "logic_version"
+_DERIVED_KEY = "derived_version"
+
+# Il nome del lucchetto delle scritture, accanto al database.
+WRITE_LOCK_FILENAME = ".activities.lock"
+
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -266,9 +296,96 @@ def _db_path(data_dir: Path) -> Path:
     return Path(data_dir) / "db" / DB_FILENAME
 
 
+@contextmanager
+def write_lock(data_dir: Path) -> Iterator[None]:
+    """Una scrittura per volta sul database, **anche fra processi**.
+
+    `sync()` e `sync_health()` scrivono lo stesso `activities.db`, e il
+    lucchetto di `api/cache.py` e' per lettore: serve a non farli aspettare
+    in lettura, e non impedisce niente in scrittura. Questo e' del file —
+    quindi vive qui, non nella cache — ed e' un `flock` come quello dei
+    lavori (`api/refresh._claim`): i thread dell'API e il comando lanciato a
+    mano da un terminale sono processi diversi, e un lucchetto di soli thread
+    non li avrebbe visti.
+
+    Aspetta invece di rifiutare: le attese sono brevi. Un `sync()` sono
+    millisecondi, e `rebuild()` lo prende solo per lo scambio finale, non per
+    la mezz'ora di letture."""
+    path = Path(data_dir) / "db" / WRITE_LOCK_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+    finally:
+        handle.close()
+
+
+def _stored_version(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM schema_meta WHERE key=?", (key,)).fetchone()
+    return row[0] if row else None
+
+
+def _write_version(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute(
+        "INSERT INTO schema_meta (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (key, value),
+    )
+
+
+def cache_state(data_dir: Path = DATA_DIR) -> dict:
+    """Se la cache e' in pari, e se no perche'.
+
+    `sync()` non ricostruisce piu' da se' (todo 93): una ricostruzione dura
+    mezz'ora e partiva dentro la richiesta di chi apriva una pagina. Quando
+    la versione non coincide si servono i dati che ci sono — che sono veri,
+    solo calcolati con il codice di prima — e questa funzione dice perche'.
+
+    **Il messaggio e' la meta' del lavoro**: dati vecchi serviti in silenzio
+    sono la stessa bugia che `api/refresh.py` si rifiuta di raccontare sullo
+    scaricamento mancato, e per lo stesso motivo arriva alla pagina.
+
+    Guarda la tabella ogni volta, invece di ricordarsi cosa ha visto
+    `sync()`: la prima stesura teneva il motivo in un dizionario di modulo, e
+    il motivo non arrivava mai, perche' `api/cache.py` tiene il frame in
+    memoria per un minuto e serviva senza passare da `sync()`. Costa una
+    `SELECT`."""
+    data_dir = Path(data_dir)
+    conn = _connect(data_dir)
+    try:
+        stored = _stored_version(conn, _LOGIC_KEY)
+        rows = conn.execute("SELECT count(*) FROM activities").fetchone()[0]
+    finally:
+        conn.close()
+    if stored is None or not rows:
+        return {
+            "ok": False,
+            "message": (
+                "la cache delle attivita' e' vuota: lancia `make rebuild` per "
+                "costruirla dai file FIT."
+            ),
+        }
+    if stored != LOGIC_VERSION:
+        return {
+            "ok": False,
+            "message": (
+                f"la cache e' alla versione {stored} e il codice vuole la "
+                f"{LOGIC_VERSION}: quello che vedi e' vero ma calcolato col codice "
+                f"di prima. Per rifarla: `make rebuild`."
+            ),
+        }
+    return {"ok": True, "message": None}
+
+
 def _connect(data_dir: Path) -> sqlite3.Connection:
+    return _connect_path(_db_path(data_dir))
+
+
+def _connect_path(path: Path) -> sqlite3.Connection:
+    """La connessione a un file preciso: il database vivo, o quello che si sta
+    costruendo accanto (`rebuild`)."""
     # `db/` dal todo 65: sqlite il file lo crea, la cartella no.
-    path = _db_path(data_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -583,24 +700,51 @@ def _fill_missing_thresholds(conn: sqlite3.Connection) -> None:
     )
 
 
-def rebuild(data_dir: Path = DATA_DIR) -> int:
-    """Drop and repopulate the cache from every .fit file in data_dir.
-    Used after a parsing-logic change (LOGIC_VERSION bump) or on first run."""
-    data_dir = Path(data_dir)
-    db_path = _db_path(data_dir)
-    db_path.unlink(missing_ok=True)
-    for suffix in ("-wal", "-shm"):
-        Path(str(db_path) + suffix).unlink(missing_ok=True)
+# Ogni quante attivita' si chiude una transazione durante la ricostruzione.
+# Cento sono circa un decimo del lavoro: il giornale non cresce a dismisura, e
+# un'interruzione lascia su disco quello che era stato letto.
+REBUILD_BATCH = 100
 
-    conn = _connect(data_dir)
+
+def rebuild(data_dir: Path = DATA_DIR, say=print) -> int:
+    """Rifa' la cache da tutti i FIT di `data_dir`. Rende quante attivita' ha
+    letto in questo giro.
+
+    **Costruisce accanto e scambia alla fine** (todo 93). Prima cancellava il
+    database vivo e ci rileggeva dentro per mezz'ora: in quella mezz'ora ogni
+    richiesta leggeva un file che non c'era o che non era finito, e
+    un'interruzione lasciava un archivio a meta'. Adesso il lavoro va in
+    `activities.db.new`, e solo quando e' finito un `os.replace` — atomico —
+    lo mette al posto del vecchio: chi legge vede il vecchio o il nuovo, mai
+    una via di mezzo. E' la stessa politica di `garmin/files.py`.
+
+    **Si commette a pezzi** (`REBUILD_BATCH`), e un file accanto rimasto a
+    meta' si riprende invece di ricominciare: le attivita' che ci sono gia'
+    non si rileggono. Un `rebuild` che riparte da zero si ottiene cancellando
+    `activities.db.new`.
+
+    **Non la chiama nessuna richiesta**: la chiama `make rebuild`. Il servizio
+    puo' restare accesso, e serve i dati vecchi finche' lo scambio non
+    avviene (vedi `cache_state`)."""
+    data_dir = Path(data_dir)
+    target = _db_path(data_dir)
+    building = target.with_name(target.name + ".new")
+
+    conn = _connect_path(building)
     try:
         names = load_activity_names(data_dir)
         types = load_activity_types(data_dir)
         parsed_at = datetime.now().isoformat(sep=" ")
-        count = sum(
-            _parse_and_store_or_warn(conn, p, names, types, parsed_at)
-            for p in list_activity_files(data_dir)
-        )
+        done = {r[0] for r in conn.execute("SELECT activity_id FROM activities")}
+        if done:
+            say(f"  {building.name} c'era gia': riprendo, {len(done)} attivita' sono a posto")
+        paths = [p for p in list_activity_files(data_dir) if activity_id_from_path(p) not in done]
+        count = 0
+        for index, path in enumerate(paths, 1):
+            count += _parse_and_store_or_warn(conn, path, names, types, parsed_at)
+            if index % REBUILD_BATCH == 0:
+                conn.commit()
+                say(f"  ...{index}/{len(paths)} letti")
         # Il nastro vince su tutto, anche su un tipo di Connect che dice
         # "running": lo `sub_sport` del FIT e' il solo segnale che c'e' sempre
         # (vedi `sport_from_garmin_type`). Questo UPDATE e' anche quello che
@@ -615,30 +759,76 @@ def rebuild(data_dir: Path = DATA_DIR) -> int:
         )
         _fill_missing_thresholds(conn)
         _fill_zone_minutes(conn)
-        conn.execute(
-            "INSERT INTO schema_meta (key, value) VALUES ('logic_version', ?) "
-            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            (LOGIC_VERSION,),
-        )
+        _write_version(conn, _LOGIC_KEY, LOGIC_VERSION)
+        _write_version(conn, _DERIVED_KEY, DERIVED_VERSION)
         conn.commit()
     finally:
         conn.close()
+
+    # Lo scambio. `conn.close()` ha chiuso il giornale del file nuovo, quindi
+    # quello che segue e' un file solo; il giornale del vecchio non vale piu'
+    # per il file che prende il suo posto e va via con lui.
+    with write_lock(data_dir):
+        os.replace(building, target)
+        for suffix in ("-wal", "-shm"):
+            Path(str(target) + suffix).unlink(missing_ok=True)
+    say(f"  fatta: {count} attivita' lette, cache alla versione {LOGIC_VERSION}")
     return count
 
 
+def refresh_derived(conn: sqlite3.Connection) -> None:
+    """Rifa' i conti che si ricavano dalle righe in tabella, senza toccare i
+    file: la soglia prestata e i minuti per zona (todo 93).
+
+    E' la scorciatoia che non c'era: due delle tre correzioni del 2 novembre
+    2026 cambiavano solo questi, e sono costate mezz'ora di ricostruzione
+    ciascuna. Misurato sull'archivio: 0.2 secondi su 986 attivita'.
+
+    **Si azzera prima di rifare**, le soglie prestate e i minuti per zona. Il
+    riempimento delle soglie guarda solo le righe che non ne hanno una, e
+    `_store_zone_minutes` non scrive mai un NULL: senza l'azzeramento un
+    valore che non si puo' piu' calcolare — perche' la soglia che lo rendeva
+    possibile e' sparita — resterebbe in tabella per sempre, e un giro
+    derivato che non sa togliere non e' un giro derivato."""
+    conn.execute("UPDATE activities SET threshold_hr_borrowed = NULL")
+    _fill_missing_thresholds(conn)
+    conn.execute(
+        "UPDATE activities SET min_low_aerobic = NULL, min_high_aerobic = NULL, "
+        "min_anaerobic = NULL"
+    )
+    _fill_zone_minutes(conn, force=True)
+
+
 def sync(data_dir: Path = DATA_DIR) -> int:
-    """Parse and cache only .fit files not yet in the DB (by activity_id,
-    read cheaply from the filename, no FIT parse needed). Also refreshes
-    activity_name for already-cached rows from activity_names.json. Falls
-    back to a full rebuild() if the cache predates the current
-    LOGIC_VERSION."""
+    """Legge e mette in cache i soli FIT che non ci sono ancora (per
+    `activity_id`, preso dal nome del file: nessun parsing in piu'), e
+    rinfresca i nomi dai JSON.
+
+    **Non ricostruisce** (todo 93). Se `LOGIC_VERSION` non coincide con
+    quella in tabella non si puo' fare niente di utile — le righe sono state
+    calcolate con un altro codice, e aggiungerne di nuove mescolerebbe i due
+    — quindi si lascia tutto com'e', si scrive il motivo in `cache_state()` e
+    si rende zero. La ricostruzione la chiede una persona: `make rebuild`.
+    Prima partiva da qui, cioe' dentro la richiesta di chi apriva una pagina:
+    mezz'ora di attesa e il database cancellato nel frattempo.
+
+    Se e' `DERIVED_VERSION` a non coincidere, i conti che si ricavano dalle
+    righe si rifanno subito (`refresh_derived`): sono secondi."""
     data_dir = Path(data_dir)
+    with write_lock(data_dir):
+        return _sync_locked(data_dir)
+
+
+def _sync_locked(data_dir: Path) -> int:
     conn = _connect(data_dir)
     try:
-        row = conn.execute("SELECT value FROM schema_meta WHERE key='logic_version'").fetchone()
-        if row is None or row[0] != LOGIC_VERSION:
-            conn.close()
-            return rebuild(data_dir)
+        stored = _stored_version(conn, _LOGIC_KEY)
+        rows = conn.execute("SELECT count(*) FROM activities").fetchone()[0]
+        if stored is None or not rows or stored != LOGIC_VERSION:
+            # Niente di utile da fare: le righe vengono da un altro codice, e
+            # aggiungerne di nuove mescolerebbe i due. Il motivo lo dice
+            # `cache_state()`, che lo rilegge da se'.
+            return 0
 
         existing_ids = {r[0] for r in conn.execute("SELECT activity_id FROM activities")}
         new_paths = [p for p in list_activity_files(data_dir) if activity_id_from_path(p) not in existing_ids]
@@ -686,8 +876,12 @@ def sync(data_dir: Path = DATA_DIR) -> int:
             "UPDATE activities SET sport='treadmill', equiv_speed_kmh=NULL "
             "WHERE sub_sport='treadmill'"
         )
-        _fill_missing_thresholds(conn)
-        _fill_zone_minutes(conn)
+        if _stored_version(conn, _DERIVED_KEY) != DERIVED_VERSION:
+            refresh_derived(conn)
+            _write_version(conn, _DERIVED_KEY, DERIVED_VERSION)
+        else:
+            _fill_missing_thresholds(conn)
+            _fill_zone_minutes(conn)
         conn.commit()
         return added
     finally:

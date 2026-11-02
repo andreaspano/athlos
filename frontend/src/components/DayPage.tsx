@@ -27,6 +27,7 @@ import { addDays, dayOf, today } from "../format";
 import { preamble, sectionBody, sectionIcon, sectionVerdict, sectionWrittenAt } from "../markdown";
 import { ETICHETTE, daysFromUrl, type View } from "../navigation";
 import { useColorScheme } from "../useColorScheme";
+import { CacheWarning } from "./CacheWarning";
 import { DayHeader } from "./DayHeader";
 import { DayPlanCard } from "./DayPlanCard";
 import { FitnessCard } from "./FitnessCard";
@@ -79,6 +80,9 @@ export function DayPage({ view = "snap" }: { view?: View }) {
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
   const [refresh, setRefresh] = useState<RefreshStatus | null>(null);
+  // La cache viaggia sullo stesso stato del lavoro ma non e' del lavoro: si
+  // tiene a parte, cosi' la guardia sul tipo qui sotto non la butta via.
+  const [cache, setCache] = useState<RefreshStatus["cache"]>(null);
   // Sale a ogni Refresh finito bene: dati e report si richiedono.
   const [reloads, setReloads] = useState(0);
   // Un errore del Refresh si mostra solo se questa pagina l'ha visto girare,
@@ -163,6 +167,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
     api
       .refresh(controller.signal)
       .then((status) => {
+        setCache(status.cache ?? null);
         if (status.kind !== "daily") return;
         if (status.status === "running") setWatched(true);
         setRefresh(status);
@@ -178,6 +183,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
       api
         .refresh()
         .then((status) => {
+          setCache(status.cache ?? null);
           if (status.kind !== "daily") return;
           setRefresh(status);
           if (status.status === "done") setReloads((n) => n + 1);
@@ -295,6 +301,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
             Refresh of {refresh.day} failed: {refresh.message}
           </p>
         )}
+        <CacheWarning state={cache} />
         {/* Lo scaricamento che fallisce non ferma il lavoro: il testo si
             scrive sui dati che ci sono gia'. Ma va detto, perche' da quando
             a lanciare sono i timer non c'e' nessuno a guardare (todo 47). */}

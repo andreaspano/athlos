@@ -684,7 +684,12 @@ export interface paths {
         };
         /**
          * Refresh job status
-         * @description The state of the latest Refresh job.
+         * @description The state of the latest Refresh job, and whether the activity cache is current.
+         *
+         *     The two travel together because both pages already poll this one route, and both already
+         *     know how to show an `ok: false` with a message — that is how a failed download is told.
+         *     A stale cache is the same kind of fact: what you are reading is true, and older than the
+         *     code that computes it.
          */
         get: operations["get_refresh_api_refresh_get"];
         put?: never;
@@ -1678,6 +1683,8 @@ export interface components {
              * @description Why the job failed. Null otherwise.
              */
             message: string | null;
+            /** @description Null when the activity cache is up to date. Otherwise ok=false with the reason: the rows served were computed by an older version of the code, or there are none yet. Rebuilding is a command (`make rebuild`), not something a page view sets off, so the page says it instead of waiting half an hour. */
+            cache?: components["schemas"]["Download"] | null;
             /** @description How the download from Garmin fared. Null when the job did not download. A failed download does not stop the job: the text is written on the data already here. */
             download?: components["schemas"]["Download"] | null;
             /**

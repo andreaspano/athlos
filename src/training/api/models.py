@@ -236,6 +236,13 @@ class RefreshStatus(BaseModel):
     started: datetime | None
     finished: datetime | None
     message: str | None = Field(description="Why the job failed. Null otherwise.")
+    cache: Download | None = Field(
+        default=None,
+        description="Null when the activity cache is up to date. Otherwise ok=false with the "
+        "reason: the rows served were computed by an older version of the code, or there are "
+        "none yet. Rebuilding is a command (`make rebuild`), not something a page view sets "
+        "off, so the page says it instead of waiting half an hour.",
+    )
     download: Download | None = Field(
         default=None,
         description="How the download from Garmin fared. Null when the job did not download. "

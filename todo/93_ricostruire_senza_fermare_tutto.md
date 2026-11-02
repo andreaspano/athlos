@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 
 # Ricostruire il database senza fermare tutto
@@ -176,3 +176,95 @@ novembre, **due su tre** sarebbero costate secondi invece di 37 minuti.
   database vivo sia intatto e che il giro dopo riprenda invece di ricominciare.
 - Lanciare `sync()` e `sync_health()` insieme da due processi e verificare che
   non si pestino: oggi il secondo trova il file sotto le mani del primo.
+
+## Come e' andata
+
+Fatto, tutti e cinque i punti.
+
+**`sync()` non ricostruisce piu'.** Quando `LOGIC_VERSION` non coincide — o
+la tabella e' vuota — non fa niente e rende zero: le righe che ci sono
+vengono da un altro codice, e aggiungerne di nuove mescolerebbe i due. La
+ricostruzione e' `make rebuild`.
+
+**Il motivo arriva alla pagina**, sul campo `cache` di `GET /api/refresh`:
+`ok` falso e il messaggio col comando da lanciare, come il campo `download`
+dice uno scaricamento mancato. Le due cose viaggiano insieme perche' tutte e
+due le pagine interrogano gia' quella rotta e sanno gia' mostrare un `ok`
+falso. Il banner e' `CacheWarning`, e **non passa dalla guardia sul tipo**:
+la cache e' una sola per la Day e per la Week.
+
+**Si costruisce accanto e si scambia.** Il lavoro va in `activities.db.new`,
+e alla fine un `os.replace` lo mette al posto del vecchio. Un commit ogni
+`REBUILD_BATCH` (cento) attivita', e un file accanto rimasto a meta' si
+riprende invece di ricominciare.
+
+**Un lucchetto del file, fra processi.** `write_lock()` e' un `flock` come
+quello dei lavori (`api/refresh._claim`), e lo prendono `db.sync()` e
+`health_db.sync_health()`: i thread dell'API e un comando lanciato da un
+terminale sono processi diversi, e un lucchetto di soli thread non li
+avrebbe visti. `rebuild()` lo prende **solo per lo scambio**, non per la
+mezz'ora di letture.
+
+**Due versioni.** `LOGIC_VERSION` per quello che viene dai file,
+`DERIVED_VERSION` per quello che si ricava dalle righe. `refresh_derived()`
+rifa' soglie prestate e minuti per zona in **0.2 secondi su 986 attivita'**,
+contro i 37 minuti di una ricostruzione: delle tre correzioni del 2
+novembre, due sarebbero state secondi.
+
+Due cose trovate per strada.
+
+**Il messaggio non arrivava.** La prima stesura teneva il motivo in un
+dizionario di modulo, scritto da `sync()`. Ma `api/cache.py` tiene il frame
+in memoria per un minuto e serve senza passare da `sync()`: con la versione
+storta la pagina non diceva niente. Adesso `cache_state()` guarda la tabella
+ogni volta — costa una `SELECT`.
+
+**Un giro derivato deve sapere togliere.** `_store_zone_minutes` non scrive
+mai un NULL, quindi un valore che non si puo' piu' calcolare — perche' la
+soglia che lo rendeva possibile non c'e' piu' — restava in tabella per
+sempre. `refresh_derived()` azzera prima di rifare, ed e' idempotente: due
+giri di fila danno la stessa tabella.
+
+### Verificato
+
+- **Versione storta col servizio accesso**: `/api/refresh` rende
+  `cache: {ok: false, message: "la cache e' alla versione 10 e il codice
+  vuole la 11... make rebuild"}`, e nello stesso momento `/api/activities`
+  rende le sue cinque attivita' e `/api/daily/2026-11-02` la readiness 68.
+  Risponde, con i dati vecchi e il messaggio.
+- **Un giro derivato**: 0.2 s su 986 attivita', due volte di fila con lo
+  stesso risultato (39 sedute coi minuti per zona, 28 con soglia prestata).
+- **Interruzione a meta'**: il database vivo resta della stessa dimensione e
+  si legge ancora; il file accanto resta e il giro dopo dice "riprendo" e
+  finisce il lavoro. Due test, con FIT veri in una cartella temporanea.
+- **Due processi**: uno tiene `write_lock` per 2,5 s, l'altro entra dopo
+  1,9 s invece di scrivere insieme.
+- 240 test (`make test`), `tsc` e `vite build` puliti, `schema.ts`
+  rigenerato e stabile (due rigenerazioni, stessa impronta), i sei endpoint
+  principali a 200 dal servizio vero.
+
+### Quello che non ho provato
+
+**Una ricostruzione intera dell'archivio** (986 FIT, mezz'ora): lo scambio e
+il riprendere sono provati su una cartella temporanea con FIT veri, che e' lo
+stesso codice e lo stesso `os.replace`, ma il giro completo lo fara' il primo
+`make rebuild` vero.
+
+**Lo schermo**: il banner l'ho provato per contenuto e tipi, non guardando
+come sta sopra le card.
+
+## Revert
+
+```bash
+git revert -m 1 $(git log main --merges \
+  --grep="^Merge branch 'todo_93'$" --format=%H -1)
+```
+
+Effetti fuori dal repo: in `activities.db` resta la riga `derived_version`
+di `schema_meta` — innocua, il codice vecchio non la legge — e accanto al
+database resta `db/.activities.lock`, un file vuoto che nessuno apre piu'.
+Nessun dato delle attivita' e' cambiato: questo todo tocca **quando** e
+**come** si ricostruisce, non cosa c'e' in tabella.
+
+Dopo il revert, rifare il merge di `todo_93` non riporta le modifiche (git le
+considera gia' unite): per riaverle serve il revert del revert.

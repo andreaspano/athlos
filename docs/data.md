@@ -353,13 +353,25 @@ la sua versione con quella in `schema_meta`.
 | Cosa succede | Cosa fa |
 |---|---|
 | Un `.fit` nuovo | lo legge e aggiunge le righe. Il resto non si tocca |
-| `logic_version` diversa | **butta il file intero** e rilegge tutti i 985 FIT |
+| `logic_version` diversa | **non ricostruisce**: serve i dati che ci sono e lo dice (todo 93) |
+| `derived_version` diversa | rifa' i conti che si ricavano dalle righe: 0.2 s |
 | Un file di salute piu' nuovo della riga | rilegge quel giorno |
 | `health_logic_version` diversa | ricrea `health_daily` vuota e la rifa' dai JSON |
 
-Un rebuild dei FIT porta via anche `health_daily`, perche' cancella il file:
-va bene, il primo `sync_health()` dopo la riempie di nuovo. L'inverso no, ed
-e' il motivo per cui le due versioni sono separate.
+**La ricostruzione dei FIT e' un comando** (`make rebuild`), non un effetto
+della lettura: dura mezz'ora, e partiva dentro la richiesta di chi apriva
+una pagina. Quando le versioni non coincidono la pagina mostra un avviso col
+comando da lanciare, e intanto legge le righe vecchie — che sono vere, solo
+calcolate col codice di prima.
+
+Il comando costruisce `activities.db.new` accanto e lo scambia alla fine con
+un `os.replace`: il servizio puo' restare accesso, e un'interruzione lascia
+intatto il database vivo (il giro dopo riprende dal file accanto, invece di
+ricominciare).
+
+Un rebuild dei FIT porta via anche `health_daily`, perche' il file nuovo
+nasce senza: va bene, il primo `sync_health()` dopo la riempie di nuovo.
+L'inverso no, ed e' il motivo per cui le versioni sono separate.
 
 Rileggere i 985 FIT e' lavoro locale — nessuna chiamata a Garmin — quindi
 alzare `LOGIC_VERSION` e' una cosa che si fa senza paura. **Rifare i 260 MB
