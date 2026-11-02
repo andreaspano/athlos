@@ -30,7 +30,12 @@ def daily_payload(day: date, data_dir: Path) -> dict[str, Any]:
     hours = data["sleep_last_7"]["hours"].get(day.isoformat())
     # La card Fitness (todo 37). La soglia e' quella di `hr_zones`, ripetuta
     # con un tipo.
-    fitness = fitness_on(health, day)
+    # Con la cartella: `fitness_on` legge gli acclimatamenti dai file, e
+    # senza prenderebbe il valore di default del suo modulo, cioe' il data
+    # root globale. Tre blocchi del payload venivano da li' qualunque
+    # cartella si fosse chiesta — e `api/context.py` esiste proprio perche'
+    # con il login cambi quella e non gli endpoint.
+    fitness = fitness_on(health, day, data_dir)
     zones = data["hr_zones"]
     if zones and zones.get("threshold_hr") is not None:
         fitness["threshold_hr"] = {"value": zones["threshold_hr"], "as_of": zones["as_of"]}

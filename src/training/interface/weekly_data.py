@@ -546,7 +546,7 @@ def _week_fitness(
     from training.interface.daily_data import _hr_zones, fitness_on
     from training.interface.health import load_lactate_threshold
 
-    fitness = fitness_on(health, last_day)
+    fitness = fitness_on(health, last_day, data_dir)
     lactate = load_lactate_threshold(data_dir)
     fitness["lactate_threshold"] = (
         lactate if lactate and lactate["as_of"] <= last_day.isoformat() else None

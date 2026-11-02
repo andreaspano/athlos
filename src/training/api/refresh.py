@@ -320,6 +320,22 @@ def _run(
                     # Niente file, nessuna frase nel prompt: un piano che non
                     # c'e' non deve diventare un'istruzione da inventare.
                     for section in sections:
+                        # Chi legge i frammenti degli altri (il Summary) non
+                        # gira se in questo giro qualcuno e' fallito: dei
+                        # suoi leggerebbe il testo del giro prima e
+                        # mescolerebbe due giorni in un verdetto, dichiarando
+                        # 'done'. Meglio nessun Summary nuovo che uno falso.
+                        if section.reads_fragments and failed:
+                            problem = (
+                                "not run: " + ", ".join(failed) + " failed in this run"
+                            )
+                            _set(
+                                section.key, status="failed", started=None,
+                                finished=datetime.now(), message=problem,
+                            )
+                            results[section.key] = {"status": "failed", "message": problem}
+                            failed.append(section.key)
+                            continue
                         began = datetime.now()
                         _set(
                             section.key, status="running", started=began,
@@ -859,8 +875,13 @@ def _cli(kind: Report) -> None:
         args.moment,
     )
     if outcome is None:
+        # Esce 1, non 0: il report di questo periodo **non e' stato scritto**,
+        # e chi lancia e' un timer con `OnFailure=mygarmin-alert@`. Uscendo 0
+        # systemd registrava un successo per un giro che non ha fatto niente,
+        # che e' lo stesso silenzio sui dati vecchi che il docstring di
+        # `_prepare` dice di non voler permettere.
         print("Ce n'e' gia' uno in corso: non faccio niente.")
-        raise SystemExit(0)
+        raise SystemExit(1)
     if outcome["download"] and not outcome["download"]["ok"]:
         print(f"  dati     non scaricati  {outcome['download']['message']}")
     for section in sections:

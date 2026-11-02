@@ -622,8 +622,14 @@ def list_activities(data_dir: Path = DATA_DIR) -> pd.DataFrame:
         df = pd.read_sql_query("SELECT * FROM activities ORDER BY start_time DESC", conn)
     finally:
         conn.close()
-    if not df.empty:
-        df["start_time"] = pd.to_datetime(df["start_time"])
+    # Anche a zero righe, cioe' prima del primo `make update_activity`: senza
+    # la conversione la colonna resta di tipo `object`, e i dodici posti che
+    # fanno `start_time.dt.date` alzavano `AttributeError`. In pratica
+    # `/api/activities`, `/api/daily/<giorno>` e `/api/weekly/<lunedi>`
+    # rispondevano 500 su una cartella dati vuota, mentre `/api/sports`,
+    # `/api/plans` e gli altri rispondevano 200 con la lista vuota: il primo
+    # avvio di una installazione nuova sembrava un guasto.
+    df["start_time"] = pd.to_datetime(df["start_time"])
     _add_terrain(df, data_dir)
     _add_run_type(df, data_dir)
     return df
