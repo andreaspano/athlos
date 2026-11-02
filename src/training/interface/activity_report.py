@@ -10,6 +10,8 @@ che serve.
 
 import pandas as pd
 
+from training.interface.grade import slope_pct
+
 # Le grandezze che dicono come e' stata corsa una seduta: le legge
 # `daily_data`, che le mette nel JSON del giorno (todo 43).
 _NUMBER_KEYS = (
@@ -66,11 +68,18 @@ def activity_numbers(records: pd.DataFrame) -> dict[str, float | None]:
         and has_distance
         and records["heart_rate"].notna().any()
     ):
-        altitude_diff = records["altitude_m"].astype(float).diff()
-        distance_diff_m = (records["distance_km"].astype(float).diff() * 1000).mask(lambda s: s == 0)
-        slope_pct = ((altitude_diff / distance_diff_m) * 100).clip(-30, 30)
-        uphill_hr = records.loc[slope_pct > 3, "heart_rate"].mean()
-        flat_hr = records.loc[slope_pct.between(-1, 1), "heart_rate"].mean()
+        # La pendenza lisciata di `grade.slope_pct`, non il rapporto fra due
+        # campioni: quello e' dominato dal barometro. Un metro di quota
+        # sbagliato su cinque di distanza fa un 20%, e i campioni di un
+        # tratto davvero piano finivano oltre il 3% mentre altri cadevano
+        # dentro la banda del piano. Misurato sull'escursione del 17 ottobre:
+        # 110 contro 101 battiti col conto grezzo, 110 contro 95 con la
+        # pendenza vera — e i campioni "piani" da 497 a 125, cioe' quattro
+        # quinti stavano nel secchio sbagliato. Il grafico della stessa
+        # pagina disegna gia' questa.
+        slope = slope_pct(records)
+        uphill_hr = records.loc[slope > 3, "heart_rate"].mean()
+        flat_hr = records.loc[slope.between(-1, 1), "heart_rate"].mean()
         if pd.notna(uphill_hr):
             out["uphill_hr"] = float(uphill_hr)
         if pd.notna(flat_hr):
