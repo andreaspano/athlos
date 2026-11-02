@@ -43,7 +43,12 @@ from training.interface.fit import (
 )
 from training.interface.fit import load_activity_laps as _parse_fit_laps
 from training.interface.fit import load_activity_records as _parse_fit_records
-from training.interface.grade import EQUIV_SPEED_SPORTS, equivalent_speed_kmh, equivalent_speed_series
+from training.interface.grade import (
+    EQUIV_SPEED_SPORTS,
+    equivalent_speed_kmh,
+    equivalent_speed_series,
+    sample_seconds,
+)
 from training.interface.run_type import guess_run_type, has_run_type, load_run_type_overrides
 from training.interface.terrain import guess_terrain, has_terrain, load_terrain_overrides
 
@@ -134,7 +139,13 @@ def sport_from_garmin_type(
 # "9": tabella `laps`, i giri del FIT (todo 79). Nasce vuota e non si puo'
 # riempire dai dati che ci sono: i giri stanno solo nei file, e per le sedute
 # di prima vanno riletti da li'.
-LOGIC_VERSION = "9"
+#
+# "10": i minuti per zona vengono dalla stessa regola del grafico
+# (`grade.sample_seconds`) e non piu' da un tetto di 30 secondi per buco,
+# quindi `min_low_aerobic`, `min_high_aerobic` e `min_anaerobic` cambiano su
+# tutte le sedute con una pausa: sul giro di nove ore 377.0 minuti invece di
+# 379.7, su una pedalata del 28 ottobre 12.1 invece di 16.1.
+LOGIC_VERSION = "10"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -417,14 +428,6 @@ def _parse_and_store(
 THRESHOLD_FALLBACK_FROM = "2026-08-01"
 
 
-# Oltre mezzo minuto fra due campioni non e' tempo allenato ma una pausa o
-# un buco di registrazione: il campione vale per l'intervallo che lo segue,
-# fino a questo tetto. Sulle corse la somma delle tre zone torna al minuto
-# con la durata della seduta; sul giro di nove ore del 17 ottobre resta
-# sotto di un'ora e mezza, che sono le soste.
-ZONE_GAP_CAP_SECONDS = 30
-
-
 def _zone_minutes(conn: sqlite3.Connection, activity_id: int) -> tuple[float, float, float] | None:
     """I minuti passati nelle tre fasce di sforzo di Garmin — basso aerobico,
     alto aerobico, anaerobico — da `records` (todo 54).
@@ -434,6 +437,16 @@ def _zone_minutes(conn: sqlite3.Connection, activity_id: int) -> tuple[float, fl
     deve riscrivere i minuti di agosto. Basso aerobico fino alla cima della
     terza zona, alto aerobico fino alla soglia, anaerobico oltre — gli stessi
     tagli di `daily_data._hr_zones`.
+
+    Quanto vale ogni campione lo dice `grade.sample_seconds`, **la stessa
+    regola di `run_chart.effects`**: fino al campione dopo, e un secondo solo
+    attraverso una pausa. Prima qui c'era un conto suo — ogni buco valeva
+    fino a un tetto di 30 secondi — e i due non andavano d'accordo: su 8
+    delle 12 sedute recenti con le zone i numeri erano diversi, 16.1 minuti
+    contro 12.1 di basso aerobico sulla stessa uscita. La Day leggeva
+    `effects()` e la Week queste colonne, quindi due card dicevano cose
+    diverse della stessa seduta, e la fascia delle dodici settimane era
+    costruita sull'altra convenzione.
 
     `None` quando la seduta non ha frequenza cardiaca, zone o soglia: e' un
     dato che manca, e scriverci zero direbbe un'altra cosa. Lo storico
@@ -457,11 +470,11 @@ def _zone_minutes(conn: sqlite3.Connection, activity_id: int) -> tuple[float, fl
     ).fetchall()
     if len(samples) < 2:
         return None
+    index = pd.to_datetime([epoch for epoch, _ in samples], unit="s")
     seconds = [0.0, 0.0, 0.0]
-    for (start, heart_rate), (nxt, _) in zip(samples, samples[1:]):
+    for (_, heart_rate), span in zip(samples, sample_seconds(index)):
         if heart_rate is None:
             continue
-        span = min(nxt - start, ZONE_GAP_CAP_SECONDS)
         if heart_rate <= low_top:
             seconds[0] += span
         elif heart_rate <= threshold:
