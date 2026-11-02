@@ -80,7 +80,15 @@ class ActivityDetail(Activity):
     """One activity with its heart-rate settings and estimated effects."""
 
     hr_zone_bounds: list[int] | None = Field(description="Upper limits of zones Z1-Z4, in bpm.")
-    threshold_hr: int | None = Field(description="Anaerobic threshold, in bpm.")
+    threshold_hr: int | None = Field(
+        description="Anaerobic threshold as this session measured it, in bpm. Null when the "
+        "watch did not save one: the Bike profile never does, and some hikes save a zero."
+    )
+    threshold_hr_borrowed: int | None = Field(
+        default=None,
+        description="The threshold taken from the nearest run that measured one, used to split "
+        "the zones when this session has none of its own. Null when the threshold above is real.",
+    )
     effect_seconds: EffectSeconds | None = Field(
         description="Null when the zones, the threshold or the heart rate are missing."
     )

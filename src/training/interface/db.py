@@ -145,7 +145,13 @@ def sport_from_garmin_type(
 # quindi `min_low_aerobic`, `min_high_aerobic` e `min_anaerobic` cambiano su
 # tutte le sedute con una pausa: sul giro di nove ore 377.0 minuti invece di
 # 379.7, su una pedalata del 28 ottobre 12.1 invece di 16.1.
-LOGIC_VERSION = "10"
+#
+# "11": colonna `threshold_hr_borrowed`. La soglia prestata non si scrive
+# piu' in `threshold_hr`, che torna a essere solo quello che il FIT ha
+# misurato: 32 righe la portavano come se fosse loro, e dal database non si
+# poteva piu' sapere quali. Va riletto dai file perche' il valore misurato
+# di quelle righe e' andato perso nella colonna.
+LOGIC_VERSION = "11"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -173,6 +179,14 @@ CREATE TABLE IF NOT EXISTS activities (
     anaerobic_te      REAL,
     hr_zone_bounds    TEXT,
     threshold_hr      INTEGER,
+    -- La soglia **prestata** da un'altra seduta, quando questa non ne ha una
+    -- sua (vedi `_fill_missing_thresholds`). Sta in una colonna a parte
+    -- perche' non e' una misura di questa seduta: scritta in `threshold_hr`
+    -- non si distingueva da una vera, e l'API dava 148 come "la soglia" di
+    -- una sessione di arrampicata. Chi divide i minuti per zona usa
+    -- `COALESCE(threshold_hr, threshold_hr_borrowed)`; chi mostra un numero
+    -- misurato usa solo la prima.
+    threshold_hr_borrowed INTEGER,
     workout_name      TEXT,
     workout_active_steps INTEGER,
     workout_active_max_s REAL,
@@ -454,7 +468,8 @@ def _zone_minutes(conn: sqlite3.Connection, activity_id: int) -> tuple[float, fl
     si retrodata — sono 926 sedute su 979, tutte anteriori ad agosto 2026,
     e la Week guarda dodici settimane."""
     row = conn.execute(
-        "SELECT hr_zone_bounds, threshold_hr FROM activities WHERE activity_id = ?",
+        "SELECT hr_zone_bounds, COALESCE(threshold_hr, threshold_hr_borrowed) "
+        "FROM activities WHERE activity_id = ?",
         (activity_id,),
     ).fetchone()
     if not row or not row[0] or not row[1]:
@@ -528,10 +543,27 @@ def _fill_missing_thresholds(conn: sqlite3.Connection) -> None:
     """La soglia dell'ultima corsa precedente (o, in mancanza, della prima
     successiva) alle attivita' senza soglia o con soglia zero, da
     THRESHOLD_FALLBACK_FROM in poi. Gira dopo ogni rebuild e sync, cosi' vale
-    anche per i file nuovi e per gli sport riclassificati."""
+    anche per i file nuovi e per gli sport riclassificati.
+
+    **Va in `threshold_hr_borrowed`, non in `threshold_hr`.** Scritta nella
+    stessa colonna di una soglia misurata non si distingueva piu' da lei: 32
+    attivita' non di corsa portavano una soglia da corsa come se fosse loro,
+    `GET /api/activities/<id>` dava 148 come soglia di una sessione di
+    arrampicata e 154 per una camminata al tapis roulant con le zone della
+    bici, e sedici escursioni di agosto portavano una soglia di settembre —
+    mentre `_zone_minutes` promette che "una soglia alzata a settembre non
+    deve riscrivere i minuti di agosto".
+
+    I donatori sono solo le corse con una soglia **misurata**: una riga che
+    l'aveva ricevuta in prestito faceva da donatrice alla successiva, e il
+    risultato dipendeva dall'ordine in cui le righe venivano riempite.
+
+    Che la riceva qualunque sport e che si possa guardare avanti nel tempo
+    sono invece scelte: il profilo Bici non salva la soglia, e l'orologio
+    salva soglie vere solo dall'11/09/2026 (vedi `THRESHOLD_FALLBACK_FROM`)."""
     conn.execute(
         """
-        UPDATE activities SET threshold_hr = COALESCE(
+        UPDATE activities SET threshold_hr_borrowed = COALESCE(
             (
                 SELECT run.threshold_hr FROM activities AS run
                 WHERE run.sport = 'running' AND run.threshold_hr > 0

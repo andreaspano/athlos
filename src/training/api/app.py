@@ -214,6 +214,10 @@ def get_sports(ctx: Context) -> SportList:
 def get_activity(activity_id: int, ctx: Context) -> ActivityDetail:
     """One activity, with its heart-rate zones, threshold and estimated time per training effect."""
     row = _activity_row(activity_id, ctx)
+    # `zone_settings` da' la soglia **da usare** per dividere le zone, che
+    # puo' essere prestata da un'altra seduta: serve agli effetti qui sotto.
+    # Nella risposta invece i due numeri restano separati, perche' dire che
+    # una pedalata ha misurato la soglia di una corsa e' una bugia.
     bounds, threshold = zone_settings(row)
     effect_seconds = None
     if has_effects(bounds, threshold):
@@ -225,10 +229,12 @@ def get_activity(activity_id: int, ctx: Context) -> ActivityDetail:
                 high_aerobic_s=seconds[EFFECTS[1]],
                 anaerobic_s=seconds[EFFECTS[2]],
             )
+    measured = _clean(row["threshold_hr"])
     return ActivityDetail(
         **_activity_fields(row),
         hr_zone_bounds=bounds,
-        threshold_hr=threshold,
+        threshold_hr=measured if measured else None,
+        threshold_hr_borrowed=_clean(row["threshold_hr_borrowed"]),
         effect_seconds=effect_seconds,
     )
 

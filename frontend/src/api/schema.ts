@@ -863,9 +863,14 @@ export interface components {
             hr_zone_bounds: number[] | null;
             /**
              * Threshold Hr
-             * @description Anaerobic threshold, in bpm.
+             * @description Anaerobic threshold as this session measured it, in bpm. Null when the watch did not save one: the Bike profile never does, and some hikes save a zero.
              */
             threshold_hr: number | null;
+            /**
+             * Threshold Hr Borrowed
+             * @description The threshold taken from the nearest run that measured one, used to split the zones when this session has none of its own. Null when the threshold above is real.
+             */
+            threshold_hr_borrowed?: number | null;
             /** @description Null when the zones, the threshold or the heart rate are missing. */
             effect_seconds: components["schemas"]["EffectSeconds"] | null;
         };
