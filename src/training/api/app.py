@@ -533,7 +533,7 @@ def _fragment_path(folder: Path, key: str, kind: Report_) -> Path:
 
 def _fragment_sections(
     folder: Path, kind: Report_ = DAILY
-) -> list[tuple[str | None, str, datetime | None]]:
+) -> list[tuple[str | None, str, datetime | None, str | None]]:
     """Le sezioni dai frammenti di una cartella (todo 44, 53): un file per
     sezione, nell'ordine in cui si leggono.
 
@@ -601,9 +601,13 @@ def get_daily_report(day: date, ctx: Context) -> Report:
         found = _fragment_sections(folder)
     elif path.exists():
         # Il file unico l'ha scritto un agente solo, in una volta: le sue
-        # sezioni portano tutte l'ora del file.
+        # sezioni portano tutte l'ora del file, e **nessuna ha un verdetto**
+        # — la riga `verdict:` e' del todo 92, questi report sono di prima.
+        # Il quarto posto va messo comunque: chi legge disfa quattro valori
+        # (il todo 92 ha cambiato `_fragment_sections` e non questo ramo, e
+        # da allora ogni giorno in formato vecchio rispondeva 500).
         written = datetime.fromtimestamp(path.stat().st_mtime)
-        found = [(title, body, written) for title, body in parse_report(path)]
+        found = [(title, body, written, None) for title, body in parse_report(path)]
     else:
         raise HTTPException(status_code=404, detail=f"No daily report for {day}.")
     # Una cartella che esiste ma non ha ancora un frammento scritto vale come
