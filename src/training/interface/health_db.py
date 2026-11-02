@@ -38,7 +38,12 @@ from training.interface.health import (
 # "2": colonne `endurance_score`, `endurance_level` e `hill_score` (todo
 # 38). La tabella si ricrea (DROP, non DELETE): `CREATE TABLE IF NOT EXISTS`
 # non aggiunge colonne a una tabella che c'e' gia'.
-HEALTH_LOGIC_VERSION = "2"
+#
+# "3": la readiness del risveglio e' la **prima per ora dell'orologio** e non
+# la prima della lista (`health._readiness_score`). Senza alzare questo
+# numero la tabella continuerebbe a servire i tredici giorni sbagliati: i
+# file su disco non sono cambiati, quindi nessun mtime dice di rileggerli.
+HEALTH_LOGIC_VERSION = "3"
 
 _VERSION_KEY = "health_logic_version"
 
