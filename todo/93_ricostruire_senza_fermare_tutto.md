@@ -4,6 +4,13 @@ status: todo
 
 # Ricostruire il database senza fermare tutto
 
+Da dove viene: un code review di `src/training/interface` del 2 novembre
+2026 (`/code-review max`), che fra i rilievi tagliati dal limite metteva
+`rebuild()` che cancella il database dentro una richiesta e i due `sync` che
+possono scrivere lo stesso file; piu' quello che e' costato sistemare due
+*altri* rilievi dello stesso review nello stesso giorno, che e' la parte che
+ha reso il tema urgente.
+
 Il 2 novembre 2026 due correzioni da poche righe sono costate **37 minuti di
 API ferma ciascuna**. Non per il lavoro: per il meccanismo con cui la cache
 si rifa'. Questo todo lo sistema, e non aggiunge nessuna funzione alla
