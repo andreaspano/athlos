@@ -289,13 +289,6 @@ def _week_summary(
     }
 
 
-def _week_mean(health: pd.DataFrame, column: str, monday: date) -> float | None:
-    """La media di `column` nei sette giorni che cominciano `monday`, o
-    `None` se non c'e' nemmeno un valore."""
-    week = health.reindex(pd.date_range(monday, periods=7, freq="D"))[column].dropna()
-    return float(week.mean()) if len(week) else None
-
-
 def _week_stats(health: pd.DataFrame, column: str, first: date, weeks: int) -> pd.DataFrame:
     """Settimana per settimana, dalla settimana di `first` per `weeks`
     settimane: la media dei giorni misurati (`mean`), quanti erano (`days`) e la
@@ -303,8 +296,8 @@ def _week_stats(health: pd.DataFrame, column: str, first: date, weeks: int) -> p
     indicizzata sul lunedi'.
 
     Il raggruppamento e' per lunedi' (`index - dayofweek`), in **una passata
-    sola** su tutta la finestra: `_week_mean` settimana per settimana vorrebbe
-    un `reindex` per ognuna, cinquantadue per colonna e venti colonne.
+    sola** su tutta la finestra: una media alla volta vorrebbe un `reindex`
+    per ogni settimana, cinquantadue per colonna e venti colonne.
 
     Qui si rende la **varianza**, non l'errore standard: l'errore standard non
     si puo' calcolare una settimana alla volta, perche' la sua varianza e'
@@ -326,6 +319,29 @@ def _week_stats(health: pd.DataFrame, column: str, first: date, weeks: int) -> p
     return stats.reindex(pd.date_range(first, periods=weeks, freq="7D"))
 
 
+def _week_means(
+    health: pd.DataFrame, columns: list[str], first: date, weeks: int
+) -> pd.DataFrame:
+    """Le medie settimanali di **piu' colonne in una passata**: indice i
+    lunedi' delle `weeks` settimane che cominciano con quella di `first`,
+    colonne le misure.
+
+    Stesso raggruppamento di `_week_stats` (`index - dayofweek`), e lo stesso
+    motivo che il suo docstring spiega: una media alla volta vuole un
+    `reindex` per ogni settimana, e per le otto misure di `_week_measures`
+    sulle tredici settimane erano 104 reindex del frame intero a ogni
+    richiesta della Week — 64 ms dei 159 di `build_weekly_data`, misurati.
+
+    Il `reindex` finale rimette le settimane che il raggruppamento non ha
+    visto perche' non avevano nemmeno un valore: senza, una settimana vuota
+    spariderebbe invece di restare un buco."""
+    days = pd.date_range(first, periods=weeks * 7, freq="D")
+    daily = health.reindex(days)[columns]
+    mondays = daily.index - pd.to_timedelta(daily.index.dayofweek, unit="D")
+    means = daily.groupby(mondays).mean()
+    return means.reindex(pd.date_range(first, periods=weeks, freq="7D"))
+
+
 def _week_measures(health: pd.DataFrame, monday: date) -> dict[str, dict[str, Any]]:
     """Le misure di Health e Recovery della settimana (todo 52): la media
     dei sette giorni e la fascia in cui si e' mossa nelle `BAND_WEEKS`
@@ -343,17 +359,20 @@ def _week_measures(health: pd.DataFrame, monday: date) -> dict[str, dict[str, An
     chiuso."""
     from training.interface.daily_data import _band
 
+    # Le tredici settimane — le dodici della fascia piu' questa — e le otto
+    # misure, in una volta. L'ultima riga e' questa settimana, le altre
+    # dodici sono la fascia.
+    columns = [column for _, column, _, _, _ in WEEK_MEASURES]
+    means = _week_means(health, columns, monday - timedelta(weeks=BAND_WEEKS), BAND_WEEKS + 1)
     out: dict[str, dict[str, Any]] = {}
     for card, column, label, unit, digits in WEEK_MEASURES:
-        before = pd.Series(
-            [_week_mean(health, column, monday - timedelta(weeks=k)) for k in range(1, BAND_WEEKS + 1)],
-            dtype="float64",
-        )
+        serie = means[column]
+        before = serie.iloc[:-1].reset_index(drop=True).astype("float64")
         out[column] = {
             "card": card,
             "label": label,
             "unit": unit,
-            "value": _value(_week_mean(health, column, monday), digits),
+            "value": _value(serie.iloc[-1], digits),
             "band": _band(before, WEEK_LIMITS.get(column), digits, MIN_BAND_WEEKS),
             "weeks": int(before.notna().sum()),
         }
@@ -431,11 +450,41 @@ ZONE_MINUTES: tuple[tuple[str, str], ...] = (
 )
 
 
+def _weeks_by_monday(
+    activities: pd.DataFrame, first: date, weeks: int
+) -> dict[date, pd.DataFrame]:
+    """Le attivita' delle `weeks` settimane da `first`, divise per lunedi':
+    **un filtro solo** invece di uno per settimana.
+
+    `_zone_totals` chiamava `_week_activities` tredici volte, e ognuna
+    passava su tutte le attivita' con la sua maschera, la sua copia e il suo
+    ordinamento: 26 ms dei 159 di `build_weekly_data`, misurati. Le settimane
+    senza sedute ci sono comunque, come frame vuoto: per le zone un riposo e'
+    uno zero vero e deve pesare nella fascia (vedi `_zone_totals`)."""
+    mondays = [first + timedelta(weeks=k) for k in range(weeks)]
+    empty = activities.iloc[:0]
+    if activities.empty:
+        return {monday: empty for monday in mondays}
+    day = activities["start_time"].dt.date
+    start, end = mondays[0], mondays[-1] + timedelta(days=6)
+    inside = activities[(day >= start) & (day <= end)].copy()
+    inside = inside.sort_values("start_time")
+    their_monday = inside["start_time"].dt.date.map(
+        lambda d: d - timedelta(days=d.weekday())
+    )
+    groups = {monday: frame for monday, frame in inside.groupby(their_monday, sort=False)}
+    return {monday: groups.get(monday, empty) for monday in mondays}
+
+
 def _zone_totals(activities: pd.DataFrame, monday: date) -> dict[str, float | None]:
+    """I minuti per zona di una settimana, dalle sue attivita'."""
+    return _zone_totals_of(_week_activities(activities, monday, monday + timedelta(days=6)))
+
+
+def _zone_totals_of(week: pd.DataFrame) -> dict[str, float | None]:
     """I minuti per zona sommati sulle sedute di una settimana. `None` dove
     nessuna seduta della settimana ha quel dato — che non e' zero: zero vuol
     dire che hai pedalato senza mai arrivarci."""
-    week = _week_activities(activities, monday, monday + timedelta(days=6))
     totals: dict[str, float | None] = {}
     for key, column in ZONE_MINUTES:
         if week.empty or column not in week:
@@ -504,10 +553,14 @@ def _week_zones(activities: pd.DataFrame, monday: date) -> dict[str, Any]:
     nascosta."""
     from training.interface.daily_data import _band
 
-    week = _week_activities(activities, monday, monday + timedelta(days=6))
-    totals = _zone_totals(activities, monday)
+    # Le tredici settimane in un filtro solo: le dodici della fascia e
+    # questa. La settimana di `monday` e' l'ultima.
+    by_monday = _weeks_by_monday(activities, monday - timedelta(weeks=BAND_WEEKS), BAND_WEEKS + 1)
+    week = by_monday[monday]
+    totals = _zone_totals_of(week)
     history = [
-        _zone_totals(activities, monday - timedelta(weeks=k)) for k in range(BAND_WEEKS, 0, -1)
+        _zone_totals_of(by_monday[monday - timedelta(weeks=k)])
+        for k in range(BAND_WEEKS, 0, -1)
     ]
     zones: dict[str, Any] = {}
     for key, _column in ZONE_MINUTES:
