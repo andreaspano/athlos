@@ -147,15 +147,6 @@ def _report(found: list, subject: date, missing: str) -> Report:
     )
 
 
-def _panel(data: dict, panel: str) -> dict:
-    """Il pannello con quella chiave, o 404. Lo cercano i due endpoint dei
-    grafici di tendenza, giorno e settimana, con lo stesso messaggio."""
-    for item in data["panels"]:
-        if item["key"] == panel:
-            return item
-    raise HTTPException(status_code=404, detail=f"No panel named {panel!r}.")
-
-
 def _records_dicts(frame: pd.DataFrame, columns: list[str]) -> list[dict[str, Any]]:
     """Le righe di `frame`, solo `columns`, con `None` al posto di `NaN`."""
     return [{col: _clean(row[col]) for col in columns} for _, row in frame.iterrows()]
@@ -384,21 +375,29 @@ def get_daily_trend(
     return TrendData(**data)
 
 
-@app.get("/api/daily/trend/chart/vega", summary="Daily trend charts, Vega-Lite")
+@app.get("/api/daily/trend/charts/vega", summary="Daily trend charts, Vega-Lite")
 def get_daily_trend_charts(
     ctx: Context,
     start: Annotated[date, Query(alias="from", description="First day, included.")],
     end: Annotated[date, Query(alias="to", description="Last day, included.")],
-    panel: str,
     theme: Literal["light", "dark"] = "light",
 ) -> list[dict[str, Any]]:
-    """One panel's charts, ready to render: one Vega-Lite specification per measure.
+    """The charts of **every** panel, ready to render: one Vega-Lite specification per
+    measure, grouped by panel (`[{key, charts: [{key, label, spec}]}]`).
 
     One chart per measure and not per panel: inside a panel the measures do not share a
-    unit, and on a single axis the small one would read flat."""
+    unit, and on a single axis the small one would read flat.
+
+    All five panels in one answer, because the page draws all five: a request per panel
+    made the window behind the series five times over and had the five Altair runs fight
+    for the GIL in the server's threads. Measured on the live archive, one Trend view went
+    from 2.9 s of wall clock to about 0.8."""
     days = _trend_window(start, end)
     data = trend_data(start, end, ctx.data_dir, load_activities(ctx.data_dir), load_health(ctx.data_dir))
-    return trend_panel_charts(_panel(data, panel), days, theme)
+    return [
+        {"key": panel["key"], "charts": trend_panel_charts(panel, days, theme)}
+        for panel in data["panels"]
+    ]
 
 
 @app.get("/api/daily/{day}", response_model=DailyData, summary="Daily data")
@@ -481,26 +480,31 @@ def get_weekly_trend(
     )
 
 
-@app.get("/api/weekly/trend/chart/vega", summary="Weekly trend charts, Vega-Lite")
+@app.get("/api/weekly/trend/charts/vega", summary="Weekly trend charts, Vega-Lite")
 def get_weekly_trend_charts(
     ctx: Context,
     to: Annotated[date, Query(description="The Monday of the last week, included.")],
-    panel: str,
     weeks: Annotated[
         int, Query(ge=TREND_MIN_WEEKS, le=TREND_MAX_WEEKS, description="Width of the window, in weeks.")
     ] = TREND_DEFAULT_WEEKS,
     theme: Literal["light", "dark"] = "light",
 ) -> list[dict[str, Any]]:
-    """The charts of one weekly panel, one Vega-Lite spec per measure (todo 78).
+    """The charts of every weekly panel, one Vega-Lite spec per measure, grouped by panel
+    (todo 78).
 
     Four panels draw a line with its band underneath, as two areas and not the two
     full-width rectangles of the Day: here the band changes from week to week, with how many
     days each average rests on. Training draws **bars**, because a weekly sum is a quantity,
-    and carries no band."""
+    and carries no band.
+
+    All five in one answer, for the reason given on the daily one."""
     _week_monday(to)
     first = to - timedelta(weeks=weeks - 1)
     data = week_trend_data(first, to, ctx.data_dir, load_activities(ctx.data_dir), load_health(ctx.data_dir))
-    return week_trend_panel_charts(_panel(data, panel), weeks, theme)
+    return [
+        {"key": panel["key"], "charts": week_trend_panel_charts(panel, weeks, theme)}
+        for panel in data["panels"]
+    ]
 
 
 @app.get("/api/weekly/planned", response_model=PlannedWeeks, summary="Weeks with a plan")

@@ -10,7 +10,7 @@
 // dall'API, come per la Day.
 import { useCallback, useEffect, useState } from "react";
 
-import { api, isAbort, type WeekTrendData } from "../api/client";
+import { api, isAbort, type PanelCharts, type WeekTrendData } from "../api/client";
 import { addDays, isoWeek, mondayOf, shortDayLabel } from "../format";
 import { MAX_WEEKS, MIN_WEEKS, pushUrl } from "../navigation";
 import type { ColorScheme } from "../useColorScheme";
@@ -56,6 +56,8 @@ export function WeekTrendPanels({
   theme: ColorScheme;
 }) {
   const [data, setData] = useState<WeekTrendData | null>(null);
+  const [charts, setCharts] = useState<PanelCharts[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
   // Un clic apre lo Snap di quella settimana, senza ricaricare la pagina.
   // Mai oltre la settimana in corso, che l'API quella la rifiuta.
@@ -75,9 +77,27 @@ export function WeekTrendPanels({
     return () => controller.abort();
   }, [monday, weeks]);
 
+  // I grafici dei cinque pannelli, in una richiesta (vedi `Panel`).
+  useEffect(() => {
+    const controller = new AbortController();
+    setCharts(null);
+    setFailed(false);
+    api
+      .weekTrendCharts(monday, weeks, theme, controller.signal)
+      .then(setCharts)
+      .catch((e: unknown) => {
+        if (!isAbort(e)) {
+          console.error(e);
+          setFailed(true);
+        }
+      });
+    return () => controller.abort();
+  }, [monday, weeks, theme]);
+
   // Serve solo a dare a ogni pannello il suo titolo e la sua icona: i numeri
   // delle serie stanno nelle specifiche Vega, che arrivano gia' disegnate.
   const heads = new Map((data?.panels ?? []).map((p) => [p.key, p]));
+  const byPanel = new Map((charts ?? []).map((p) => [p.key, p.charts]));
 
   return (
     <>
@@ -92,12 +112,10 @@ export function WeekTrendPanels({
       {PANELS.map((panel) => (
         <Panel
           key={panel}
-          panel={panel}
-          period="week"
           title={heads.get(panel)?.title ?? panel}
           icon={heads.get(panel)?.icon ?? null}
-          anchor={monday}
-          span={weeks}
+          charts={charts === null ? null : (byPanel.get(panel) ?? [])}
+          error={failed}
           theme={theme}
           onPick={onPick}
         />

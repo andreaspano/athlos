@@ -220,7 +220,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/daily/trend/chart/vega": {
+    "/api/daily/trend/charts/vega": {
         parameters: {
             query?: never;
             header?: never;
@@ -229,12 +229,18 @@ export interface paths {
         };
         /**
          * Daily trend charts, Vega-Lite
-         * @description One panel's charts, ready to render: one Vega-Lite specification per measure.
+         * @description The charts of **every** panel, ready to render: one Vega-Lite specification per
+         *     measure, grouped by panel (`[{key, charts: [{key, label, spec}]}]`).
          *
          *     One chart per measure and not per panel: inside a panel the measures do not share a
          *     unit, and on a single axis the small one would read flat.
+         *
+         *     All five panels in one answer, because the page draws all five: a request per panel
+         *     made the window behind the series five times over and had the five Altair runs fight
+         *     for the GIL in the server's threads. Measured on the live archive, one Trend view went
+         *     from 2.9 s of wall clock to about 0.8.
          */
-        get: operations["get_daily_trend_charts_api_daily_trend_chart_vega_get"];
+        get: operations["get_daily_trend_charts_api_daily_trend_charts_vega_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -323,7 +329,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/weekly/trend/chart/vega": {
+    "/api/weekly/trend/charts/vega": {
         parameters: {
             query?: never;
             header?: never;
@@ -332,14 +338,17 @@ export interface paths {
         };
         /**
          * Weekly trend charts, Vega-Lite
-         * @description The charts of one weekly panel, one Vega-Lite spec per measure (todo 78).
+         * @description The charts of every weekly panel, one Vega-Lite spec per measure, grouped by panel
+         *     (todo 78).
          *
          *     Four panels draw a line with its band underneath, as two areas and not the two
          *     full-width rectangles of the Day: here the band changes from week to week, with how many
          *     days each average rests on. Training draws **bars**, because a weekly sum is a quantity,
          *     and carries no band.
+         *
+         *     All five in one answer, for the reason given on the daily one.
          */
-        get: operations["get_weekly_trend_charts_api_weekly_trend_chart_vega_get"];
+        get: operations["get_weekly_trend_charts_api_weekly_trend_charts_vega_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -614,9 +623,11 @@ export interface paths {
          *     Only the flag is written — the rest of the file is left byte for byte as the person wrote
          *     it, comments and key order included.
          *
-         *     **It does not regenerate the weekly plans**, and nothing else does either: the files in
-         *     `summary/05.plan/` were written from a goal by hand, and there is no generator to call. The
-         *     `ahead` field of the answer is how the page says so. 404 when no goal has that slug.
+         *     **It does not regenerate the weekly plans.** There is a generator since todo 86 — `make
+         *     week_plans`, one agent per week — but it writes ~3 h of agent runs over a whole block, so
+         *     it is a command a person runs, not something a click sets off. The `ahead` field of the
+         *     answer says how many weeks in `summary/05.plan/` still come from each goal, which is how
+         *     the page tells you there is generating to do. 404 when no goal has that slug.
          */
         put: operations["put_plan_current_api_plans__slug__current_put"];
         post?: never;
@@ -2382,6 +2393,25 @@ export interface components {
             coverage: {
                 [key: string]: number;
             };
+            /**
+             * Health Days
+             * @description How many of the seven days have any health measure at all.
+             */
+            health_days: number;
+            /**
+             * Vo2Max
+             * @description The VO2max measurements taken inside the week, oldest first.
+             */
+            vo2max: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Four Weeks
+             * @description The four weeks before this one: sessions, time, sport, recovery.
+             */
+            four_weeks: {
+                [key: string]: unknown;
+            }[];
             /** @description How each card is doing, from the bands (todo 92). */
             scores: components["schemas"]["Scores"];
         };
@@ -2752,14 +2782,13 @@ export interface operations {
             };
         };
     };
-    get_daily_trend_charts_api_daily_trend_chart_vega_get: {
+    get_daily_trend_charts_api_daily_trend_charts_vega_get: {
         parameters: {
             query: {
                 /** @description First day, included. */
                 from: string;
                 /** @description Last day, included. */
                 to: string;
-                panel: string;
                 theme?: "light" | "dark";
             };
             header?: never;
@@ -2886,12 +2915,11 @@ export interface operations {
             };
         };
     };
-    get_weekly_trend_charts_api_weekly_trend_chart_vega_get: {
+    get_weekly_trend_charts_api_weekly_trend_charts_vega_get: {
         parameters: {
             query: {
                 /** @description The Monday of the last week, included. */
                 to: string;
-                panel: string;
                 /** @description Width of the window, in weeks. */
                 weeks?: number;
                 theme?: "light" | "dark";

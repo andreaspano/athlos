@@ -18,7 +18,14 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Result, VisualizationSpec } from "vega-embed";
 
-import { api, iconUrl, isAbort, type TrendChart, type TrendData } from "../api/client";
+import {
+  api,
+  iconUrl,
+  isAbort,
+  type PanelCharts,
+  type TrendChart,
+  type TrendData,
+} from "../api/client";
 import { addDays, shortDayLabel } from "../format";
 import { MAX_DAYS, MIN_DAYS, pushUrl } from "../navigation";
 import type { ColorScheme } from "../useColorScheme";
@@ -136,52 +143,25 @@ export function OneChart({
 }
 
 export function Panel({
-  panel,
-  period,
   title,
   icon,
-  anchor,
-  span,
+  charts,
+  error,
   theme,
   onPick,
 }: {
-  panel: string;
-  // Quale delle due serie chiedere. E' una stringa e non una funzione di
-  // carico apposta: una callback cambierebbe identita' a ogni render del
-  // genitore e rifarebbe la richiesta ogni volta, e le dipendenze
-  // dell'effetto restano valori semplici.
-  period: "day" | "week";
   title: string;
   icon: string | null;
-  // L'estremo destro: il giorno sulla Day, il lunedi' sulla Week.
-  anchor: string;
-  // L'ampiezza: i giorni sulla Day, le settimane sulla Week. Sulla Day
-  // l'estremo sinistro si calcola qui, che l'API vuole le due date.
-  span: number;
+  // I grafici di questo pannello, `null` finche' non sono arrivati. **Non li
+  // chiede lui**: una richiesta sola per la pagina li porta tutti, e il
+  // genitore li distribuisce. Chiedendoli per pannello la finestra dietro le
+  // serie si calcolava cinque volte e le cinque corse di Altair si
+  // contendevano il GIL nei thread del server.
+  charts: TrendChart[] | null;
+  error: boolean;
   theme: ColorScheme;
   onPick: (day: string) => void;
 }) {
-  const [charts, setCharts] = useState<TrendChart[] | null>(null);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setError(false);
-    const chiesta =
-      period === "day"
-        ? api.trendCharts(startOf(anchor, span), anchor, panel, theme, controller.signal)
-        : api.weekTrendCharts(anchor, span, panel, theme, controller.signal);
-    chiesta
-      .then(setCharts)
-      .catch((e: unknown) => {
-        if (!isAbort(e)) {
-          console.error(e);
-          setError(true);
-        }
-      });
-    return () => controller.abort();
-  }, [panel, period, anchor, span, theme]);
-
   return (
     <section className="card trend-panel" aria-label={title}>
       <div className="trend-head">
@@ -275,6 +255,8 @@ export function TrendPanels({
   theme: ColorScheme;
 }) {
   const [data, setData] = useState<TrendData | null>(null);
+  const [charts, setCharts] = useState<PanelCharts[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const from = startOf(day, days);
 
@@ -293,10 +275,28 @@ export function TrendPanels({
     return () => controller.abort();
   }, [from, day]);
 
+  // I grafici di tutti e cinque i pannelli, in una richiesta.
+  useEffect(() => {
+    const controller = new AbortController();
+    setCharts(null);
+    setFailed(false);
+    api
+      .trendCharts(from, day, theme, controller.signal)
+      .then(setCharts)
+      .catch((e: unknown) => {
+        if (!isAbort(e)) {
+          console.error(e);
+          setFailed(true);
+        }
+      });
+    return () => controller.abort();
+  }, [from, day, theme]);
+
   // Le fasce vogliono un minimo di giorni misurati: sotto non si disegnano,
   // e senza una riga che lo dica sembra che manchi meta' del grafico.
   const minBand = data?.min_band_days ?? 14;
   const heads = new Map((data?.panels ?? []).map((p) => [p.key, p]));
+  const byPanel = new Map((charts ?? []).map((p) => [p.key, p.charts]));
 
   return (
     <>
@@ -319,12 +319,10 @@ export function TrendPanels({
       {PANELS.map((panel) => (
         <Panel
           key={panel}
-          panel={panel}
-          period="day"
           title={heads.get(panel)?.title ?? panel}
           icon={heads.get(panel)?.icon ?? null}
-          anchor={day}
-          span={days}
+          charts={charts === null ? null : (byPanel.get(panel) ?? [])}
+          error={failed}
           theme={theme}
           onPick={onPick}
         />
