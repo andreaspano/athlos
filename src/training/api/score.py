@@ -96,24 +96,33 @@ def centred(value: float | None, band: dict | None) -> int | None:
     """Il gradino di una misura che **non ha un lato buono**: il carico.
 
     Tanto e' troppo e poco e' poco, e il bene sta dove uno di solito sta.
-    Dentro la fascia 0, fra una e due sigma -1 da qualunque parte, oltre -2.
+    Dentro la fascia **+1**, fra una e due sigma **0** da qualunque parte,
+    oltre **-1**.
 
     Da cui il fatto che il carico **non arriva mai a `perfect` ne' a
     `terrible`**: il massimo che questa misura sa dire e' «sei dove stai di
     solito», e quella e' `high`. Un `perfect` sarebbe un bersaglio che i dati
-    non hanno."""
+    non hanno.
+
+    I gradini sono +1/0/-1 e non 0/-1/-2 come erano: la tabella delle parole
+    va da -2 a +2, quindi quei tre numeri cadevano su `medium`, `low` e
+    `terrible` — il contrario di quello che questo docstring, `models.py`, lo
+    schema OpenAPI e il README promettono tutti e quattro. In piu', una scala
+    tutta da una parte tirava giu' la media di `_card_scores`: il Summary
+    veniva lo stesso col carico al suo meglio e al suo peggio, cioe' la card
+    del carico non riusciva a muoverlo."""
     if value is None or not band:
         return None
     low, high = band.get("low"), band.get("high")
     if low is None or high is None:
         return None
     if low <= value <= high:
-        return 0
+        return 1
     outer_low, outer_high = band.get("outer_low"), band.get("outer_high")
     far = (outer_high is not None and value > outer_high) if value > high else (
         outer_low is not None and value < outer_low
     )
-    return -2 if far else -1
+    return -1 if far else 0
 
 
 def verdict(steps: list[int | None]) -> Verdict | None:
