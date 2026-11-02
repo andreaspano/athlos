@@ -791,6 +791,23 @@ def trend_data(
             return None
         return _band(window, TREND_LIMITS.get(column, TREND_FLOOR), digits)
 
+    def _series(column: str, label: str, unit: str | None, digits: int) -> dict[str, Any]:
+        """Una serie del pannello: i punti e la fascia, dalla **stessa**
+        finestra.
+
+        Prima la finestra si calcolava due volte con gli stessi argomenti,
+        una per i punti e una per la fascia: mezzo millisecondo per serie,
+        ventitre serie, a ogni richiesta dei grafici."""
+        window = _window(health, column, end + timedelta(days=1), span)
+        return {
+            "key": column,
+            "label": label,
+            "unit": unit,
+            "digits": digits,
+            "points": _trend_points(window, digits),
+            "band": _trend_band(column, window, digits),
+        }
+
     panels = []
     for key, (title, series) in TREND_PANELS.items():
         panels.append(
@@ -802,18 +819,7 @@ def trend_data(
                 # riconoscono dallo stesso segno, non da due.
                 "icon": section_icon(title),
                 "series": [
-                    {
-                        "key": column,
-                        "label": label,
-                        "unit": unit,
-                        "digits": digits,
-                        "points": _trend_points(
-                            _window(health, column, end + timedelta(days=1), span), digits
-                        ),
-                        "band": _trend_band(
-                            column, _window(health, column, end + timedelta(days=1), span), digits
-                        ),
-                    }
+                    _series(column, label, unit, digits)
                     for column, label, unit, digits in series
                 ],
             }

@@ -1,8 +1,15 @@
-"""Letture e scritture di JSON che non lasciano file a meta'.
+"""Letture e scritture che non lasciano file a meta'.
 
-Stesso mestiere di `save_json_map` in `interface/fit.py`, da questo lato del
-confine: `interface` importa da `garmin`, non il contrario, quindi la funzione
-non si puo' condividere senza invertire la dipendenza.
+`garmin` non importa da nessuno degli altri due pacchetti, mentre `interface`
+e `api` importano da qui: questo e' il posto dove una scrittura atomica sta
+senza invertire nessuna dipendenza. (Il docstring di prima diceva il
+contrario — che non si poteva condividere — e non era vero: `interface/fit.py`
+importa `garmin.config` da sempre. Una giustificazione sbagliata e' il modo in
+cui un duplicato sopravvive.)
+
+Chi fa la stessa cosa altrove: `interface/fit.py:save_json_map` (con un
+temporaneo unico e il `mkdir`) e `api/plans.py:_write` per il testo, che ora
+passa da `write_text` qui sotto.
 """
 
 import json
@@ -11,22 +18,31 @@ from pathlib import Path
 from typing import Any
 
 
-def write_json(path: Path, data: Any, sort_keys: bool = False) -> None:
-    """Scrive `data` in `path` passando da un temporaneo nella stessa cartella
+def write_text(path: Path, text: str) -> None:
+    """Scrive `text` in `path` passando da un temporaneo nella stessa cartella
     e poi da `os.replace`, che e' atomico: chi legge vede la versione vecchia
     o quella nuova, mai una a meta'.
 
     Serve perche' il Ctrl+C e' una via d'uscita dichiarata (vedi il Makefile):
-    scrivendo dritto sul file giusto, un'interruzione in mezzo alla `json.dump`
-    lasciava un file troncato che poi nessuno riusciva piu' a leggere."""
+    scrivendo dritto sul file giusto, un'interruzione in mezzo alla scrittura
+    lasciava un file troncato che poi nessuno riusciva piu' a leggere.
+
+    **Qui vive la politica**: il nome del temporaneo e la `os.replace`. Chi
+    scrive JSON passa da `write_json`, che e' questa piu' la serializzazione."""
     path = Path(path)
     tmp = path.with_name(path.name + ".tmp")
     try:
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str, sort_keys=sort_keys)
+        tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def write_json(path: Path, data: Any, sort_keys: bool = False) -> None:
+    """`data` come JSON in `path`, con la scrittura atomica di
+    `write_text`."""
+    text = json.dumps(data, ensure_ascii=False, indent=2, default=str, sort_keys=sort_keys)
+    write_text(path, text + "\n")
 
 
 def read_json(path: Path, default: Any = None, label: str = "") -> Any:

@@ -22,13 +22,14 @@ vengono, e tutte e diciotto dicono `half_marathon_2.20`. Quello era il goal
 attuale senza che il goal lo sapesse — si leggeva nei file generati, non in
 quello scritto a mano. Adesso sta dove lo si decide."""
 
-import os
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from training.garmin.files import write_text
 
 # Il front matter: fra due righe di soli tre trattini, in cima al file. Il
 # `\r?` c'e' perche' questi file li scrive una persona, a volte su Windows o
@@ -246,18 +247,12 @@ def _set_current_flag(text: str, wanted: bool) -> str:
 
 
 def _write(path: Path, text: str) -> None:
-    """Riscrive il file senza poterlo lasciare a meta': un temporaneo nella
-    stessa cartella, poi `os.replace`, che e' atomico.
+    """Riscrive il file senza poterlo lasciare a meta'.
 
-    Come `garmin/files.py:write_json` e `interface/fit.py:save_json_map`, e
-    qui conta di piu': quelli riscrivono dati che un comando riscarica, questo
-    un documento scritto a mano in mezz'ora."""
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        tmp.write_text(text, encoding="utf-8")
-        os.replace(tmp, path)
-    finally:
-        tmp.unlink(missing_ok=True)
+    E' `garmin/files.py:write_text`, dove vive la politica del temporaneo:
+    qui conta piu' che altrove, perche' gli altri riscrivono dati che un
+    comando riscarica e questo un documento scritto a mano in mezz'ora."""
+    write_text(path, text)
 
 
 def set_current(folder: Path, slug: str) -> None:

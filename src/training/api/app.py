@@ -123,6 +123,39 @@ if ICONS_DIR.is_dir():
     app.mount("/icons", StaticFiles(directory=ICONS_DIR), name="icons")
 
 
+def _report(found: list, subject: date, missing: str) -> Report:
+    """Il report dalle sue sezioni, o 404.
+
+    **Una cartella che esiste ma non ha ancora un frammento scritto vale come
+    un report che non c'e'**: le sezioni vuote da sole non sono un report.
+    Giorno e settimana avevano la stessa coda, parola per parola, e cambiarla
+    per uno solo dei due e' il modo in cui le due pagine divergono."""
+    if not any(body for _, body, _written, _verdict in found):
+        raise HTTPException(status_code=404, detail=missing)
+    return Report(
+        day=subject,
+        sections=[
+            ReportSection(
+                title=title,
+                body=body,
+                icon=section_icon(title) if title else None,
+                written_at=written,
+                verdict=verdict,
+            )
+            for title, body, written, verdict in found
+        ],
+    )
+
+
+def _panel(data: dict, panel: str) -> dict:
+    """Il pannello con quella chiave, o 404. Lo cercano i due endpoint dei
+    grafici di tendenza, giorno e settimana, con lo stesso messaggio."""
+    for item in data["panels"]:
+        if item["key"] == panel:
+            return item
+    raise HTTPException(status_code=404, detail=f"No panel named {panel!r}.")
+
+
 def _records_dicts(frame: pd.DataFrame, columns: list[str]) -> list[dict[str, Any]]:
     """Le righe di `frame`, solo `columns`, con `None` al posto di `NaN`."""
     return [{col: _clean(row[col]) for col in columns} for _, row in frame.iterrows()]
@@ -365,10 +398,7 @@ def get_daily_trend_charts(
     unit, and on a single axis the small one would read flat."""
     days = _trend_window(start, end)
     data = trend_data(start, end, ctx.data_dir, load_activities(ctx.data_dir), load_health(ctx.data_dir))
-    for item in data["panels"]:
-        if item["key"] == panel:
-            return trend_panel_charts(item, days, theme)
-    raise HTTPException(status_code=404, detail=f"No panel named {panel!r}.")
+    return trend_panel_charts(_panel(data, panel), days, theme)
 
 
 @app.get("/api/daily/{day}", response_model=DailyData, summary="Daily data")
@@ -470,10 +500,7 @@ def get_weekly_trend_charts(
     _week_monday(to)
     first = to - timedelta(weeks=weeks - 1)
     data = week_trend_data(first, to, ctx.data_dir, load_activities(ctx.data_dir), load_health(ctx.data_dir))
-    for item in data["panels"]:
-        if item["key"] == panel:
-            return week_trend_panel_charts(item, weeks, theme)
-    raise HTTPException(status_code=404, detail=f"No panel named {panel!r}.")
+    return week_trend_panel_charts(_panel(data, panel), weeks, theme)
 
 
 @app.get("/api/weekly/planned", response_model=PlannedWeeks, summary="Weeks with a plan")
@@ -576,11 +603,13 @@ def _fragment_sections(
         # un frammento che contiene solo `verdict: high` non e' una sezione
         # scritta, e con l'ordine di prima prendeva l'ora e un corpo vuoto.
         #
-        # E si toglie **solo a Training**, che e' la sola a cui si chiede di
-        # scriverlo (`refresh.py:496`, e `models.py` lo dichiara): sulle
-        # altre quella riga non e' un voto, e' la prima frase del commento.
+        # E si toglie **solo a chi lo scrive**, che e' Training: sulle altre
+        # quella riga non e' un voto, e' la prima frase del commento. Le due
+        # meta' del patto — chiederlo e toglierlo — stanno in due moduli, e
+        # la bandiera del registro e' quello che le tiene insieme (prima era
+        # la stringa "training" battuta a mano in entrambi).
         verdict = None
-        if section.key == "training":
+        if section.writes_verdict:
             verdict, body = _verdict(body)
         written = datetime.fromtimestamp(path.stat().st_mtime) if body else None
         found.append((section.title, body, written, verdict))
@@ -639,21 +668,7 @@ def get_daily_report(day: date, ctx: Context) -> Report:
         found = [(title, body, written, None) for title, body in parse_report(path)]
     else:
         raise HTTPException(status_code=404, detail=f"No daily report for {day}.")
-    # Una cartella che esiste ma non ha ancora un frammento scritto vale come
-    # un report che non c'e': le sezioni vuote da sole non sono un report.
-    if not any(body for _, body, _written, _verdict in found):
-        raise HTTPException(status_code=404, detail=f"No daily report for {day}.")
-    sections = [
-        ReportSection(
-            title=title,
-            body=body,
-            icon=section_icon(title) if title else None,
-            written_at=written,
-            verdict=verdict,
-        )
-        for title, body, written, verdict in found
-    ]
-    return Report(day=day, sections=sections)
+    return _report(found, day, f"No daily report for {day}.")
 
 
 @app.post(
@@ -704,19 +719,7 @@ def get_weekly_report(monday: date, ctx: Context) -> Report:
     if not folder.is_dir():
         raise HTTPException(status_code=404, detail=f"No weekly report for {monday}.")
     found = _fragment_sections(folder, WEEKLY)
-    if not any(body for _, body, _written, _verdict in found):
-        raise HTTPException(status_code=404, detail=f"No weekly report for {monday}.")
-    sections = [
-        ReportSection(
-            title=title,
-            body=body,
-            icon=section_icon(title) if title else None,
-            written_at=written,
-            verdict=verdict,
-        )
-        for title, body, written, verdict in found
-    ]
-    return Report(day=monday, sections=sections)
+    return _report(found, monday, f"No weekly report for {monday}.")
 
 
 @app.post(
@@ -729,7 +732,7 @@ def post_weekly_refresh(monday: date, ctx: Context) -> RefreshStatus:
     """Rewrite every section of the weekly report, in the background: one agent per
     section, one after another, so a few minutes. It does not download: the week is
     written on the data already here. One job at a time, daily ones included."""
-    _check_week(monday)
+    _week_monday(monday)
     return RefreshStatus(
         **refresh.start(monday, REPO_ROOT, ctx.summary_dir, ctx.data_dir, kind=WEEKLY)
     )
@@ -744,7 +747,7 @@ def post_weekly_refresh(monday: date, ctx: Context) -> RefreshStatus:
 def post_weekly_refresh_section(monday: date, section: str, ctx: Context) -> RefreshStatus:
     """Rewrite a single section of the week: only its agent runs, the other sections keep
     the text they have. 422 for a section that does not exist."""
-    _check_week(monday)
+    _week_monday(monday)
     try:
         keys = refresh.section_keys(section, kind=WEEKLY)
     except KeyError:
@@ -755,11 +758,6 @@ def post_weekly_refresh_section(monday: date, section: str, ctx: Context) -> Ref
     )
 
 
-def _check_week(monday: date) -> None:
-    if monday.weekday() != 0:
-        raise HTTPException(status_code=422, detail=f"{monday} is not a Monday.")
-    if monday > date.today():
-        raise HTTPException(status_code=422, detail=f"The week of {monday} has not started.")
 
 
 @app.get("/api/plans", response_model=PlanList, summary="List training plans")

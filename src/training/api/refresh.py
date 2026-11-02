@@ -52,6 +52,7 @@ from typing import Any
 
 from training.api.cache import invalidate
 from training.api.plans import week_plan_path
+from training.garmin.files import write_json
 from training.api.sections import (
     DAILY,
     WEEKLY,
@@ -269,7 +270,7 @@ def _run(
     giorno, che ha appena chiamato Garmin, e un secondo scaricamento sarebbe
     solo un'altra occasione di fallire."""
     moment = moment or _moment_of(kind, subject, started)
-    update = update and kind is not WEEKLY
+    update = update and kind.downloads
     # Lo stato deve avere le voci di **questo** report: `start()` le ha gia'
     # messe, ma il comando da terminale chiama `_run` direttamente e senza
     # questo troverebbe le chiavi dell'altro tipo (il primo giro settimanale
@@ -448,9 +449,10 @@ def _prepare(
         payload = _facts(kind, subject, data_dir)
     except Exception as exc:  # noqa: BLE001 - qualunque cosa, il lavoro si ferma qui
         return False, f"The facts could not be built: {exc}", download
-    facts.write_text(
-        json.dumps(_jsonable(payload), indent=1, default=str), encoding="utf-8"
-    )
+    # Atomica come ogni altra scrittura: questo file lo apre un sottoprocesso
+    # `claude` subito dopo, ed era l'unico JSON del progetto scritto dritto
+    # sul posto.
+    write_json(facts, _jsonable(payload))
     return True, None, download
 
 
@@ -458,7 +460,6 @@ def _planned(
     kind: Report,
     section: Section,
     subject: date,
-    moment: str,
     summary_dir: Path | None,
 ) -> str:
     """La frase che mette il piano della settimana nel prompt, vuota per le
@@ -488,7 +489,7 @@ def _planned(
     e' la frase che sul 27 ottobre ha sviato il verdetto."""
     if summary_dir is None:
         return ""
-    if section.key == "training" and kind is DAILY:
+    if section.reads_plan:
         plan = week_plan_path(summary_dir, subject)
         if plan is None:
             return ""
@@ -528,23 +529,11 @@ def _prompt(
     summary_dir: Path | None = None,
 ) -> str:
     where = f"Write the body of the section (no `## ` heading) to {folder / f'{section.key}.md'}."
-    if section.key == "training":
+    if section.writes_verdict:
         where = VERDICT_LINE + where
-    planned = _planned(kind, section, subject, moment, summary_dir)
+    planned = _planned(kind, section, subject, summary_dir)
     when = kind.moment_lines[moment]
     period = kind.period(subject)
-    if section.key == "summary_start":
-        # Chi apre la settimana non ha frammenti suoi da leggere: la sua
-        # cartella e' vuota, e quello che gli serve — com'e' andata e cosa
-        # era previsto — sta nel report della settimana prima, scritto la
-        # sera precedente.
-        before = folder.parent / (subject - timedelta(days=7)).isoformat()
-        return (
-            f"Write the {section.title} part of the {kind.what} for {period}. "
-            f"{when} "
-            f"The report of the week before is written in {before}: read it, it is your input. "
-            f"The facts of this week, which has barely begun, are in {facts}. {where}"
-        )
     if section.reads_fragments:
         return (
             f"Write the {section.title} part of the {kind.what} for {period}. "
@@ -593,7 +582,7 @@ def _write_section(
     # come sezione fatta, e in piu' copriva il frammento col nome vecchio
     # (`_fragment_path`), lasciando la card bianca con il testo di prima
     # irraggiungibile. Le altre due funzioni che dicono "scritto"
-    # (`_written`, `_has_report`) chiedono la dimensione da sempre.
+    # (`_written`) chiede la dimensione da sempre.
     fragment = folder / f"{section.key}.md"
     if not (fragment.exists() and fragment.stat().st_mtime >= began.timestamp()):
         return False, f"{section.agent} finished without writing {fragment.name}."
@@ -639,14 +628,9 @@ def _written(folder: Path, key: str, kind: Report = DAILY) -> bool:
     )
 
 
-def _has_report(folder: Path) -> bool:
-    """Vero se in quella cartella c'e' almeno un frammento scritto."""
-    return folder.is_dir() and any(f.stat().st_size > 0 for f in folder.glob("*.md"))
-
-
 def _subjects(kind: Report, start: date, end: date) -> list[date]:
     """I periodi dell'intervallo, dal piu' vecchio: i giorni, o i lunedi."""
-    step = timedelta(weeks=1) if kind is WEEKLY else timedelta(days=1)
+    step = kind.step
     current = start
     out = []
     while current <= end:
@@ -668,9 +652,7 @@ def _last_complete(kind: Report, today: date) -> date:
     Il confine della settimana e' il lunedi', non le 22 della domenica: a
     chiudere la settimana e' il giro delle 22, e un backfill lanciato dopo
     non deve rifare quello che il timer ha appena scritto."""
-    if kind is WEEKLY:
-        return today - timedelta(days=today.weekday()) - timedelta(weeks=1)
-    return today - timedelta(days=1)
+    return kind.start_of(today) - kind.step
 
 
 def backfill(
@@ -709,15 +691,6 @@ def backfill(
         folder = Path(summary_dir) / kind.folder / subject.isoformat()
         worked = False
         for moment, keys in kind.backfill:
-            # Chi apre una settimana legge il report di quella prima: se non
-            # c'e' — la prima dell'intervallo, di solito — si salta, perche'
-            # un'apertura che non sa da dove arrivi non serve a nessuno. Non
-            # basta guardare l'indice: lanciando il backfill su una
-            # settimana sola, quella prima puo' esserci gia'.
-            if "summary_start" in keys and not _has_report(
-                Path(summary_dir) / kind.folder / (subject - timedelta(weeks=1)).isoformat()
-            ):
-                continue
             missing = [k for k in keys if not _written(folder, k, kind)]
             tally["skipped"] += len(keys) - len(missing)
             if not missing:

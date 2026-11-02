@@ -332,7 +332,7 @@ def _previous_of_goal(summary_dir: Path, week: Week, say) -> Path | None:
         if week.block_week > 1:
             say(f"              la settimana prima non c'e': questa riparte dal blocco")
         return None
-    from training.api.plans import _front_matter, _read
+    from training.api.plans import _read
 
     meta, _ = _front_matter(_read(previous))
     belongs = _as_text(meta.get("plan"))
