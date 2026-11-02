@@ -47,6 +47,10 @@ export type VegaSpec = Record<string, unknown>;
 // specifica di Altair, che un modello non ce l'ha.
 export type TrendChart = { key: string; label: string; spec: VegaSpec };
 
+/** I grafici di un pannello, come arrivano dall'API: tutti e cinque in una
+ *  risposta sola, perche' la pagina li disegna tutti e cinque. */
+export type PanelCharts = { key: string; charts: TrendChart[] };
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -166,16 +170,14 @@ export const api = {
   trend: (from: string, to: string, signal?: AbortSignal) =>
     getJson<TrendData>(`/api/daily/trend?from=${from}&to=${to}`, signal),
 
-  // I grafici di un pannello, uno per misura, gia' pronti da disegnare.
-  trendCharts: (
-    from: string,
-    to: string,
-    panel: string,
-    theme: "light" | "dark",
-    signal?: AbortSignal,
-  ) =>
-    getJson<TrendChart[]>(
-      `/api/daily/trend/chart/vega?from=${from}&to=${to}&panel=${panel}&theme=${theme}`,
+  // I grafici di **tutti** i pannelli, uno per misura, gia' pronti da
+  // disegnare. Una richiesta per la pagina e non una per pannello: la
+  // finestra dietro le serie si calcolava cinque volte, e le cinque corse di
+  // Altair si contendevano il GIL nei thread del server — una vista del
+  // Trend e' passata da 2,9 s di orologio a circa 0,8.
+  trendCharts: (from: string, to: string, theme: "light" | "dark", signal?: AbortSignal) =>
+    getJson<PanelCharts[]>(
+      `/api/daily/trend/charts/vega?from=${from}&to=${to}&theme=${theme}`,
       signal,
     ),
 
@@ -185,17 +187,11 @@ export const api = {
   weekTrend: (to: string, weeks: number, signal?: AbortSignal) =>
     getJson<WeekTrendData>(`/api/weekly/trend?to=${to}&weeks=${weeks}`, signal),
 
-  // I grafici di un pannello settimanale. `TrendChart` e' lo stesso della
-  // Day: una specifica Altair non ha un modello, su nessuno dei due periodi.
-  weekTrendCharts: (
-    to: string,
-    weeks: number,
-    panel: string,
-    theme: "light" | "dark",
-    signal?: AbortSignal,
-  ) =>
-    getJson<TrendChart[]>(
-      `/api/weekly/trend/chart/vega?to=${to}&weeks=${weeks}&panel=${panel}&theme=${theme}`,
+  // I grafici dei pannelli settimanali. `TrendChart` e' lo stesso della Day:
+  // una specifica Altair non ha un modello, su nessuno dei due periodi.
+  weekTrendCharts: (to: string, weeks: number, theme: "light" | "dark", signal?: AbortSignal) =>
+    getJson<PanelCharts[]>(
+      `/api/weekly/trend/charts/vega?to=${to}&weeks=${weeks}&theme=${theme}`,
       signal,
     ),
 
