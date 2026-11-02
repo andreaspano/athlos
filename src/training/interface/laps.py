@@ -48,20 +48,40 @@ def _pace_s_per_km(time_s: float | None, distance_m: float | None) -> float | No
 
 
 def is_structured(laps: pd.DataFrame) -> bool:
-    """Se la seduta era fatta di pezzi, cioe' se l'orologio stava seguendo un
-    allenamento: **almeno due passi diversi** e almeno un giro di lavoro.
+    """Se la seduta era fatta di pezzi da leggere riga per riga.
 
-    Due passi e non uno: un `workout_step` sempre a zero lo scrivono anche
-    certe corse libere, e li' i giri sono l'auto-lap al chilometro. Un giro
-    di lavoro perche' senza ripetute non c'e' niente da leggere riga per
-    riga: la tabella sarebbe il riscaldamento e il defaticamento, cioe' i
-    totali della seduta divisi in due."""
+    Si guarda **i giri di lavoro**, non tutti: un allenamento con
+    riscaldamento e defaticamento ha tre passi diversi anche quando di
+    lavoro ce n'e' uno solo, e contandoli tutti bastava quello per dire
+    "strutturata". Il lungo del 31 ottobre — 115 minuti continui sotto il
+    workout `w01_long` — veniva presentato come **quattordici ripetute**,
+    che sono i suoi auto-lap al chilometro dentro l'unico passo di lavoro:
+    quattordici righe in tabella e quattordici "ripetute" nei fatti
+    dell'agente di Training.
+
+    Due vie, perche' le ripetute si scrivono in due modi (vedi
+    `fit._workout`):
+
+    - **passi di lavoro diversi**: l'orologio e' passato da un pezzo al
+      successivo, ed e' il caso di `Rip_4x5`, dove i giri di lavoro portano
+      i passi 1, 3, 5, 7, 9;
+    - **un passo solo, chiuso a tempo**: `Rip_5min4T` scrive le quattro
+      ripetute come un passo dentro un `repeat`, e i suoi giri di lavoro
+      hanno tutti il passo 1 — ma li chiude la durata del passo
+      (`trigger = time`), non l'auto-lap al chilometro
+      (`trigger = distance`), che e' quello che fa le quattordici righe del
+      lungo.
+
+    Provata su tutte le 984 sedute con giri: una sola cambia verdetto, ed e'
+    il lungo del 31 ottobre."""
     if laps.empty or "workout_step" not in laps:
         return False
-    steps = laps["workout_step"].dropna().unique()
-    if len(steps) < 2:
+    work = laps[laps["intensity"] == WORK]
+    if work.empty:
         return False
-    return bool((laps["intensity"] == WORK).any())
+    if len(work["workout_step"].dropna().unique()) >= 2:
+        return True
+    return bool((work["trigger"] == "time").any())
 
 
 def _without_tail(laps: pd.DataFrame) -> pd.DataFrame:
