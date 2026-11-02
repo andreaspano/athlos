@@ -40,6 +40,7 @@ import argparse
 import contextlib
 import fcntl
 import json
+import math
 import shutil
 import subprocess
 import tempfile
@@ -372,6 +373,22 @@ def _run(
                 _state.update(status=outcome, finished=datetime.now(), message=message)
 
 
+def _jsonable(value):
+    """Lo stesso valore con i `NaN` e gli infiniti al posto giusto, cioe'
+    `null`.
+
+    `json.dumps` li scrive nudi (`NaN`), che non e' JSON: un parser severo si
+    ferma li', e questo file lo leggono gli agenti. Su quaranta giorni e
+    dieci settimane dell'archivio ce n'erano otto e sei."""
+    if isinstance(value, dict):
+        return {k: _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
+
+
 def _facts(kind: Report, subject: date, data_dir: Path) -> dict:
     """I fatti del periodo, gli stessi che riceve la pagina."""
     if kind is WEEKLY:
@@ -431,7 +448,9 @@ def _prepare(
         payload = _facts(kind, subject, data_dir)
     except Exception as exc:  # noqa: BLE001 - qualunque cosa, il lavoro si ferma qui
         return False, f"The facts could not be built: {exc}", download
-    facts.write_text(json.dumps(payload, indent=1, default=str), encoding="utf-8")
+    facts.write_text(
+        json.dumps(_jsonable(payload), indent=1, default=str), encoding="utf-8"
+    )
     return True, None, download
 
 
@@ -604,10 +623,20 @@ def section_keys(
     return None
 
 
-def _written(folder: Path, key: str) -> bool:
-    """Vero se il frammento di quella sezione c'e' gia' e non e' vuoto."""
-    path = folder / f"{key}.md"
-    return path.exists() and path.stat().st_size > 0
+def _written(folder: Path, key: str, kind: Report = DAILY) -> bool:
+    """Vero se la sezione ha gia' un testo, **anche sotto un nome vecchio**.
+
+    I nomi vecchi stanno nel registro (`Report.old_fragments`) e li conosce
+    anche chi compone il report (`app._fragment_path`). Qui non li guardava
+    nessuno, e il backfill rifaceva il Summary di ogni periodo che l'aveva
+    solo come `summary_evening.md` o `summary_end.md`: sul disco sono 89
+    giorni e 13 settimane, cioe' un centinaio di sessioni di agente spese per
+    riscrivere un testo che c'era."""
+    names = (key, *kind.old_fragments.get(key, ()))
+    return any(
+        (path := folder / f"{name}.md").exists() and path.stat().st_size > 0
+        for name in names
+    )
 
 
 def _has_report(folder: Path) -> bool:
@@ -689,7 +718,7 @@ def backfill(
                 Path(summary_dir) / kind.folder / (subject - timedelta(weeks=1)).isoformat()
             ):
                 continue
-            missing = [k for k in keys if not _written(folder, k)]
+            missing = [k for k in keys if not _written(folder, k, kind)]
             tally["skipped"] += len(keys) - len(missing)
             if not missing:
                 continue
@@ -737,6 +766,12 @@ def _backfill_cli(kind: Report, args, last: date, parser: argparse.ArgumentParse
 
     if args.section or args.moment:
         parser.error("--from non si usa insieme a --section o --moment")
+    # Il soggetto di un periodo solo non si usa con un intervallo: prima
+    # veniva ignorato in silenzio, cioe' `--day 2026-10-01 --from 2026-09-01`
+    # faceva una cosa diversa da quella che si era chiesta senza dirlo.
+    subject_flag = "--week" if kind is WEEKLY else "--day"
+    if getattr(args, subject_flag.lstrip("-")) is not None:
+        parser.error(f"{subject_flag} non si usa insieme a --from")
     # Il backfill riscrive periodi **conclusi**: il presente lo scrive gia'
     # il comando senza `--from`, che e' quello che lanciano i timer.
     ultimo = _last_complete(kind, date.today())

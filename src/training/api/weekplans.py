@@ -229,9 +229,15 @@ def check(path: Path, week: Week) -> list[str]:
 
     same("week", week.monday, _as_date(meta.get("week")))
     same("plan", week.plan, _as_text(meta.get("plan")))
-    same("block_week", week.block_week, int(n) if (n := _as_number(meta.get("block_week"))) else None)
     same(
-        "block_weeks", week.block_weeks, int(n) if (n := _as_number(meta.get("block_weeks"))) else None
+        "block_week",
+        week.block_week,
+        int(n) if (n := _as_number(meta.get("block_week"))) is not None else None,
+    )
+    same(
+        "block_weeks",
+        week.block_weeks,
+        int(n) if (n := _as_number(meta.get("block_weeks"))) is not None else None,
     )
     # Gara e bersaglio si controllano solo se il blocco ce li ha: un blocco
     # senza gara e' un blocco, non un errore.
@@ -313,6 +319,30 @@ def line(path: Path, week: Week) -> str:
         f"  {week.monday}  {week.block_week:>2}/{week.block_weeks}  {phase:<9}"
         f"{km:>5.0f} km  lungo {long_run or '-':<9}{quality} qualita'"
     )
+
+
+def _previous_of_goal(summary_dir: Path, week: Week, say) -> Path | None:
+    """Il file della settimana prima, ma solo se e' di questo blocco.
+
+    La continuita' e' la sostanza di questi piani (vedi `_prompt`): un file
+    di un altro goal e' peggio di nessun file, perche' l'agente non ha modo
+    di sapere che non e' il suo."""
+    previous = week_plan_path(summary_dir, week.monday - timedelta(days=1))
+    if previous is None:
+        if week.block_week > 1:
+            say(f"              la settimana prima non c'e': questa riparte dal blocco")
+        return None
+    from training.api.plans import _front_matter, _read
+
+    meta, _ = _front_matter(_read(previous))
+    belongs = _as_text(meta.get("plan"))
+    if belongs is not None and belongs != week.plan:
+        say(
+            f"              {previous.name} e' del goal {belongs}, non di {week.plan}: "
+            f"questa riparte dal blocco"
+        )
+        return None
+    return previous
 
 
 def _prompt(goal: dict, plan_dir: Path, week: Week, summary_dir: Path, target: Path,
@@ -427,7 +457,13 @@ def generate(
             staged = staging / week.file
             # Il lunedi' prima, che e' la settimana prima: se c'e' un file, e'
             # quello appena scritto o quello che c'era gia'.
-            previous = week_plan_path(summary_dir, week.monday - timedelta(days=1))
+            #
+            # **Ma deve venire da questo goal.** Quando la settimana prima e'
+            # stata scartata, qui restava il file vecchio di quel lunedi', che
+            # puo' essere di un altro blocco: l'agente leggeva la continuita'
+            # sbagliata senza che nessuno lo dicesse. Se non e' di questo
+            # goal non si passa, e si dice che la catena e' rotta.
+            previous = _previous_of_goal(summary_dir, week, say)
             began = datetime.now()
             problem = _write_week(
                 repo_root,

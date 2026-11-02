@@ -123,7 +123,7 @@ def _plan(path: Path) -> dict[str, Any]:
         "target_pace": _as_text(meta.get("target_pace_min_km")),
         "target_speed_kmh": _as_number(meta.get("target_speed_kmh")),
         "block_start": _as_date(meta.get("block_start")),
-        "weeks": int(weeks) if (weeks := _as_number(meta.get("block_weeks"))) else None,
+        "weeks": int(weeks) if (weeks := _as_number(meta.get("block_weeks"))) is not None else None,
         "peak_weekly_km": _as_number(meta.get("peak_weekly_km")),
         # `is True` e non la verita' di Python: `current: 0` o `current: ""`
         # sarebbero falsi comunque, ma `current: no` letto come stringa da uno
@@ -543,8 +543,8 @@ def load_week_plan(summary_dir: Path, day: date) -> dict[str, Any] | None:
         "file": path.name,
         "title": title or path.stem,
         "plan": _as_text(meta.get("plan")),
-        "block_week": int(n) if (n := _as_number(meta.get("block_week"))) else None,
-        "block_weeks": int(n) if (n := _as_number(meta.get("block_weeks"))) else None,
+        "block_week": int(n) if (n := _as_number(meta.get("block_week"))) is not None else None,
+        "block_weeks": int(n) if (n := _as_number(meta.get("block_weeks"))) is not None else None,
         "phase": _as_text(meta.get("phase")),
         "race": _as_date(meta.get("race")),
         "target_time": _as_text(meta.get("target_time")),
