@@ -18,7 +18,13 @@ import altair as alt
 import numpy as np
 import pandas as pd
 
-from training.interface.grade import MODEL_SLOPE_LIMIT_PCT, rolling_mean, segments, slope_pct
+from training.interface.grade import (
+    MODEL_SLOPE_LIMIT_PCT,
+    rolling_mean,
+    sample_seconds,
+    segments,
+    slope_pct,
+)
 from training.interface.sports import has_distance
 
 BIN_S = 30
@@ -86,11 +92,12 @@ def _elapsed_s(records: pd.DataFrame) -> np.ndarray:
 
 
 def durations_s(records: pd.DataFrame) -> pd.Series:
-    """Quanti secondi vale ogni record: fino al record dopo, e uno solo
-    attraverso una pausa e per l'ultimo. Con un record al secondo e' un
-    conteggio; i file vecchi ne hanno di piu' radi."""
-    gap = pd.Series(records.index, index=records.index).diff().shift(-1).dt.total_seconds()
-    return gap.where(segments(records.index).diff().shift(-1).fillna(0) == 0, 1).fillna(1)
+    """Quanti secondi vale ogni record, come serie indicizzata sui tempi.
+
+    La regola sta in `grade.sample_seconds`, che la condivide con
+    `db._zone_minutes`: i minuti per zona del database e i secondi per
+    effetto del grafico devono venire dallo stesso conto."""
+    return pd.Series(sample_seconds(records.index), index=records.index)
 
 
 def pauses(records: pd.DataFrame) -> list[tuple[float, float]]:

@@ -54,6 +54,29 @@ def pause_gap(index: pd.DatetimeIndex) -> pd.Timedelta:
     return max(_PAUSE_GAP_MIN, step * _PAUSE_GAP_INTERVALS)
 
 
+def sample_seconds(index: pd.DatetimeIndex) -> np.ndarray:
+    """Quanti secondi vale ogni campione: fino al campione dopo, e **uno
+    solo** attraverso una pausa e per l'ultimo.
+
+    Con un record al secondo e' un conteggio; i file vecchi ne hanno di piu'
+    radi. Una pausa e' un buco oltre `pause_gap`, cioe' 5 s o quattro volte
+    l'intervallo mediano: il tempo in cui l'orologio era fermo non e' tempo
+    allenato, e caricarlo sul campione prima vorrebbe dire contare il
+    semaforo come fatica.
+
+    Qui perche' la regola serve a due padroni: `run_chart.durations_s`, che
+    la usa per il grafico e per gli effetti, e `db._zone_minutes`, che
+    scrive i minuti per zona nel database. Avevano due conti diversi —
+    questo e un tetto di 30 s per buco — e sulle sedute recenti non
+    andavano d'accordo: 16.1 minuti contro 12.1 di basso aerobico sulla
+    stessa uscita, con la Day che leggeva uno e la Week l'altro."""
+    if len(index) == 0:
+        return np.array([], dtype="float64")
+    gap = np.diff(index.to_numpy()).astype("timedelta64[s]").astype("float64")
+    paused = gap > pause_gap(index) / pd.Timedelta("1s")
+    return np.append(np.where(paused, 1.0, gap), 1.0)
+
+
 def segments(index: pd.DatetimeIndex) -> pd.Series:
     """Il numero del tratto continuo di ogni campione: cresce di uno a ogni
     pausa (vedi `pause_gap`)."""
