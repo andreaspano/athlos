@@ -342,6 +342,29 @@ def _insert_laps(conn: sqlite3.Connection, activity_id: int, laps: pd.DataFrame)
     )
 
 
+def _parse_and_store_or_warn(
+    conn: sqlite3.Connection, path: Path, names: dict, types: dict, parsed_at: str
+) -> bool:
+    """`_parse_and_store`, ma un file che non si legge si salta con un
+    avviso invece di fermare tutto.
+
+    Senza questo, un FIT illeggibile — un corpo troncato dentro uno zip
+    valido, un file copiato a mano, una pagina di errore salvata col nome
+    giusto — faceva alzare `sync()`, e quindi `list_activities()`, e quindi
+    **ogni endpoint** dietro `api/cache.py`: 500 a ogni richiesta, per
+    sempre, perche' il file non viene consumato e la riga della versione non
+    avanza. L'unico rimedio era cancellarlo a mano, sapendo quale.
+
+    Il file resta sul posto e al giro dopo si riprova: se nel frattempo e'
+    stato riscaricato intero, entra. Un'attivita' in meno e' un danno
+    piccolo e visibile; l'API giu' non lo e'."""
+    try:
+        return _parse_and_store(conn, path, names, types, parsed_at)
+    except Exception as exc:
+        print(f"  ATTENZIONE: {path.name} non si legge ({type(exc).__name__}: {exc}): lo salto.")
+        return False
+
+
 def _parse_and_store(
     conn: sqlite3.Connection, path: Path, names: dict, types: dict, parsed_at: str
 ) -> bool:
@@ -358,16 +381,25 @@ def _parse_and_store(
     # Se `sync()` riclassifica lo sport piu' tardi, questi valori (quello
     # dell'attivita' e quelli dei record) non si ricalcolano fino al prossimo
     # rebuild.
+    # La velocita' equivalente e' una colonna in piu', non il dato: se il
+    # modello di costo non si puo' applicare resta vuota, come per gli sport
+    # che non lo prevedono. Alzava su un file che attraversa il cambio d'ora
+    # d'autunno — l'indice locale torna indietro e `grade.rolling_mean`
+    # pretende un indice crescente — e si portava via l'attivita' intera.
     with_equiv = summary["sport"] in EQUIV_SPEED_SPORTS
-    summary["equiv_speed_kmh"] = (
-        equivalent_speed_kmh(records, summary["avg_speed_kmh"]) if with_equiv else None
-    )
+    summary["equiv_speed_kmh"] = None
+    if with_equiv:
+        try:
+            summary["equiv_speed_kmh"] = equivalent_speed_kmh(records, summary["avg_speed_kmh"])
+        except Exception as exc:
+            print(f"  {path.name}: velocita' equivalente non calcolata ({exc}).")
     if not records.empty:
-        records["equiv_speed_kmh"] = (
-            equivalent_speed_series(records)
-            if with_equiv and records["altitude_m"].notna().any()
-            else None
-        )
+        records["equiv_speed_kmh"] = None
+        if with_equiv and records["altitude_m"].notna().any():
+            try:
+                records["equiv_speed_kmh"] = equivalent_speed_series(records)
+            except Exception as exc:
+                print(f"  {path.name}: serie della velocita' equivalente non calcolata ({exc}).")
     _insert_activity(conn, summary, names.get(activity_id), parsed_at)
     _insert_records(conn, summary["activity_id"], records)
     _insert_laps(conn, summary["activity_id"], _parse_fit_laps(path))
@@ -521,7 +553,8 @@ def rebuild(data_dir: Path = DATA_DIR) -> int:
         types = load_activity_types(data_dir)
         parsed_at = datetime.now().isoformat(sep=" ")
         count = sum(
-            _parse_and_store(conn, p, names, types, parsed_at) for p in list_activity_files(data_dir)
+            _parse_and_store_or_warn(conn, p, names, types, parsed_at)
+            for p in list_activity_files(data_dir)
         )
         # Il nastro vince su tutto, anche su un tipo di Connect che dice
         # "running": lo `sub_sport` del FIT e' il solo segnale che c'e' sempre
@@ -568,7 +601,9 @@ def sync(data_dir: Path = DATA_DIR) -> int:
         names = load_activity_names(data_dir)
         types = load_activity_types(data_dir)
         parsed_at = datetime.now().isoformat(sep=" ")
-        added = sum(_parse_and_store(conn, p, names, types, parsed_at) for p in new_paths)
+        added = sum(
+            _parse_and_store_or_warn(conn, p, names, types, parsed_at) for p in new_paths
+        )
 
         conn.executemany(
             "UPDATE activities SET activity_name=? WHERE activity_id=?",

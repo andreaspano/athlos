@@ -8,6 +8,8 @@ ogni minuto di cache — col lock della salute preso per tutto il tempo.
 import os
 from datetime import date
 
+import pytest
+
 from training.interface.health import _USED_ENDPOINTS
 from training.interface.health_db import _source_mtimes
 
@@ -64,3 +66,74 @@ class TestSourceMtimes:
     def test_the_mtimes_are_the_ones_the_filesystem_reports(self, tmp_path):
         path = write(tmp_path, "stats", "2026-10-26.json")
         assert _source_mtimes(tmp_path)["2026-10-26"] == path.stat().st_mtime
+
+
+class TestItDoesNotWipeTheCache:
+    """Una scansione vuota non e' la prova che i file sono spariti: con la
+    cartella dei dati smontata o in mezzo a un rsync, la riga che toglie i
+    giorni scomparsi cancellava tutta la tabella."""
+
+    def seed(self, tmp_path, days=("2026-10-20", "2026-10-21")):
+        from training.interface.health_db import sync_health
+
+        for day in days:
+            write(tmp_path / "health", "stats", f"{day}.json", when=1000)
+        (tmp_path / "db").mkdir(exist_ok=True)
+        sync_health(tmp_path)
+        return len(days)
+
+    def rows(self, tmp_path) -> int:
+        from training.interface.health_db import _connect
+
+        conn = _connect(tmp_path)
+        try:
+            return conn.execute("SELECT count(*) FROM health_daily").fetchone()[0]
+        finally:
+            conn.close()
+
+    def test_a_vanished_health_tree_does_not_empty_the_table(self, tmp_path):
+        from training.interface.health_db import sync_health
+
+        seeded = self.seed(tmp_path)
+        assert self.rows(tmp_path) == seeded
+
+        (tmp_path / "health").rename(tmp_path / "health-altrove")
+        with pytest.raises(OSError, match="non la svuoto"):
+            sync_health(tmp_path)
+
+        assert self.rows(tmp_path) == seeded, "la cache e' ancora tutta li'"
+
+    def test_a_day_whose_files_are_really_gone_is_dropped(self, tmp_path):
+        """Il comportamento buono resta: con la cartella leggibile, un giorno
+        senza piu' file esce dalla cache."""
+        from training.interface.health_db import sync_health
+
+        self.seed(tmp_path)
+        (tmp_path / "health" / "stats" / "2026-10-21.json").unlink()
+        sync_health(tmp_path)
+
+        assert self.rows(tmp_path) == 1
+
+    def test_an_unreadable_endpoint_folder_raises(self, tmp_path):
+        import os
+
+        from training.interface.health_db import _source_mtimes
+
+        write(tmp_path / "health", "stats", "2026-10-20.json", when=1000)
+        folder = tmp_path / "health" / "sleep"
+        folder.mkdir()
+        os.chmod(folder, 0o000)
+        try:
+            with pytest.raises(OSError, match="non si leggono"):
+                _source_mtimes(tmp_path / "health")
+        finally:
+            os.chmod(folder, 0o755)
+
+    def test_an_empty_archive_is_allowed_to_stay_empty(self, tmp_path):
+        """Una prima installazione: nessun file e nessuna cache, nessun
+        allarme."""
+        from training.interface.health_db import sync_health
+
+        (tmp_path / "db").mkdir()
+        (tmp_path / "health").mkdir()
+        assert sync_health(tmp_path) == 0
