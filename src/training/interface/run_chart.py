@@ -181,12 +181,20 @@ def zone_bands(records: pd.DataFrame, bounds: list[int]) -> pd.DataFrame:
 
 
 def zone_settings(activity) -> tuple[list[int] | None, int | None]:
-    """I tetti di Z1-Z4 e la soglia anaerobica salvati dal FIT, o None (file
-    vecchi senza il messaggio delle zone). `activity` e' una riga di
-    `list_activities`: nel database i tetti sono testo JSON."""
+    """I tetti di Z1-Z4 e la soglia anaerobica **da usare** per questa
+    seduta, o None (file vecchi senza il messaggio delle zone). `activity`
+    e' una riga di `list_activities`: nel database i tetti sono testo JSON.
+
+    La soglia e' quella misurata se c'e', altrimenti quella prestata
+    (`db.threshold_hr_borrowed`): il profilo Bici non la salva, e senza
+    nessuna soglia la scheda non stima gli effetti. Qui serve un numero per
+    dividere le zone, non la misura di questa seduta — chi mostra la misura
+    guarda il solo `threshold_hr`."""
     bounds = json.loads(activity.hr_zone_bounds) if isinstance(activity.hr_zone_bounds, str) else None
-    threshold = int(activity.threshold_hr) if pd.notna(activity.threshold_hr) else None
-    return bounds, threshold
+    threshold = activity.threshold_hr
+    if pd.isna(threshold):
+        threshold = getattr(activity, "threshold_hr_borrowed", None)
+    return bounds, int(threshold) if pd.notna(threshold) else None
 
 
 def has_effects(bounds: list[int] | None, threshold_hr: int | None) -> bool:
