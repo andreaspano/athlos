@@ -518,11 +518,15 @@ def _fragment_path(folder: Path, key: str, kind: Report_) -> Path:
     in due pezzi col todo 66, la settimana col todo 68, e i periodi scritti
     allora si leggono ancora."""
     path = folder / f"{key}.md"
-    if path.exists():
+    # Vuoto vale come assente: un frammento di zero byte col nome nuovo
+    # copriva quello col nome vecchio, e la card restava bianca con il testo
+    # di prima irraggiungibile. 89 periodi del giorno e 13 della settimana
+    # hanno il Summary solo sotto un nome vecchio.
+    if path.exists() and path.stat().st_size > 0:
         return path
     for old in kind.old_fragments.get(key, ()):
         legacy = folder / f"{old}.md"
-        if legacy.exists():
+        if legacy.exists() and legacy.stat().st_size > 0:
             return legacy
     return path
 
@@ -552,8 +556,11 @@ def _fragment_sections(
     for section in kind.sections:
         path = _fragment_path(folder, section.key, kind)
         body = path.read_text(encoding="utf-8").strip() if path.exists() else ""
-        written = datetime.fromtimestamp(path.stat().st_mtime) if body else None
+        # Prima si toglie il verdetto, poi si guarda se e' rimasto del testo:
+        # un frammento che contiene solo `verdict: high` non e' una sezione
+        # scritta, e con l'ordine di prima prendeva l'ora e un corpo vuoto.
         verdict, body = _verdict(body)
+        written = datetime.fromtimestamp(path.stat().st_mtime) if body else None
         found.append((section.title, body, written, verdict))
     return found
 

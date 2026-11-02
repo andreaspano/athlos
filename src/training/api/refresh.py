@@ -198,10 +198,16 @@ def start(
         # giro settimanale lo stato non deve raccontare le chiavi del
         # giorno. Quelle che non si rifanno restano com'erano: lo stato dice
         # quello che e' successo l'ultima volta, non una bugia.
+        #
+        # **Qui non si azzera niente.** Le sezioni che si rifanno le azzera
+        # `_run`, dopo aver preso il lock: azzerarle adesso vuol dire perdere
+        # il resoconto del giro precedente anche quando questo giro non parte
+        # affatto, perche' il lock e' di un altro processo. Un 'load' fallito
+        # col suo messaggio diventava sei sezioni 'idle' senza che nessun
+        # agente avesse girato.
         known = _state["sections"] if was == kind.name else {}
         _state["sections"] = {
-            s.key: _blank_section() if s in sections else known.get(s.key, _blank_section())
-            for s in kind.run_order
+            s.key: known.get(s.key, _blank_section()) for s in kind.run_order
         }
         started = _state["started"]
     thread = threading.Thread(
@@ -236,11 +242,23 @@ def _run(
     sections: tuple[Section, ...],
     update: bool = True,
     moment: str | None = None,
-) -> bool:
+) -> dict | None:
     """Il lavoro vero: i dati, i fatti del periodo, gli agenti in fila.
 
-    Rende falso senza fare niente se un altro lavoro sta gia' girando, qui o
-    in un altro processo.
+    Rende `None` senza fare niente se un altro lavoro sta gia' girando, qui o
+    in un altro processo. Altrimenti rende il **resoconto di questo giro**:
+    `message`, `download` e com'e' finita ogni sezione che ha girato.
+
+    Il resoconto e' il valore di ritorno e non lo stato globale, perche' lo
+    stato globale ne tiene uno solo — l'ultimo — mentre `backfill` ne legge
+    uno per periodo: le sezioni del periodo prima venivano contate come
+    scritte in quello dopo.
+
+    Qualunque guasto lascia comunque uno stato terminale (vedi il `finally`):
+    lo stato e' l'unico modo che ha la pagina di sapere com'e' andata, e un
+    `OSError` da `subprocess`, dalla scrittura dei fatti o da `mkdir` lo
+    lasciava a 'running' per sempre, con ogni Refresh successivo rifiutato
+    dal guardiano di `start()` fino al riavvio dell'API.
 
     Il momento e' la voce con cui Next e Summary parlano, non chi gira: di
     suo lo decide `_moment_of`, e lo si puo' imporre per riscrivere una
@@ -264,58 +282,78 @@ def _run(
                 _state["sections"].setdefault(section.key, _blank_section())
     failed: list[str] = []
     message = None
-    with _claim(data_dir) as mine:
-        if not mine:
+    download = None
+    results: dict[str, dict] = {}
+    # Se si muore prima di decidere, e' un guasto.
+    outcome = "failed"
+    claimed = False
+    try:
+        with _claim(data_dir) as mine:
+            if not mine:
+                message = "Another refresh is already running."
+                return None
+            claimed = True
+            # Il lock e' nostro: da qui le sezioni che si rifanno ripartono
+            # da zero (vedi `start()`).
             with _lock:
-                _state.update(
-                    status="failed",
-                    finished=datetime.now(),
-                    message="Another refresh is already running.",
-                )
-            return False
-        with tempfile.TemporaryDirectory() as tmp:
-            facts = Path(tmp) / f"{kind.name}-{subject.isoformat()}.json"
-            ok, problem, download = _prepare(kind, subject, repo_root, data_dir, facts, update)
-            with _lock:
-                _state["download"] = download
-            if not ok:
-                message = problem
-            else:
-                folder = Path(summary_dir) / kind.folder / subject.isoformat()
-                folder.mkdir(parents=True, exist_ok=True)
-                # Il piano della settimana (todo 14) lo leggono **due**
-                # sezioni, e per due date diverse: Next, che prescrive la
-                # seduta del giorno dopo, e Training del giorno (todo 64),
-                # che giudica quella di oggi. Il percorso lo sceglie `_prompt`
-                # sezione per sezione: la stessa data per entrambe sarebbe
-                # sbagliata per una delle due, e la sera i due giorni cadono
-                # perfino in settimane diverse. Niente file, nessuna frase nel
-                # prompt: un piano che non c'e' non deve diventare
-                # un'istruzione da inventare.
                 for section in sections:
-                    began = datetime.now()
-                    _set(section.key, status="running", started=began, finished=None, message=None)
-                    good, problem = _write_section(
-                        kind, section, subject, moment, repo_root, facts, folder, began,
-                        Path(summary_dir),
-                    )
-                    _set(
-                        section.key,
-                        status="done" if good else "failed",
-                        finished=datetime.now(),
-                        message=problem,
-                    )
-                    if not good:
-                        failed.append(section.key)
-    if failed and not message:
-        message = "These sections kept their previous text: " + ", ".join(failed)
-    with _lock:
-        _state.update(
-            status="failed" if (failed or message) else "done",
-            finished=datetime.now(),
-            message=message,
-        )
-    return True
+                    _state["sections"][section.key] = _blank_section()
+            with tempfile.TemporaryDirectory() as tmp:
+                facts = Path(tmp) / f"{kind.name}-{subject.isoformat()}.json"
+                ok, problem, download = _prepare(
+                    kind, subject, repo_root, data_dir, facts, update
+                )
+                with _lock:
+                    _state["download"] = download
+                if not ok:
+                    message = problem
+                else:
+                    folder = Path(summary_dir) / kind.folder / subject.isoformat()
+                    folder.mkdir(parents=True, exist_ok=True)
+                    # Il piano della settimana (todo 14) lo leggono **due**
+                    # sezioni, e per due date diverse: Next, che prescrive la
+                    # seduta del giorno dopo, e Training del giorno (todo
+                    # 64), che giudica quella di oggi. Il percorso lo sceglie
+                    # `_prompt` sezione per sezione: la stessa data per
+                    # entrambe sarebbe sbagliata per una delle due, e la sera
+                    # i due giorni cadono perfino in settimane diverse.
+                    # Niente file, nessuna frase nel prompt: un piano che non
+                    # c'e' non deve diventare un'istruzione da inventare.
+                    for section in sections:
+                        began = datetime.now()
+                        _set(
+                            section.key, status="running", started=began,
+                            finished=None, message=None,
+                        )
+                        good, problem = _write_section(
+                            kind, section, subject, moment, repo_root, facts, folder,
+                            began, Path(summary_dir),
+                        )
+                        _set(
+                            section.key,
+                            status="done" if good else "failed",
+                            finished=datetime.now(),
+                            message=problem,
+                        )
+                        results[section.key] = {
+                            "status": "done" if good else "failed",
+                            "message": problem,
+                        }
+                        if not good:
+                            failed.append(section.key)
+        if failed and not message:
+            message = "These sections kept their previous text: " + ", ".join(failed)
+        outcome = "failed" if (failed or message) else "done"
+        return {"message": message, "download": download, "sections": results}
+    except BaseException as exc:
+        message = f"The run stopped: {type(exc).__name__}: {exc}"
+        raise
+    finally:
+        # Anche il giro che non e' partito ha il suo stato terminale: lo dice
+        # il messaggio, non il silenzio.
+        if claimed or message:
+            with _lock:
+                _state.update(status=outcome, finished=datetime.now(), message=message)
 
 
 def _facts(kind: Report, subject: date, data_dir: Path) -> dict:
@@ -515,10 +553,17 @@ def _write_section(
         return False, f"{section.agent} did not finish in {TIMEOUT_SECONDS // 60} minutes."
     if result.returncode != 0:
         return False, _tail(result) or f"{section.agent} exited with {result.returncode}."
-    # L'uscita 0 non basta: il frammento deve essere stato scritto adesso.
+    # L'uscita 0 non basta: il frammento deve essere stato scritto adesso, e
+    # deve avere dentro qualcosa. Un file vuoto passava per scritto, contava
+    # come sezione fatta, e in piu' copriva il frammento col nome vecchio
+    # (`_fragment_path`), lasciando la card bianca con il testo di prima
+    # irraggiungibile. Le altre due funzioni che dicono "scritto"
+    # (`_written`, `_has_report`) chiedono la dimensione da sempre.
     fragment = folder / f"{section.key}.md"
     if not (fragment.exists() and fragment.stat().st_mtime >= began.timestamp()):
         return False, f"{section.agent} finished without writing {fragment.name}."
+    if fragment.stat().st_size == 0:
+        return False, f"{section.agent} wrote {fragment.name} empty."
     return True, None
 
 
@@ -634,19 +679,26 @@ def backfill(
                 continue
             sections = tuple(s for s in kind.run_order if s.key in missing)
             started = datetime.now()
-            if not _run(
+            outcome = _run(
                 kind, subject, started, repo_root, summary_dir, data_dir,
                 sections, update=False, moment=moment,
-            ):
+            )
+            if outcome is None:
                 tally["stopped"] = subject
                 return tally
             worked = True
-            state = status()
+            # Il resoconto e' quello di **questo** periodo. Leggendolo dallo
+            # stato globale, un periodo in cui `_prepare` era fallito — e
+            # quindi nessuna sezione aveva girato — si contava con gli stati
+            # 'done' del periodo prima: sei sezioni scritte, cartella mai
+            # creata, e il comando usciva 0 annunciando il successo.
             for section in sections:
-                if state["sections"][section.key]["status"] == "done":
+                row = outcome["sections"].get(section.key)
+                if row and row["status"] == "done":
                     tally["written"] += 1
                 else:
-                    tally["failed"].append(f"{subject} {section.key}")
+                    reason = (row or {}).get("message") or outcome["message"] or "non scritta"
+                    tally["failed"].append(f"{subject} {section.key}: {reason}")
         tally["touched"] += int(worked)
     return tally
 
@@ -795,7 +847,7 @@ def _cli(kind: Report) -> None:
 
     what = f"della settimana del {subject}" if weekly else f"del {subject}"
     print(f"Report {what}: {len(sections)} sezioni, una alla volta.")
-    if not _run(
+    outcome = _run(
         kind,
         subject,
         datetime.now(),
@@ -805,17 +857,17 @@ def _cli(kind: Report) -> None:
         sections,
         not getattr(args, "no_update", False),
         args.moment,
-    ):
+    )
+    if outcome is None:
         print("Ce n'e' gia' uno in corso: non faccio niente.")
         raise SystemExit(0)
-    state = status()
-    if state["download"] and not state["download"]["ok"]:
-        print(f"  dati     non scaricati  {state['download']['message']}")
+    if outcome["download"] and not outcome["download"]["ok"]:
+        print(f"  dati     non scaricati  {outcome['download']['message']}")
     for section in sections:
-        row = state["sections"][section.key]
+        row = outcome["sections"].get(section.key) or {"status": "non girata", "message": None}
         note = f"  {row['message']}" if row["message"] else ""
         print(f"  {section.key:15} {row['status']}{note}")
-    print(state["message"] or "Fatto.")
+    print(outcome["message"] or "Fatto.")
     # Esce 1 anche quando lo scaricamento e' fallito, non solo quando e'
     # fallita una sezione (todo 81). Il report c'e' lo stesso — `_prepare`
     # va avanti con i dati locali apposta — ma e' scritto su dati che non
