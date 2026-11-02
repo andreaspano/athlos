@@ -14,8 +14,9 @@ NULL vuol dire "non lo sappiamo", mai zero: lo stesso contratto di
 `health._dig()`.
 """
 
+import os
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -25,9 +26,8 @@ from training.interface.db import _connect as _connect_db
 from training.interface.health import (
     COLUMNS,
     TEXT_COLUMNS,
-    _day_paths,
+    _USED_ENDPOINTS,
     _day_row,
-    available_days,
 )
 
 # Da cambiare quando cambia il parsing della salute in `health.py`:
@@ -71,15 +71,42 @@ def _connect(data_dir: Path) -> sqlite3.Connection:
     return conn
 
 
-def _source_mtime(health_dir: Path, day: str) -> float | None:
-    """L'mtime piu' recente fra i file del giorno, o None se non ce n'e'."""
-    mtimes = []
-    for path in _day_paths(health_dir, day).values():
+def _source_mtimes(health_dir: Path) -> dict[str, float]:
+    """Per ogni giorno con almeno un file, l'mtime piu' recente fra i suoi
+    undici: **una scansione sola** delle cartelle degli endpoint.
+
+    Fa il lavoro di `available_days` e quello di un `stat` per ognuno degli
+    undici file di ogni giorno, che messi insieme erano la parte lenta di
+    `sync_health`: su 6150 giorni, undici `glob` piu' 67.650 `Path.stat()`.
+    Misurato sull'archivio vero: **799 ms prima, 190 adesso**. Conta perche'
+    questo e' il costo della prima richiesta dopo ogni minuto di cache
+    (`api/cache.py`), e il lock della salute resta preso per tutta la
+    scansione, quindi ogni richiesta che capita li' aspetta.
+
+    `os.scandir` da' il nome senza chiedere niente al disco e `entry.stat()`
+    riusa la voce di directory; `follow_symlinks=False` evita di risolvere
+    link che qui non ci sono. I nomi che non sono una data si saltano, come
+    faceva `available_days`: un file che non si chiama come un giorno non e'
+    un giorno."""
+    out: dict[str, float] = {}
+    for name in _USED_ENDPOINTS:
         try:
-            mtimes.append(path.stat().st_mtime)
+            entries = os.scandir(health_dir / name)
         except OSError:
             continue
-    return max(mtimes) if mtimes else None
+        with entries:
+            for entry in entries:
+                if not entry.name.endswith(".json"):
+                    continue
+                day = entry.name[: -len(".json")]
+                try:
+                    date.fromisoformat(day)
+                    mtime = entry.stat(follow_symlinks=False).st_mtime
+                except (ValueError, OSError):
+                    continue
+                if mtime > out.get(day, 0.0):
+                    out[day] = mtime
+    return out
 
 
 def sync_health(data_dir: Path = DATA_DIR) -> int:
@@ -106,14 +133,12 @@ def sync_health(data_dir: Path = DATA_DIR) -> int:
             )
 
         cached = dict(conn.execute("SELECT day, source_mtime FROM health_daily"))
-        days = [day.isoformat() for day in available_days(data_dir)]
+        mtimes = _source_mtimes(health_dir)
 
         parsed_at = datetime.now().isoformat(sep=" ")
         rows = []
-        for day in days:
-            mtime = _source_mtime(health_dir, day)
-            if mtime is None:
-                continue
+        for day in sorted(mtimes):
+            mtime = mtimes[day]
             if day in cached and mtime <= cached[day]:
                 continue
             rows.append(
@@ -122,7 +147,7 @@ def sync_health(data_dir: Path = DATA_DIR) -> int:
         conn.executemany(_UPSERT, rows)
 
         # Un giorno i cui file non ci sono piu' non deve restare in cache.
-        gone = set(cached) - set(days)
+        gone = set(cached) - set(mtimes)
         conn.executemany("DELETE FROM health_daily WHERE day=?", [(day,) for day in gone])
 
         conn.commit()
