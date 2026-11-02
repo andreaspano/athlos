@@ -3,6 +3,8 @@ file unico di prima del todo 44."""
 
 from datetime import date
 
+import pytest
+
 from training.api.app import _fragment_sections, get_daily_report
 from training.api.sections import DAILY
 
@@ -59,3 +61,50 @@ def test_every_fragment_row_has_four_values(tmp_path):
 
     assert rows, "le sezioni ci sono tutte, anche senza frammento"
     assert all(len(row) == 4 for row in rows)
+
+
+class TestVerdictLine:
+    """`verdict: <parola>` e' una riga, non un prefisso: le cinque parole
+    della scala sono anche inizi di parole inglesi ordinarie, e il testo
+    degli agenti non si puo' vincolare."""
+
+    def test_the_word_alone_on_its_line_is_a_verdict(self):
+        from training.api.app import _verdict
+
+        assert _verdict("verdict: high\n\nLa seduta e' andata bene.") == (
+            "high", "La seduta e' andata bene."
+        )
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "verdict: medium-high\n\nLa seduta.",
+            "verdict: perfection itself\n\nAltro.",
+            "verdict: lowish day\n\nAltro.",
+            "verdict: high resting heart rate this week, and it held.",
+            "verdict:\n  high\n\nLa parola sulla riga dopo non e' un voto.",
+        ],
+    )
+    def test_prose_is_not_a_verdict(self, body):
+        from training.api.app import _verdict
+
+        word, kept = _verdict(body)
+        assert word is None
+        assert kept == body, "e il testo non si tocca"
+
+    def test_only_training_has_its_first_line_stripped(self, tmp_path):
+        """La riga si chiede alla sola Training (`refresh.py`), e
+        `models.py` lo dichiara: su un'altra sezione quella frase e' testo."""
+        from training.api.app import _fragment_sections
+
+        folder = tmp_path / "2026-10-01"
+        folder.mkdir()
+        (folder / "health.md").write_text("verdict: high\n\nIl corpo ha tenuto.", encoding="utf-8")
+        (folder / "training.md").write_text("verdict: high\n\nBuona seduta.", encoding="utf-8")
+
+        rows = {title: (body, verdict) for title, body, _written, verdict in _fragment_sections(folder, DAILY)}
+        health = next(v for k, v in rows.items() if k and "ealth" in k)
+        training = next(v for k, v in rows.items() if k and "rain" in k)
+
+        assert health == ("verdict: high\n\nIl corpo ha tenuto.", None)
+        assert training == ("Buona seduta.", "high")

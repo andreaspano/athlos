@@ -189,10 +189,24 @@ def daily_scores(payload: dict) -> dict[str, Verdict | None]:
     return _card_scores(health, recovery, load, fitness)
 
 
+# Le tre fasce di sforzo della card Load della Week, nell'ordine in cui le
+# disegna (`ZONE_ROWS` in `WeekPage.tsx`). Stanno in `zones`, che tiene anche
+# due numeri che non sono misure (`sessions_without_hr`, `measured_min`):
+# qui si nominano le tre che votano.
+WEEK_ZONE_KEYS = ("low_aerobic", "high_aerobic", "anaerobic")
+
+
 def weekly_scores(payload: dict) -> dict[str, Verdict | None]:
     """Le facce della settimana. Le misure arrivano gia' divise per card
-    (`measures[...]["card"]`), e il carico della settimana ha una fascia
-    sola — quella dei suoi minuti, contro le dodici settimane prima."""
+    (`measures[...]["card"]`).
+
+    Il carico vota su **quello che la card disegna**: il carico dei sette
+    giorni e i tre tempi per zona, ognuno contro le dodici settimane prima —
+    quattro barre, quattro voti. Prima votava il solo `load_acute`, e su 90
+    settimane 17 mostravano una faccia che le barre accanto contraddicevano,
+    piu' 8 senza faccia perche' mancava la sua fascia mentre le tre delle
+    zone c'erano. Il giorno lo fa gia' cosi' (`daily_scores`, che vota
+    esattamente le tre barre di `LoadCard.tsx`)."""
     measures = payload.get("measures") or {}
     def by_card(card: str) -> list[int | None]:
         return [
@@ -202,7 +216,12 @@ def weekly_scores(payload: dict) -> dict[str, Verdict | None]:
         ]
 
     week_load = payload.get("load") or {}
+    zones = payload.get("zones") or {}
     load = [centred(week_load.get("load_acute"), week_load.get("band"))]
+    for key in WEEK_ZONE_KEYS:
+        zone = zones.get(key)
+        if isinstance(zone, dict):
+            load.append(centred(zone.get("minutes"), zone.get("band")))
     return _card_scores(
         by_card("health"), by_card("recovery"), load, _score_fitness(payload.get("fitness"))
     )
