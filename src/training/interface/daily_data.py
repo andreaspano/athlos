@@ -902,7 +902,13 @@ def _recent(activities: pd.DataFrame, day: date, data_dir: Path) -> dict[str, An
     last_hard = None
     window = before[before["start_time"].dt.date >= day - timedelta(days=BASELINE_LONG)]
     for _, activity in window.iloc[::-1].iterrows():
-        records = load_activity_records(int(activity["activity_id"]), data_dir)
+        # Dei campioni servono i battiti e l'ora: `_minutes_above_z3` guarda
+        # quelli e l'indice. Leggere tutte le colonne costava quattro volte
+        # tanto per seduta, e qui si scorre indietro fino a trovarne una
+        # impegnativa — fino a diciotto sedute quando non ce n'e' nessuna.
+        records = load_activity_records(
+            int(activity["activity_id"]), data_dir, columns=("heart_rate",)
+        )
         minutes = _minutes_above_z3(activity, records)
         if minutes is not None and minutes >= HARD_SESSION_MIN:
             last_hard = activity["start_time"].date()
