@@ -149,11 +149,21 @@ export function DayPage({ view = "snap" }: { view?: View }) {
     return () => controller.abort();
   }, []);
 
+  // Lo stato del lavoro, **solo se e' di questo tipo**: giorno e settimana
+  // condividono un lavoro alla volta e lo chiedono allo stesso
+  // `GET /api/refresh`, ma le sezioni hanno gli stessi nomi, quindi uno
+  // stato settimanale qui non da' nessun errore — si limita a mentire. La
+  // domenica alle 21 il giro della settimana accendeva lo spinner
+  // dell'intestazione, i badge sulle card del giorno ("Rewriting the health
+  // section..."), il banner "Refresh of <lunedi> failed" davanti a chi
+  // guardava un altro giorno, e il ricaricamento alla fine. `WeekPage` la
+  // guardia ce l'ha da sempre; questa e' la stessa, dall'altro lato.
   useEffect(() => {
     const controller = new AbortController();
     api
       .refresh(controller.signal)
       .then((status) => {
+        if (status.kind !== "daily") return;
         if (status.status === "running") setWatched(true);
         setRefresh(status);
       })
@@ -168,6 +178,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
       api
         .refresh()
         .then((status) => {
+          if (status.kind !== "daily") return;
           setRefresh(status);
           if (status.status === "done") setReloads((n) => n + 1);
         })
