@@ -547,10 +547,26 @@ def _week_zones(activities: pd.DataFrame, monday: date) -> dict[str, Any]:
     due settimane vicine ne condividevano tre quarti e si somigliavano per
     forza. Questi sono minuti misurati sui sette giorni.
 
-    `sessions_without_hr` dice quante sedute della settimana non entrano nel
-    conto — l'arrampicata, le camminate con l'orologio in tasca: il carico di
-    Garmin le vede e questi minuti no, e la differenza va detta invece che
-    nascosta."""
+    `sessions_without_hr` dice quante sedute non hanno la frequenza —
+    l'arrampicata, le camminate con l'orologio in tasca — e
+    `sessions_without_zones` quante non entrano nel conto dei minuti, che e'
+    un insieme piu' grande: ci cadono anche le sedute con la frequenza ma
+    senza una soglia con cui dividere le zone. Contava le seconde e le
+    chiamava le prime, e cosi' per ogni settimana prima di agosto 2026
+    diceva agli agenti che l'intera settimana era stata registrata senza
+    frequenza cardiaca — 817 sedute dell'archivio hanno la frequenza e non
+    hanno le zone.
+
+    **La fascia vuole almeno una settimana misurata.** Le dodici settimane
+    prima entrano cosi': una senza sedute vale zero, perche' il riposo e' un
+    dato della stagione (vedi `_zone_totals`), una con sedute ma senza
+    soglia non vale niente (`None`) e resta fuori. Dove nessuna delle dodici
+    era misurabile restavano solo gli zeri dei riposi, e la fascia veniva
+    0-0: la settimana del 3 agosto mostrava 385 minuti contro una fascia
+    piatta, cioe' la barra li disegnava come un fuori scala assoluto, quando
+    le settimane di confronto semplicemente non avevano una soglia. Su 52
+    settimane dell'ultimo anno succedeva a 21, e tutte e 21 avevano la
+    fascia 0-0."""
     from training.interface.daily_data import _band
 
     # Le tredici settimane in un filtro solo: le dodici della fascia e
@@ -562,6 +578,13 @@ def _week_zones(activities: pd.DataFrame, monday: date) -> dict[str, Any]:
         _zone_totals_of(by_monday[monday - timedelta(weeks=k)])
         for k in range(BAND_WEEKS, 0, -1)
     ]
+    # Quante delle dodici avevano sedute **e** si sono potute misurare: se
+    # nessuna, la fascia non si disegna (vedi il docstring).
+    measured_weeks = sum(
+        1
+        for k, h in zip(range(BAND_WEEKS, 0, -1), history)
+        if len(by_monday[monday - timedelta(weeks=k)]) and h["low_aerobic"] is not None
+    )
     zones: dict[str, Any] = {}
     for key, _column in ZONE_MINUTES:
         series = pd.Series([h[key] for h in history], dtype="float64")
@@ -571,13 +594,24 @@ def _week_zones(activities: pd.DataFrame, monday: date) -> dict[str, Any]:
             # media davano "-203 minuti", che sulla barra sarebbe una scala
             # piu' lunga del possibile (lo stesso rimedio del body battery,
             # todo 46).
-            "band": _band(series, limits=(0, math.inf), digits=0, min_values=MIN_BAND_WEEKS),
+            "band": (
+                _band(series, limits=(0, math.inf), digits=0, min_values=MIN_BAND_WEEKS)
+                if measured_weeks
+                else None
+            ),
+            # Le settimane che hanno dato un valore restano contate anche
+            # quando la fascia non si disegna: dicono che il confronto c'era,
+            # ma era fatto di soli riposi.
             "weeks": int(series.notna().sum()),
         }
-    missing = 0
-    if not week.empty and "min_low_aerobic" in week:
-        missing = int(week["min_low_aerobic"].isna().sum())
-    zones["sessions_without_hr"] = missing
+    without_hr = without_zones = 0
+    if not week.empty:
+        if "avg_heart_rate" in week:
+            without_hr = int(week["avg_heart_rate"].isna().sum())
+        if "min_low_aerobic" in week:
+            without_zones = int(week["min_low_aerobic"].isna().sum())
+    zones["sessions_without_hr"] = without_hr
+    zones["sessions_without_zones"] = without_zones
     # Con tutte e tre le zone senza misura, la somma di niente faceva "0
     # minuti misurati", che si legge come "misurati, e sono zero". Nessuna
     # misura e' `None`, come ogni altro valore di questo payload.
