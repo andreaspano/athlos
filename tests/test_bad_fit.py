@@ -11,7 +11,7 @@ import shutil
 import pytest
 
 from training.garmin.config import DATA_DIR
-from training.interface.db import list_activities
+from training.interface.db import list_activities, rebuild
 
 ARCHIVE = (DATA_DIR / "db" / "activities.db").exists()
 
@@ -63,24 +63,28 @@ def a_running_fit():
 
 
 class TestAJunkFileIsSkipped:
+    """La cache la costruisce `rebuild()`, che dal todo 93 e' un comando e non
+    un effetto della lettura."""
+
     def test_a_file_that_is_not_a_fit_does_not_raise(self, data_dir, capsys):
         (data_dir / "fit" / "999999_ACTIVITY.fit").write_bytes(b"non sono un file FIT")
 
-        activities = list_activities(data_dir)
-
-        assert activities.empty
+        assert rebuild(data_dir, say=lambda _: None) == 0
+        assert list_activities(data_dir).empty
         assert "non si legge" in capsys.readouterr().out
 
     def test_it_is_skipped_on_every_call_and_never_wedges(self, data_dir):
         (data_dir / "fit" / "999999_ACTIVITY.fit").write_bytes(b"non sono un file FIT")
 
         for _ in range(3):
+            rebuild(data_dir, say=lambda _: None)
             assert list_activities(data_dir).empty, "nessuna eccezione, nessun blocco"
 
     def test_the_good_ones_still_get_in(self, data_dir, a_real_fit):
         shutil.copy(a_real_fit, data_dir / "fit" / a_real_fit.name)
         (data_dir / "fit" / "999999_ACTIVITY.fit").write_bytes(b"spazzatura")
 
+        rebuild(data_dir, say=lambda _: None)
         activities = list_activities(data_dir)
 
         assert len(activities) == 1, "l'attivita' buona c'e', quella rotta no"
@@ -106,6 +110,7 @@ class TestEquivalentSpeedCannotKillAnActivity:
         monkeypatch.setattr(db, "equivalent_speed_kmh", boom)
         monkeypatch.setattr(db, "equivalent_speed_series", boom)
 
+        db.rebuild(data_dir, say=lambda _: None)
         activities = list_activities(data_dir)
 
         assert len(activities) == 1, "l'attivita' c'e' comunque"

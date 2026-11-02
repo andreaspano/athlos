@@ -23,6 +23,7 @@ import pandas as pd
 
 from training.garmin.config import DATA_DIR
 from training.interface.db import _connect as _connect_db
+from training.interface.db import write_lock
 from training.interface.health import (
     COLUMNS,
     TEXT_COLUMNS,
@@ -138,6 +139,13 @@ def sync_health(data_dir: Path = DATA_DIR) -> int:
     quella salvata, prima si ricrea la tabella vuota, con le colonne di oggi."""
     data_dir = Path(data_dir)
     health_dir = data_dir / "health"
+    # Lo stesso lucchetto di `db.sync()`: la tabella della salute sta nello
+    # stesso file delle attivita', e i due giri scrivevano insieme (todo 93).
+    with write_lock(data_dir):
+        return _sync_health_locked(data_dir, health_dir)
+
+
+def _sync_health_locked(data_dir: Path, health_dir: Path) -> int:
     conn = _connect(data_dir)
     try:
         row = conn.execute("SELECT value FROM schema_meta WHERE key=?", (_VERSION_KEY,)).fetchone()

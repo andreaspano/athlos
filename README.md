@@ -111,7 +111,8 @@ Si distingue una seduta strutturata da una corsa libera dal
 sono l'auto-lap al chilometro e quel campo e' vuoto, quindi la tabella non
 si disegna. Il ritmo manca dove la distanza la indovina il polso (il
 nastro). I giri stanno **solo nei file**, non si ricavano dai dati gia' in
-tabella: la tabella nuova si riempie con un rebuild (`LOGIC_VERSION` "9").
+tabella: la tabella nuova si riempie con un rebuild (`LOGIC_VERSION` "9"),
+che dal todo 93 e' il comando `make rebuild` e non parte piu' da se'.
 
 ### Il tapis roulant e' uno sport, non una corsa
 

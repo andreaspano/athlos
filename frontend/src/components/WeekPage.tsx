@@ -47,6 +47,7 @@ import {
 import { markdown, sectionBody, sectionVerdict, sectionWrittenAt } from "../markdown";
 import { ETICHETTE, paramFromUrl, pushUrl, weeksFromUrl, type View } from "../navigation";
 import { useColorScheme } from "../useColorScheme";
+import { CacheWarning } from "./CacheWarning";
 import { WeekCalendar } from "./WeekCalendar";
 import { CardHead, EmptyBar, RangeBar, Stat, WrittenAt, num } from "./Stat";
 import { SectionRefresh } from "./SectionRefresh";
@@ -216,6 +217,9 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
   // che e' la pagina di prima.
   const [planned, setPlanned] = useState<string[]>([]);
   const [refresh, setRefresh] = useState<RefreshStatus | null>(null);
+  // Come nella Day: la cache non e' del lavoro, quindi non passa dalla
+  // guardia sul tipo.
+  const [cache, setCache] = useState<RefreshStatus["cache"]>(null);
   // Vero da quando si e' premuto un tasto: prima di allora un lavoro
   // fallito e' roba di qualcun altro, e non si annuncia.
   const [watched, setWatched] = useState(false);
@@ -391,6 +395,7 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
     api
       .refresh(controller.signal)
       .then((status) => {
+        setCache(status.cache ?? null);
         if (status.kind !== "weekly") return;
         if (status.status === "running") setWatched(true);
         setRefresh(status);
@@ -405,6 +410,7 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
       api
         .refresh()
         .then((status) => {
+          setCache(status.cache ?? null);
           if (status.kind !== "weekly") return;
           setRefresh(status);
           if (status.status !== "running") setReloads((n) => n + 1);
@@ -589,6 +595,7 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
             onSelect={changeWeek}
           />
         </div>
+        <CacheWarning state={cache} />
         {error && <p className="warning">{error}</p>}
         {watched && refresh?.status === "failed" && (
           <p className="warning">
