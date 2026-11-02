@@ -183,21 +183,41 @@ def _workout(fit: FitFile) -> dict:
     seguiva un allenamento.
 
     Vuole lo stesso `FitFile` gia' aperto per `session`, come `_vo2max`:
-    nessun parsing in piu'. Si contano solo i passi `active` scritti nel file:
-    sui file di Andrea (Rip_3x5, Rip_4x5) le ripetute sono passi distinti, non
-    un passo con un `repeat`."""
+    nessun parsing in piu'.
+
+    **I blocchi `repeat` si espandono.** Su molti file di Andrea (Rip_3x5,
+    Rip_4x5) le ripetute sono passi distinti e contarli basta; su altri
+    (Rip_5min4T) sono un passo solo piu' un passo di ripetizione, e contando
+    i passi scritti venivano una ripetuta invece di quattro — quindi
+    `guess_run_type` non arrivava mai a `intervals` e la corsa usciva
+    `easy`, con una correzione a mano a rimediare.
+
+    Un passo con `duration_type = repeat_until_steps_cmplt` dice da quale
+    passo tornare (`duration_step`) e quante volte si fa il giro
+    (`repeat_steps`): i passi di quel tratto valgono quelle volte. La
+    moltiplicazione regge anche i blocchi dentro i blocchi, perche' il
+    `repeat` esterno viene dopo e moltiplica di nuovo il tratto interno."""
     workout = next(fit.get_messages("workout"), None)
     if workout is None:
         return {"workout_name": None, "workout_active_steps": None, "workout_active_max_s": None}
-    durations = [
-        step.get_value("duration_time")
-        for step in fit.get_messages("workout_step")
-        if step.get_value("intensity") == "active"
+    steps = [step.get_values() for step in fit.get_messages("workout_step")]
+    times = dict.fromkeys(range(len(steps)), 1)
+    for index, step in enumerate(steps):
+        if step.get("duration_type") != "repeat_until_steps_cmplt":
+            continue
+        back, repeats = step.get("duration_step"), step.get("repeat_steps")
+        if isinstance(back, int) and isinstance(repeats, int) and repeats > 1 and back < index:
+            for inside in range(back, index):
+                times[inside] *= repeats
+    active = [
+        (times[index], step.get("duration_time"))
+        for index, step in enumerate(steps)
+        if step.get("intensity") == "active"
     ]
-    timed = [d for d in durations if isinstance(d, (int, float))]
+    timed = [duration for _, duration in active if isinstance(duration, (int, float))]
     return {
         "workout_name": workout.get_value("wkt_name"),
-        "workout_active_steps": len(durations),
+        "workout_active_steps": sum(count for count, _ in active),
         "workout_active_max_s": max(timed) if timed else None,
     }
 

@@ -52,10 +52,18 @@ def guess_run_type(
     """Il tipo stimato, o `None` per gli sport che non sono corsa.
 
     Le regole, in ordine: allenamento con almeno 2 passi `active` ->
-    ripetute; con un solo passo `active` di almeno 10 minuti -> tempo; senza
-    allenamento e lunga almeno `LONG_MIN` minuti -> lunga; altrimenti
-    facile. Gara non si stima mai, e nemmeno tempo senza allenamento: dai
-    battiti non si distingue una corsa libera forte da una gara."""
+    ripetute; con un solo passo `active` di almeno 10 minuti -> tempo; lunga
+    almeno `LONG_MIN` minuti -> lunga; altrimenti facile. Gara non si stima
+    mai, e nemmeno tempo senza allenamento: dai battiti non si distingue una
+    corsa libera forte da una gara.
+
+    **La regola della lunga guarda la durata e basta.** Stava attaccata a un
+    `elif` del ramo dell'allenamento, quindi una corsa che l'orologio ha
+    fatto girare come allenamento non poteva essere lunga per quanto durasse:
+    il lungo di 115 minuti del 31 ottobre, con il workout `w01_long`, usciva
+    `easy`. Una corsa con un allenamento e' se mai **piu'** probabile che sia
+    un lungo pianificato, non meno. Le ripetute e il tempo restano prima: una
+    seduta a ripetute di due ore e' una seduta a ripetute."""
     if not has_run_type(sport):
         return None
     has_workout = not _missing(workout_name) or not _missing(workout_active_steps)
@@ -66,7 +74,7 @@ def guess_run_type(
         longest = 0 if _missing(workout_active_max_s) else float(workout_active_max_s)
         if steps == 1 and longest >= TEMPO_STEP_MIN_S:
             return "tempo"
-    elif not _missing(total_time_min) and total_time_min >= LONG_MIN:
+    if not _missing(total_time_min) and total_time_min >= LONG_MIN:
         return "long"
     return "easy"
 
