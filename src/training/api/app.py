@@ -559,7 +559,13 @@ def _fragment_sections(
         # Prima si toglie il verdetto, poi si guarda se e' rimasto del testo:
         # un frammento che contiene solo `verdict: high` non e' una sezione
         # scritta, e con l'ordine di prima prendeva l'ora e un corpo vuoto.
-        verdict, body = _verdict(body)
+        #
+        # E si toglie **solo a Training**, che e' la sola a cui si chiede di
+        # scriverlo (`refresh.py:496`, e `models.py` lo dichiara): sulle
+        # altre quella riga non e' un voto, e' la prima frase del commento.
+        verdict = None
+        if section.key == "training":
+            verdict, body = _verdict(body)
         written = datetime.fromtimestamp(path.stat().st_mtime) if body else None
         found.append((section.title, body, written, verdict))
     return found
@@ -568,8 +574,15 @@ def _fragment_sections(
 # La prima riga di un frammento, quando l'agente ha dato un voto (todo 92):
 # `verdict: high`. Solo in cima, e solo le cinque parole della scala — una
 # riga che dice altro e' testo, e il testo non si tocca.
+# La parola deve stare **da sola sulla sua riga**: `\b` non basterebbe, perche'
+# fra "medium" e "-high" un confine di parola c'e'. Senza l'ancora, una frase
+# che comincia per una delle cinque parole veniva mangiata: `verdict:
+# medium-high` dava faccia "medium" e corpo "-high", e `verdict: high resting
+# heart rate this week` perdeva tre parole. E spazi e tabulazioni, non `\s`,
+# che comprende il fine riga e accettava la parola sulla riga dopo.
 _VERDICT_LINE = re.compile(
-    r"\A\s*verdict\s*:\s*(terrible|low|medium|high|perfect)\s*\n?", re.IGNORECASE
+    r"\A[ \t]*verdict[ \t]*:[ \t]*(terrible|low|medium|high|perfect)[ \t]*(?:\r?\n|\Z)",
+    re.IGNORECASE,
 )
 
 

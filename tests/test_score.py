@@ -55,3 +55,57 @@ class TestSummary:
         with_load = _card_scores([2, 2, 2], [2, 2, 2], [centred(10, BAND)], [2, 2, 2])
         without = _card_scores([2, 2, 2], [2, 2, 2], [None], [2, 2, 2])
         assert with_load["summary"] == without["summary"] == "perfect"
+
+
+class TestWeeklyLoadVotes:
+    """La card Load della Week disegna quattro barre — il carico dei sette
+    giorni e i tre tempi per zona — e la faccia deve votare su quelle
+    quattro, come fa il giorno con le tre di `LoadCard.tsx`."""
+
+    def payload(self, acute, zone_minutes):
+        band = {"low": 100, "high": 200, "outer_low": 50, "outer_high": 250}
+        zones = {
+            key: {"minutes": minutes, "band": dict(band), "weeks": 12}
+            for key, minutes in zip(
+                ("low_aerobic", "high_aerobic", "anaerobic"), zone_minutes
+            )
+        }
+        # `zones` tiene anche due numeri che non sono misure: non devono votare.
+        zones["sessions_without_hr"] = 0
+        zones["measured_min"] = sum(zone_minutes)
+        return {
+            "measures": {},
+            "fitness": None,
+            "load": {"load_acute": acute, "band": dict(band)},
+            "zones": zones,
+        }
+
+    def test_the_zones_vote(self):
+        from training.api.score import weekly_scores
+
+        # Carico fra una e due sigma (0), tutte e tre le zone dentro (+1):
+        # la media e' +0.75, che arrotonda a +1.
+        scores = weekly_scores(self.payload(220, (150, 150, 150)))
+        assert scores["load"] == "high"
+
+    def test_the_load_alone_no_longer_decides(self):
+        from training.api.score import weekly_scores
+
+        dentro = weekly_scores(self.payload(150, (150, 150, 150)))["load"]
+        fuori = weekly_scores(self.payload(150, (400, 400, 400)))["load"]
+        assert dentro != fuori, "le zone cambiano la faccia a carico uguale"
+
+    def test_the_two_numbers_that_are_not_measures_do_not_vote(self):
+        from training.api.score import WEEK_ZONE_KEYS, weekly_scores
+
+        assert "measured_min" not in WEEK_ZONE_KEYS
+        payload = self.payload(150, (150, 150, 150))
+        payload["zones"]["measured_min"] = 99999
+        assert weekly_scores(payload)["load"] == "high"
+
+    def test_a_week_without_zones_still_has_a_face(self):
+        from training.api.score import weekly_scores
+
+        payload = self.payload(150, (150, 150, 150))
+        payload["zones"] = {}
+        assert weekly_scores(payload)["load"] == "high"
