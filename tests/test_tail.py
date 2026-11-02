@@ -79,6 +79,7 @@ class TestZoneMinutes:
             {
                 "start_time": pd.to_datetime(["2026-10-27 10:00", "2026-10-29 10:00"]),
                 "sport": ["running", "running"],
+                "avg_heart_rate": [140, 140],
                 "min_low_aerobic": [minutes, minutes],
                 "min_high_aerobic": [minutes, minutes],
                 "min_anaerobic": [minutes, minutes],
@@ -93,7 +94,10 @@ class TestZoneMinutes:
             None, None, None
         ]
         assert zones["measured_min"] is None
-        assert zones["sessions_without_hr"] == 2
+        # La frequenza c'era: quello che manca e' la soglia con cui dividere
+        # le zone, e sono due conti diversi (vedi `tests/test_zone_band.py`).
+        assert zones["sessions_without_hr"] == 0
+        assert zones["sessions_without_zones"] == 2
 
     def test_a_week_with_no_sessions_is_a_real_zero(self):
         import pandas as pd

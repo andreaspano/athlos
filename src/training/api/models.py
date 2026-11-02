@@ -580,8 +580,14 @@ class WeekZones(BaseModel):
     anaerobic: WeekZone
     measured_min: float | None = Field(description="The three added up: time with heart rate.")
     sessions_without_hr: int = Field(
-        description="Sessions of the week with no heart rate, so outside this count. Garmin's "
-        "load sees them and these minutes do not."
+        description="Sessions of the week the watch recorded with no heart rate at all: "
+        "climbing, a walk with the watch in a pocket."
+    )
+    sessions_without_zones: int = Field(
+        default=0,
+        description="Sessions outside this count, a wider set: it also holds the ones that have "
+        "a heart rate but no threshold to split the zones with. Garmin's load sees them and "
+        "these minutes do not.",
     )
 
 

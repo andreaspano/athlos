@@ -2350,9 +2350,15 @@ export interface components {
             measured_min: number | null;
             /**
              * Sessions Without Hr
-             * @description Sessions of the week with no heart rate, so outside this count. Garmin's load sees them and these minutes do not.
+             * @description Sessions of the week the watch recorded with no heart rate at all: climbing, a walk with the watch in a pocket.
              */
             sessions_without_hr: number;
+            /**
+             * Sessions Without Zones
+             * @description Sessions outside this count, a wider set: it also holds the ones that have a heart rate but no threshold to split the zones with. Garmin's load sees them and these minutes do not.
+             * @default 0
+             */
+            sessions_without_zones: number;
         };
         /**
          * WeeklyData
