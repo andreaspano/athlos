@@ -174,7 +174,7 @@ def _band(
     return _band_edges(values.mean(), values.std(), limits, digits)
 
 
-def _morning(health: pd.DataFrame, day: date) -> dict[str, Any]:
+def _morning(health: pd.DataFrame, day: date, data_dir: Path = DATA_DIR) -> dict[str, Any]:
     """Ogni misura: il valore, le medie a 7 e 28 giorni (con quanti giorni) e
     la differenza dalla media a 28. Le medie sono calcolate rispetto al giorno
     da cui si legge la misura."""
@@ -199,7 +199,7 @@ def _morning(health: pd.DataFrame, day: date) -> dict[str, Any]:
             "band": _band(long_window, MORNING_LIMITS.get(name)),
         }
     result["hrv_status"] = _value(_health_row(health, day)["hrv_status"])
-    result["hrv_baseline"] = _hrv_baseline(day)
+    result["hrv_baseline"] = _hrv_baseline(day, data_dir)
     return result
 
 
@@ -574,7 +574,9 @@ def _acclimation(day: date, data_dir: Path = DATA_DIR) -> dict[str, Any]:
     }
 
 
-def fitness_on(health: pd.DataFrame, day: date) -> dict[str, Any]:
+def fitness_on(
+    health: pd.DataFrame, day: date, data_dir: Path = DATA_DIR
+) -> dict[str, Any]:
     """La card Fitness della Day in React (todo 37 e 38): VO2max, endurance e
     hill score piu' recenti fino a `day`, sempre, con la data e la variazione
     in 28 giorni. Al contrario di `_vo2max_change` non c'e' soglia: la card li
@@ -597,7 +599,7 @@ def fitness_on(health: pd.DataFrame, day: date) -> dict[str, Any]:
         "vo2max": vo2max,
         "endurance": endurance,
         "hill": _latest_with_change(health, day, "hill_score", digits=0),
-        **_acclimation(day),
+        **_acclimation(day, data_dir),
     }
 
 
@@ -967,7 +969,7 @@ def build_daily_data(
     if health is None:
         health = load_health_db(data_dir)
 
-    morning = _morning(health, day)
+    morning = _morning(health, day, data_dir)
     sleep = _sleep_last_7(health, day)
     load_now = _load(health, day)
     load_week_ago = _load(health, day - timedelta(days=7))

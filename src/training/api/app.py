@@ -115,7 +115,12 @@ Context = Annotated[UserContext, Depends(get_user_context)]
 
 # Le icone degli sport e delle sezioni dei report, in sola lettura: le
 # risposte danno solo il nome del file, e il frontend lo chiede qui.
-app.mount("/icons", StaticFiles(directory=ICONS_DIR), name="icons")
+#
+# Con la guardia come per `dist/` qui sotto: `StaticFiles` su una cartella che
+# non c'e' alza all'import, quindi un clone senza `icons/` non lasciava senza
+# icone — lasciava senza API, perche' uvicorn non partiva affatto.
+if ICONS_DIR.is_dir():
+    app.mount("/icons", StaticFiles(directory=ICONS_DIR), name="icons")
 
 
 def _records_dicts(frame: pd.DataFrame, columns: list[str]) -> list[dict[str, Any]]:

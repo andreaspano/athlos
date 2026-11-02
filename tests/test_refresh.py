@@ -207,3 +207,68 @@ class TestFragmentReaders:
         assert body == ""
         assert written is None, "nessuna ora su una sezione senza testo"
         assert verdict == "high"
+
+
+class TestSummaryGate:
+    """Il Summary legge i frammenti degli altri (`Section.reads_fragments`):
+    se in questo giro qualcuno e' fallito, dei suoi leggerebbe il testo del
+    giro prima."""
+
+    def test_the_summary_does_not_run_after_a_failure(self, harness, tmp_path):
+        ran: list[str] = []
+
+        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+            ran.append(section.key)
+            if section.key == "health":
+                return False, "01_health exited with 1."
+            (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
+            return True, None
+
+        args = harness(write=write)
+        order = [s for s in DAILY.run_order if s.key in ("health", "summary")]
+        outcome = run(args, sections=order)
+
+        assert "health" in ran
+        assert "summary" not in ran, "non si chiama l'agente del Summary"
+        assert outcome["sections"]["summary"]["status"] == "failed"
+        assert "not run" in outcome["sections"]["summary"]["message"]
+        assert "health" in outcome["sections"]["summary"]["message"]
+
+    def test_the_summary_runs_when_the_others_are_fine(self, harness):
+        ran: list[str] = []
+
+        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+            ran.append(section.key)
+            (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
+            return True, None
+
+        args = harness(write=write)
+        order = [s for s in DAILY.run_order if s.key in ("health", "summary")]
+        outcome = run(args, sections=order)
+
+        assert "summary" in ran
+        assert outcome["sections"]["summary"]["status"] == "done"
+
+
+class TestCollisionExitCode:
+    def test_a_report_that_could_not_run_exits_non_zero(self, monkeypatch, tmp_path):
+        """Il timer ha `OnFailure=mygarmin-alert@`: uscendo 0, systemd
+        registrava un successo per un giro che non ha scritto niente."""
+        import contextlib
+
+        import pytest as _pytest
+
+        @contextlib.contextmanager
+        def busy(data_dir):
+            yield False
+
+        monkeypatch.setattr(R, "_claim", busy)
+        monkeypatch.setattr(R, "_prepare", lambda *a, **k: (True, None, None))
+        args = dict(
+            kind=DAILY, subject=DAY, started=datetime.now(), repo_root=tmp_path,
+            summary_dir=tmp_path, data_dir=tmp_path,
+        )
+        assert run(args) is None, "il giro non parte"
+        # e il comando, davanti a None, esce 1: vedi `_cli`.
+        source = (R.__file__,)
+        assert "raise SystemExit(1)" in open(source[0], encoding="utf-8").read()

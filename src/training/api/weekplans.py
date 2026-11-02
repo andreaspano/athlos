@@ -411,12 +411,18 @@ def generate(
     tally: dict = {"written": [], "failed": [], "trashed": 0, "stopped": False}
     folder = Path(summary_dir) / WEEK_PLAN_FOLDER
     staging = folder / STAGING_FOLDER
-    with _claim(data_dir) as mine:
-        if not mine:
-            tally["stopped"] = True
-            return tally
-        staging.mkdir(parents=True, exist_ok=True)
-        for week in wanted:
+    staging.mkdir(parents=True, exist_ok=True)
+    # Il lock si prende e si lascia **una settimana per volta**, non per tutto
+    # il giro: diciotto settimane sono tre ore, e tenendolo dall'inizio alla
+    # fine ogni report che cadeva in quella finestra — le 8 e le 21 — trovava
+    # il lock occupato e non si scriveva. Fra una settimana e l'altra adesso
+    # c'e' il suo spazio. Le settimane sono indipendenti: ognuna vede il file
+    # di quella prima, che per allora e' gia' al suo posto.
+    for week in wanted:
+        with _claim(data_dir) as mine:
+            if not mine:
+                tally["stopped"] = True
+                return tally
             target = folder / week.file
             staged = staging / week.file
             # Il lunedi' prima, che e' la settimana prima: se c'e' un file, e'
@@ -461,8 +467,9 @@ def main() -> None:
     """Il generatore da terminale (`training-week-plans`, `make week_plans`).
 
     Non e' una cosa da mettere in un timer: sono diciassette sessioni di
-    `claude` e mezz'ora col lock in mano, e un piano nuovo non e' una cosa
-    che succede ogni notte alle otto."""
+    `claude`, e un piano nuovo non e' una cosa che succede ogni notte alle
+    otto. Il lock lo prende una settimana per volta (vedi `write_weeks`),
+    cosi' un report che casca in mezzo al giro trova il suo spazio."""
     from training.api.context import REPO_ROOT
     from training.garmin.config import DATA_DIR, PLAN_DIR, SUMMARY_DIR
 
