@@ -94,10 +94,18 @@ def _source_mtimes(health_dir: Path) -> dict[str, float]:
     faceva `available_days`: un file che non si chiama come un giorno non e'
     un giorno."""
     out: dict[str, float] = {}
+    unreadable = 0
     for name in _USED_ENDPOINTS:
         try:
             entries = os.scandir(health_dir / name)
-        except OSError:
+        except OSError as exc:
+            # Una cartella che non c'e' e' normale (un endpoint mai
+            # scaricato); una che non si legge no, e va detto: la differenza
+            # fra "niente da leggere" e "non riesco a leggere" e' quella fra
+            # un archivio vuoto e un disco smontato.
+            if not isinstance(exc, FileNotFoundError):
+                print(f"  ATTENZIONE: {health_dir / name} non si legge ({exc}).")
+                unreadable += 1
             continue
         with entries:
             for entry in entries:
@@ -111,6 +119,11 @@ def _source_mtimes(health_dir: Path) -> dict[str, float]:
                     continue
                 if mtime > out.get(day, 0.0):
                     out[day] = mtime
+    if unreadable:
+        raise OSError(
+            f"{unreadable} cartelle di health/ non si leggono: la scansione non e' "
+            f"attendibile e la cache non si tocca"
+        )
     return out
 
 
@@ -139,6 +152,21 @@ def sync_health(data_dir: Path = DATA_DIR) -> int:
 
         cached = dict(conn.execute("SELECT day, source_mtime FROM health_daily"))
         mtimes = _source_mtimes(health_dir)
+        # **Una scansione vuota non e' la prova che i file sono spariti.** Con
+        # la cartella dei dati smontata, spostata o in mezzo a un rsync, la
+        # scansione non trova niente e la riga qui sotto cancellerebbe tutta
+        # la tabella — 6150 giorni — senza che niente alzi: ogni endpoint
+        # continuerebbe a rispondere 200 con la salute tutta vuota, le card
+        # bianche e gli agenti a scrivere su un corpo vuoto. Per rimetterla a
+        # posto servirebbe rileggere 11 x 6150 file JSON.
+        #
+        # Se la tabella ha delle righe e la scansione non ne trova nessuna, il
+        # problema e' la scansione.
+        if cached and not mtimes:
+            raise OSError(
+                f"nessun file di salute in {health_dir}, ma la cache ne ha "
+                f"{len(cached)} giorni: non la svuoto"
+            )
 
         parsed_at = datetime.now().isoformat(sep=" ")
         rows = []
