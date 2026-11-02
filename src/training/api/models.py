@@ -722,6 +722,15 @@ class WeeklyData(BaseModel):
     days: list[dict[str, Any]] = Field(description="One entry per day of the week.")
     activities: list[dict[str, Any]]
     coverage: dict[str, int] = Field(description="Measured days per metric, out of seven.")
+    health_days: int = Field(
+        description="How many of the seven days have any health measure at all."
+    )
+    vo2max: list[dict[str, Any]] = Field(
+        description="The VO2max measurements taken inside the week, oldest first."
+    )
+    four_weeks: list[dict[str, Any]] = Field(
+        description="The four weeks before this one: sessions, time, sport, recovery."
+    )
     scores: Scores = Field(description="How each card is doing, from the bands (todo 92).")
 
 

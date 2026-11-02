@@ -406,7 +406,13 @@ def _fitness_bands(health: pd.DataFrame, monday: date) -> dict[str, dict[str, An
     for column, digits in FITNESS_SCORES:
         before = pd.Series(
             [
-                _at_end_of(health, column, monday - timedelta(weeks=k, days=1))
+                # La domenica che **chiude** la settimana che comincia
+                # `monday - 7k`, scritta come la scrive `_week_load`. Con
+                # `weeks=k, days=1` si campionava una settimana troppo
+                # indietro per ogni k: le fasce stavano sulle settimane da 2
+                # a 13 invece che sulle dodici precedenti, e la domenica che
+                # chiude quella appena passata non veniva guardata mai.
+                _at_end_of(health, column, monday - timedelta(weeks=k) + timedelta(days=6))
                 for k in range(1, BAND_WEEKS + 1)
             ],
             dtype="float64",
