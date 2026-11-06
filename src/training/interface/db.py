@@ -400,10 +400,6 @@ def _local_to_epoch(ts) -> int:
     return int(localized.timestamp())
 
 
-def _epoch_to_local(epoch: int) -> datetime:
-    return datetime.fromtimestamp(epoch, tz=LOCAL_TZ).replace(tzinfo=None)
-
-
 def _clean(value):
     if value is None:
         return None

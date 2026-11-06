@@ -190,13 +190,10 @@ def load_config(path: Path) -> Config:
 
 DATA_ROOT = load_data_root(POINTER_PATH)
 
-# Le sette cartelle della radice (todo 65), nominate qui una volta sola.
-# `health/` era gia' cosi'; le altre raccoglievano file che stavano tutti
-# piatti nella stessa cartella, FIT, JSON e database insieme.
-FIT_DIR = DATA_ROOT / "fit"
-HEALTH_DIR = DATA_ROOT / "health"
-JSON_DIR = DATA_ROOT / "json"
-DB_DIR = DATA_ROOT / "db"
+# Le cartelle della radice (todo 65) che si nominano da qui. Sono sette sul
+# disco — `fit/`, `health/`, `json/`, `db/` e queste tre — ma le prime
+# quattro se le compone chi le usa a partire da `DATA_ROOT`, e una costante
+# che nessuno legge e' una seconda verita' da tenere d'accordo con la prima.
 USER_DIR = DATA_ROOT / "user"
 SUMMARY_DIR = DATA_ROOT / "summary"
 PLAN_DIR = DATA_ROOT / "plan"

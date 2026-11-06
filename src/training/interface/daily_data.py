@@ -610,7 +610,6 @@ def fitness_on(
 # card del Report gia' si confrontano.
 TREND_MIN_DAYS = 5
 TREND_MAX_DAYS = 365
-TREND_DEFAULT_DAYS = BASELINE_LONG
 
 # Una serie del Trend: la colonna da cui si legge, come si chiama a schermo,
 # l'unita' (`None` per i punteggi puri) e i decimali.

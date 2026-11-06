@@ -28,7 +28,7 @@ const AFTER = 2;
  * le settimane che vengono compaiono da se', senza una regola in piu'.
  * Senza `limit` il tetto resta la settimana corrente, cioe' la pagina di
  * prima di quel todo. */
-export function weeksAround(monday: string, current: string, limit?: string): string[] {
+function weeksAround(monday: string, current: string, limit?: string): string[] {
   const oldest = addDays(current, -7 * (WEEKS - 1));
   const ahead = minWeek(addDays(monday, 7 * AFTER), limit ?? current);
   const end = monday > current ? ahead : monday >= oldest ? current : minWeek(ahead, current);
