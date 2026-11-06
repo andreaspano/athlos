@@ -2,7 +2,7 @@
 # 2026-10-21; la settimana dal todo 53).
 #
 # **Dal todo 81 il modo normale sono i timer di systemd** (`deploy/*.timer`,
-# `make install_timers`): recuperano un giro saltato e lasciano un guasto
+# `make install_services`): recuperano un giro saltato e lasciano un guasto
 # visibile in `systemctl --user --failed`, due cose che cron non sa fare.
 # Queste righe restano per poterci tornare, e perche' chi le ha ancora
 # installate possa toglierle con `make uninstall_cron`. I due meccanismi non

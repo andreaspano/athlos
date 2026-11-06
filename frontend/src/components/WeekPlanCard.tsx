@@ -57,7 +57,7 @@ const PLAN_ICON = "next.png";
  * minore, perche' e' il documento che parla. Un giorno senza riga nella
  * tabella non ha il dettaglio e non lascia un buco: il piano puo' non
  * averlo. */
-export function PlanDayRow({
+function PlanDayRow({
   day,
   session,
   sport,

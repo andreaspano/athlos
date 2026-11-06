@@ -49,7 +49,7 @@ function startOf(to: string, days: number): string {
 /** Gli estremi della finestra, "28 Sep - 25 Oct". Con l'anno sul primo
  * quando la finestra lo scavalca: a 365 giorni "26 Oct - 25 Oct" sembrava
  * un intervallo di un giorno. */
-export function rangeLabel(from: string, to: string): string {
+function rangeLabel(from: string, to: string): string {
   const anno = from.slice(0, 4) === to.slice(0, 4) ? "" : ` ${from.slice(0, 4)}`;
   return `${shortDayLabel(from)}${anno} \u2013 ${shortDayLabel(to)}`;
 }
