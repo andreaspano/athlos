@@ -31,8 +31,10 @@ def harness(tmp_path, monkeypatch):
     sezione, se l'agente ha scritto.
     """
 
-    def build(prepare=lambda *a, **k: (True, None, {"ok": True, "message": None}), write=None):
-        def default_write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+    def build(
+        prepare=lambda *a, **k: (True, None, {"ok": True, "message": None}, {}), write=None
+    ):
+        def default_write(kind, section, subject, moment, repo_root, facts, folder, summary_dir):
             (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
             return True, None
 
@@ -78,7 +80,7 @@ class TestTerminalState:
         assert "OSError" in state["message"]
 
     def test_a_failed_section_is_reported(self, harness):
-        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+        def write(kind, section, subject, moment, repo_root, facts, folder, summary_dir):
             if section.key == DAILY.run_order[0].key:
                 return False, "02_load exited with 1."
             (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
@@ -115,34 +117,50 @@ class TestLockCollision:
         assert state["sections"][key]["message"] == "02_load exited with 1.", "il motivo resta"
 
 
-def test_write_section_refuses_an_empty_file(tmp_path, monkeypatch):
-    """Il controllo vero, preso da solo: `claude` esce 0 e lascia un file
-    vuoto."""
-    import subprocess
+class TestWriteSection:
+    """Il vero `_write_section`, con il modello sostituito.
 
-    section = DAILY.run_order[0]
-    folder = tmp_path / "day"
-    folder.mkdir()
+    Dal todo 94 non c'e' piu' un sottoprocesso da fingere: si sostituisce
+    `agents.write`, che e' l'unica cosa che esce dal processo.
+    """
 
-    def fake_run(command, **kwargs):
-        (folder / f"{section.key}.md").touch()
-        return subprocess.CompletedProcess(command, 0, "", "")
+    def section_and_folder(self, tmp_path):
+        folder = tmp_path / "day"
+        folder.mkdir()
+        return DAILY.run_order[0], folder
 
-    monkeypatch.setattr(R.shutil, "which", lambda name: "/usr/bin/claude")
-    monkeypatch.setattr(R.subprocess, "run", fake_run)
-    monkeypatch.setattr(R, "_prompt", lambda *a, **k: "prompt")
-    monkeypatch.setattr(R, "_allowed_tools", lambda *a, **k: ["Read"])
+    def call(self, tmp_path, section, folder):
+        return R._write_section(
+            DAILY, section, DAY, "morning", tmp_path, {"morning": {}}, folder, tmp_path,
+        )
 
-    # `began` e' un secondo prima, come nella realta': fra la partenza e il
-    # frammento passa il tempo dell'agente. (E serve: l'`mtime` di un file
-    # appena creato puo' essere un millesimo *indietro* rispetto a
-    # `datetime.now()`, perche' i due orologi hanno grana diversa.)
-    good, problem = R._write_section(
-        DAILY, section, DAY, "morning", tmp_path, tmp_path / "facts.json",
-        folder, datetime.now() - timedelta(seconds=1), tmp_path,
-    )
-    assert good is False
-    assert "empty" in problem
+    def test_it_writes_what_the_model_answered(self, tmp_path, monkeypatch):
+        section, folder = self.section_and_folder(tmp_path)
+        monkeypatch.setattr(R.agents, "write", lambda *a, **k: "  il testo della sezione  ")
+
+        good, problem = self.call(tmp_path, section, folder)
+
+        assert (good, problem) == (True, None)
+        assert (folder / f"{section.key}.md").read_text(encoding="utf-8") == (
+            "il testo della sezione\n"
+        ), "scritto senza spazi attorno e con una riga finale"
+
+    def test_a_model_that_answers_nothing_is_a_failure(self, tmp_path, monkeypatch):
+        """Il controllo vero: un frammento vuoto passava per scritto, contava
+        come sezione fatta e lasciava la card bianca. Adesso il testo non
+        arriva nemmeno al disco."""
+        section, folder = self.section_and_folder(tmp_path)
+
+        def nothing(*a, **k):
+            raise R.agents.AgentError("01_health: the model answered nothing.")
+
+        monkeypatch.setattr(R.agents, "write", nothing)
+
+        good, problem = self.call(tmp_path, section, folder)
+
+        assert good is False
+        assert "answered nothing" in problem
+        assert not (folder / f"{section.key}.md").exists(), "niente file"
 
 
 class TestBackfill:
@@ -151,13 +169,13 @@ class TestBackfill:
         era fallito si contava con gli stati 'done' del periodo prima."""
         calls = {"n": 0}
 
-        def prepare(kind, subject, repo_root, data_dir, facts, update):
+        def prepare(kind, subject, repo_root, data_dir, update):
             calls["n"] += 1
             if subject == date(2026, 10, 2):
-                return False, "i fatti non si preparano", None
-            return True, None, None
+                return False, "i fatti non si preparano", None, None
+            return True, None, None, {}
 
-        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+        def write(kind, section, subject, moment, repo_root, facts, folder, summary_dir):
             (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
             return True, None
 
@@ -217,7 +235,7 @@ class TestSummaryGate:
     def test_the_summary_does_not_run_after_a_failure(self, harness, tmp_path):
         ran: list[str] = []
 
-        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+        def write(kind, section, subject, moment, repo_root, facts, folder, summary_dir):
             ran.append(section.key)
             if section.key == "health":
                 return False, "01_health exited with 1."
@@ -237,7 +255,7 @@ class TestSummaryGate:
     def test_the_summary_runs_when_the_others_are_fine(self, harness):
         ran: list[str] = []
 
-        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+        def write(kind, section, subject, moment, repo_root, facts, folder, summary_dir):
             ran.append(section.key)
             (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
             return True, None

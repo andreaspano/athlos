@@ -57,8 +57,6 @@ dire ad alta voce: **generare e' un gesto distruttivo**, il primo che tocca
 file dentro `summary/`."""
 
 import argparse
-import shutil
-import subprocess
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -81,10 +79,12 @@ from training.api.plans import (
     week_plan_path,
 )
 
-# Il lock dei lavori e il timeout di un agente sono quelli dei report: due
-# serie di `claude` sugli stessi file non si fanno, e fra processi diversi il
-# file e' l'unica cosa che lo impedisce.
-from training.api.refresh import TIMEOUT_SECONDS, _claim, _tail
+# Il lock dei lavori e' quello dei report: due serie di agenti sugli stessi
+# file non si fanno, e fra processi diversi il file e' l'unica cosa che lo
+# impedisce. La chiamata al modello e' la stessa delle sezioni (todo 94).
+from training.api import agents
+from training.api.refresh import _claim
+from training.garmin.files import write_text
 
 # L'agente che scrive una settimana.
 AGENT = "p_week"
@@ -345,16 +345,13 @@ def _previous_of_goal(summary_dir: Path, week: Week, say) -> Path | None:
     return previous
 
 
-def _prompt(goal: dict, plan_dir: Path, week: Week, summary_dir: Path, target: Path,
-            previous: Path | None) -> str:
-    """Il lavoro dell'agente: la sua settimana, il blocco, il formato e la
-    settimana prima.
+def _prompt(week: Week, documents: dict[str, str]) -> str:
+    """Il lavoro dell'agente: la sua settimana, e i blocchi in cui trova il
+    goal, il formato e la settimana prima.
 
-    **La settimana prima e' la sostanza del piano**: il lungo che va da 15 a
-    16, il rifornimento che entra alla settimana 7, gli ultimi chilometri a
-    ritmo gara dalla 10. Senza quel file ogni settimana ripartirebbe dal
-    blocco e la continuita' sarebbe una coincidenza."""
-    readme = Path(summary_dir) / WEEK_PLAN_FOLDER / "README.md"
+    Dal todo 94 non nomina nessun percorso: quello che serve e' nel
+    messaggio (`_documents`), e un blocco che non c'e' cambia la frase invece
+    di mandare l'agente a cercare un file."""
     identity = [
         f"week: {week.monday.isoformat()}",
         f"plan: {week.plan}",
@@ -366,57 +363,77 @@ def _prompt(goal: dict, plan_dir: Path, week: Week, summary_dir: Path, target: P
     if week.target_time is not None:
         identity.append(f'target_time: "{week.target_time}"')
     before = (
-        f"The week before it is written in {previous}: read it, this one carries on from there. "
-        if previous is not None
-        else "There is no week before this one to read. "
+        "The week before it is in the `previous` block: this one carries on from there. "
+        if "previous" in documents
+        else "There is no week before this one. "
     )
     return (
         f"Write the plan of the week of {week.monday.isoformat()} — week {week.block_week} of "
-        f"{week.block_weeks} of the block in {plan_dir / goal['file']}. Read that block: it is "
-        f"the authority on the paces, the volumes and the shape of the week, and the row of your "
-        f"week in its table of the whole block says what this week is for. "
+        f"{week.block_weeks} of the block in the `goal` block. That block is the authority on "
+        f"the paces, the volumes and the shape of the week, and the row of your week in its "
+        f"table of the whole block says what this week is for. "
         f"{before}"
-        f"The format of the file is described in {readme}: read it and follow it, front matter "
+        f"The format of the file is described in the `format` block: follow it, front matter "
         f"and table. "
         f"The front matter must carry exactly these values, which are not yours to decide: "
         + "; ".join(identity)
         + ". The seven `sessions` are the seven days from "
         f"{week.monday.isoformat()} to {week.days[-1].isoformat()}, one per day, and the table "
         f"has a row for each of them. "
-        f"Write the file to {target}."
+        f"Answer with the whole file and nothing else: the front matter between two `---` "
+        f"lines, then the text. No preamble, no fence around it."
     )
 
 
-def _write_week(repo_root: Path, prompt: str, target: Path, began: datetime) -> str | None:
-    """Lancia l'agente su una settimana. Rende il motivo per cui non ha
-    scritto, o `None`.
+def _documents(
+    goal: dict, plan_dir: Path, summary_dir: Path, previous: Path | None
+) -> dict[str, str]:
+    """Quello che l'agente della settimana ha sotto gli occhi: il blocco del
+    goal, il formato del file e la settimana prima.
 
-    Come `refresh._write_section`: stdin chiuso, il timeout di un agente
-    solo, i permessi di scrittura ristretti alla cartella dove il file deve
-    nascere — e il controllo che il file sia stato scritto **adesso**, che
-    uscire 0 non basta."""
-    claude = shutil.which("claude")
-    if claude is None:
-        return "il comando claude non e' nel PATH"
-    command = [
-        claude, "-p", "--agent", AGENT,
-        # Il doppio slash non e' un refuso: in una regola di permesso un
-        # percorso che comincia con `/` si intende relativo alla cartella del
-        # progetto, e per dire "assoluto" se ne mettono due.
-        "--allowedTools", "Read", f"Edit(/{target.parent.resolve()}/**)",
-        "--", prompt,
-    ]
+    Sono i tre file che il suo prompt nominava e che andava a leggere con un
+    giro di tool (todo 94). **La settimana prima e' la sostanza del piano**:
+    il lungo che va da 15 a 16, il rifornimento che entra alla settimana 7,
+    gli ultimi chilometri a ritmo gara dalla 10. Senza quel blocco ogni
+    settimana ripartirebbe dal blocco del goal e la continuita' sarebbe una
+    coincidenza.
+
+    Un file che non si legge si salta, e il prompt si adatta: una settimana
+    scritta senza la precedente e' peggio di una scritta con, ma e' meglio di
+    una non scritta."""
+    documents = {}
+    for name, path in (
+        ("goal", Path(plan_dir) / goal["file"]),
+        ("format", Path(summary_dir) / WEEK_PLAN_FOLDER / "README.md"),
+        ("previous", previous),
+    ):
+        if path is None:
+            continue
+        try:
+            documents[name] = Path(path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+    return documents
+
+
+def _write_week(
+    repo_root: Path, prompt: str, documents: dict[str, str], target: Path
+) -> str | None:
+    """Chiede la settimana al modello e scrive il file in `target`. Rende il
+    motivo per cui non c'e', o `None`.
+
+    Come `refresh._write_section` dal todo 94: il file lo scrive chi
+    controlla, quindi non serve piu' guardare se l'agente l'ha scritto
+    davvero. Il file nasce in `.staging/` e la validazione che segue
+    (`check`) decide se merita la cartella vera: quella parte non cambia."""
     try:
-        done = subprocess.run(
-            command, cwd=repo_root, stdin=subprocess.DEVNULL, capture_output=True,
-            text=True, timeout=TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired:
-        return f"{AGENT} non ha finito in {TIMEOUT_SECONDS // 60} minuti"
-    if done.returncode != 0:
-        return _tail(done) or f"{AGENT} e' uscito con {done.returncode}"
-    if not (target.exists() and target.stat().st_mtime >= began.timestamp()):
-        return f"{AGENT} ha finito senza scrivere {target.name}"
+        text = agents.write(repo_root, AGENT, prompt, documents)
+    except agents.AgentError as exc:
+        return str(exc)
+    try:
+        write_text(target, text.strip() + "\n")
+    except OSError as exc:
+        return f"{target.name} non si scrive: {exc}"
     return None
 
 
@@ -464,12 +481,9 @@ def generate(
             # sbagliata senza che nessuno lo dicesse. Se non e' di questo
             # goal non si passa, e si dice che la catena e' rotta.
             previous = _previous_of_goal(summary_dir, week, say)
-            began = datetime.now()
+            documents = _documents(goal, plan_dir, summary_dir, previous)
             problem = _write_week(
-                repo_root,
-                _prompt(goal, plan_dir, week, summary_dir, staged, previous),
-                staged,
-                began,
+                repo_root, _prompt(week, documents), documents, staged
             )
             problems = [problem] if problem else check(staged, week)
             if problems:
@@ -502,8 +516,8 @@ def _monday(text: str) -> date:
 def main() -> None:
     """Il generatore da terminale (`training-week-plans`, `make week_plans`).
 
-    Non e' una cosa da mettere in un timer: sono diciassette sessioni di
-    `claude`, e un piano nuovo non e' una cosa che succede ogni notte alle
+    Non e' una cosa da mettere in un timer: sono diciassette chiamate al
+    modello, e un piano nuovo non e' una cosa che succede ogni notte alle
     otto. Il lock lo prende una settimana per volta (vedi `write_weeks`),
     cosi' un report che casca in mezzo al giro trova il suo spazio."""
     from training.api.context import REPO_ROOT

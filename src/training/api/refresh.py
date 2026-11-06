@@ -12,10 +12,15 @@ sezioni, la cartella, i fatti e la voce, e sono tutte cose che stanno in
 `sections.Report`. Due cicli quasi uguali che divergono nel tempo sono il
 modo sicuro di avere due difetti diversi.
 
+Dal todo 94 una sezione e' **una chiamata al modello**, non un processo
+`claude -p`: il prompt e i documenti li mette insieme questo modulo
+(`_prompt` e `_documents`), la chiamata la fa `api/agents.py`, e il frammento
+lo scrive `_write_section`. Prima a scriverlo era l'agente, e bisognava
+guardare dopo se l'aveva fatto davvero.
+
 Gli agenti girano **in fila**, non insieme: a parita' di lavoro i gettoni
-sono gli stessi, ma un giro che va storto si ferma invece di bruciare le
-sessioni rimaste, e non si rischiano i limiti di frequenza. Un giro completo
-sono otto agenti da circa un minuto l'uno.
+sono gli stessi, ma un giro che va storto si ferma invece di bruciare quello
+che resta, e non si rischiano i limiti di frequenza.
 
 Dal todo 47 a lanciare non e' piu' solo il tasto: le righe di cron
 (`deploy/crontab`) fanno il giro del mattino e quello della sera, che non
@@ -28,8 +33,8 @@ vengono tre cose che il tasto da solo non chiedeva:
 - l'esito dello **scaricamento** nello stato, perche' senza nessuno a
   guardare un login scaduto scriverebbe report su dati vecchi in silenzio.
 
-I fatti si preparano **una volta sola** (in un file temporaneo) e gli agenti
-leggono quello: otto letture vorrebbero dire otto sincronizzazioni del
+I fatti si preparano **una volta sola** per giro e vanno nel messaggio di
+ogni sezione: calcolarli per ognuna vorrebbe dire sei sincronizzazioni del
 database e della salute.
 
 Lo stato resta in memoria: se il server si riavvia torna `idle`. Lo stdin e'
@@ -39,20 +44,17 @@ password."""
 import argparse
 import contextlib
 import fcntl
-import json
 import math
-import shutil
 import subprocess
-import tempfile
 import threading
 from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from training.api import agents
 from training.api.cache import invalidate
 from training.api.plans import week_plan_path
-from training.garmin.files import write_json
 from training.api.sections import (
     DAILY,
     WEEKLY,
@@ -61,20 +63,12 @@ from training.api.sections import (
     moment_at,
     week_moment_at,
 )
+from training.garmin.files import json_text, write_text
 
-# Quanto si da' a un agente prima di considerarlo perso. Uno solo, non il
-# giro intero: in fila otto agenti lenti farebbero piu' di un'ora.
-TIMEOUT_SECONDS = 10 * 60
 # Il tempo per scaricare i dati nuovi da Garmin, prima degli agenti.
 UPDATE_TIMEOUT_SECONDS = 15 * 60
 # Le righe finali dell'output tenute quando qualcosa fallisce.
 MESSAGE_LINES = 5
-
-# Le regole che valgono per tutte le sezioni (voce, numeri, fasce) stanno in
-# un file solo invece che copiate in otto prompt: `--append-system-prompt-file`
-# le attacca al prompt dell'agente. Provato il 2026-10-20 su un agente finto:
-# con il flag risponde la parola del file, senza no.
-STYLE_FILE = ".claude/agents/_style.md"
 
 _lock = threading.Lock()
 
@@ -86,31 +80,6 @@ _lock = threading.Lock()
 # aspetta mai: chi lo trova occupato se ne va. Vale anche fra giorno e
 # settimana: il giro del lunedi li fa uno dopo l'altro, non insieme.
 LOCK_FILENAME = ".refresh.lock"
-
-
-def _allowed_tools(kind: Report, summary_dir: Path) -> list[str]:
-    """Agli agenti serve leggere (i fatti e i frammenti degli altri) e
-    scrivere il proprio frammento, **solo dentro la cartella del suo
-    report**. I permessi sui file si controllano solo con regole
-    `Edit(...)`: una regola `Write(...)` Claude Code la accetta e non la
-    guarda mai. Niente Bash: i dati e i fatti li prepara questo modulo, una
-    volta per tutti.
-
-    **Il glob e' assoluto**, e dal todo 65 non puo' piu' non esserlo. Era
-    `Edit(summary/<cartella>/**)`, relativo, e funzionava perche' gli agenti
-    girano con `cwd` nella radice del repo e `summary/` stava li' sotto.
-    Adesso i report stanno nella cartella dei dati: il prompt da' gia' un
-    percorso assoluto, e con un glob relativo nessuna scrittura lo
-    soddisferebbe piu'. Il guasto sarebbe muto — non un errore di percorso,
-    ma otto sezioni che "non hanno scritto" (vedi il controllo in fondo a
-    `_write_section`)."""
-    # Il doppio slash non e' un refuso: nelle regole di permesso un percorso
-    # che comincia con `/` si intende **relativo alla cartella del progetto**,
-    # e per dire "assoluto" se ne mette due. Senza, la regola diventa
-    # `<repo>/home/andrea/...`, che non esiste, l'agente chiede un permesso
-    # che nessuno puo' dargli (gira senza terminale) e finisce dicendo di non
-    # aver scritto. Provato: con uno slash no, con due si'.
-    return ["Read", f"Edit(/{Path(summary_dir).resolve() / kind.folder}/**)"]
 
 
 @contextlib.contextmanager
@@ -300,65 +269,63 @@ def _run(
             with _lock:
                 for section in sections:
                     _state["sections"][section.key] = _blank_section()
-            with tempfile.TemporaryDirectory() as tmp:
-                facts = Path(tmp) / f"{kind.name}-{subject.isoformat()}.json"
-                ok, problem, download = _prepare(
-                    kind, subject, repo_root, data_dir, facts, update
-                )
-                with _lock:
-                    _state["download"] = download
-                if not ok:
-                    message = problem
-                else:
-                    folder = Path(summary_dir) / kind.folder / subject.isoformat()
-                    folder.mkdir(parents=True, exist_ok=True)
-                    # Il piano della settimana (todo 14) lo leggono **due**
-                    # sezioni, e per due date diverse: Next, che prescrive la
-                    # seduta del giorno dopo, e Training del giorno (todo
-                    # 64), che giudica quella di oggi. Il percorso lo sceglie
-                    # `_prompt` sezione per sezione: la stessa data per
-                    # entrambe sarebbe sbagliata per una delle due, e la sera
-                    # i due giorni cadono perfino in settimane diverse.
-                    # Niente file, nessuna frase nel prompt: un piano che non
-                    # c'e' non deve diventare un'istruzione da inventare.
-                    for section in sections:
-                        # Chi legge i frammenti degli altri (il Summary) non
-                        # gira se in questo giro qualcuno e' fallito: dei
-                        # suoi leggerebbe il testo del giro prima e
-                        # mescolerebbe due giorni in un verdetto, dichiarando
-                        # 'done'. Meglio nessun Summary nuovo che uno falso.
-                        if section.reads_fragments and failed:
-                            problem = (
-                                "not run: " + ", ".join(failed) + " failed in this run"
-                            )
-                            _set(
-                                section.key, status="failed", started=None,
-                                finished=datetime.now(), message=problem,
-                            )
-                            results[section.key] = {"status": "failed", "message": problem}
-                            failed.append(section.key)
-                            continue
-                        began = datetime.now()
-                        _set(
-                            section.key, status="running", started=began,
-                            finished=None, message=None,
-                        )
-                        good, problem = _write_section(
-                            kind, section, subject, moment, repo_root, facts, folder,
-                            began, Path(summary_dir),
+            ok, problem, download, facts = _prepare(
+                kind, subject, repo_root, data_dir, update
+            )
+            with _lock:
+                _state["download"] = download
+            if not ok:
+                message = problem
+            else:
+                folder = Path(summary_dir) / kind.folder / subject.isoformat()
+                folder.mkdir(parents=True, exist_ok=True)
+                # Il piano della settimana (todo 14) lo leggono **due**
+                # sezioni, e per due date diverse: Next, che prescrive la
+                # seduta del giorno dopo, e Training del giorno (todo
+                # 64), che giudica quella di oggi. Il percorso lo sceglie
+                # `_prompt` sezione per sezione: la stessa data per
+                # entrambe sarebbe sbagliata per una delle due, e la sera
+                # i due giorni cadono perfino in settimane diverse.
+                # Niente file, nessuna frase nel prompt: un piano che non
+                # c'e' non deve diventare un'istruzione da inventare.
+                for section in sections:
+                    # Chi legge i frammenti degli altri (il Summary) non
+                    # gira se in questo giro qualcuno e' fallito: dei
+                    # suoi leggerebbe il testo del giro prima e
+                    # mescolerebbe due giorni in un verdetto, dichiarando
+                    # 'done'. Meglio nessun Summary nuovo che uno falso.
+                    if section.reads_fragments and failed:
+                        problem = (
+                            "not run: " + ", ".join(failed) + " failed in this run"
                         )
                         _set(
-                            section.key,
-                            status="done" if good else "failed",
-                            finished=datetime.now(),
-                            message=problem,
+                            section.key, status="failed", started=None,
+                            finished=datetime.now(), message=problem,
                         )
-                        results[section.key] = {
-                            "status": "done" if good else "failed",
-                            "message": problem,
-                        }
-                        if not good:
-                            failed.append(section.key)
+                        results[section.key] = {"status": "failed", "message": problem}
+                        failed.append(section.key)
+                        continue
+                    began = datetime.now()
+                    _set(
+                        section.key, status="running", started=began,
+                        finished=None, message=None,
+                    )
+                    good, problem = _write_section(
+                        kind, section, subject, moment, repo_root, facts, folder,
+                        Path(summary_dir),
+                    )
+                    _set(
+                        section.key,
+                        status="done" if good else "failed",
+                        finished=datetime.now(),
+                        message=problem,
+                    )
+                    results[section.key] = {
+                        "status": "done" if good else "failed",
+                        "message": problem,
+                    }
+                    if not good:
+                        failed.append(section.key)
         if failed and not message:
             message = "These sections kept their previous text: " + ", ".join(failed)
         outcome = "failed" if (failed or message) else "done"
@@ -406,12 +373,15 @@ def _prepare(
     subject: date,
     repo_root: Path,
     data_dir: Path,
-    facts: Path,
     update: bool = True,
-) -> tuple[bool, str | None, dict | None]:
-    """Scarica i dati nuovi e scrive i fatti del periodo in `facts`. Rende se
-    si puo' andare avanti, l'eventuale motivo per cui no, e com'e' andato lo
-    scaricamento.
+) -> tuple[bool, str | None, dict | None, dict | None]:
+    """Scarica i dati nuovi e rende i fatti del periodo. Rende se si puo'
+    andare avanti, l'eventuale motivo per cui no, com'e' andato lo
+    scaricamento e i fatti.
+
+    Dal todo 94 i fatti non passano piu' da un file temporaneo: li legge
+    `_documents`, che li mette nel messaggio della sezione. Il file c'era
+    perche' a leggerlo era un sottoprocesso.
 
     `update_activity` chiama Garmin: se fallisce (niente rete, login scaduto)
     non ci si ferma, si va avanti con i dati locali. **Ma lo si dice**: da
@@ -448,57 +418,92 @@ def _prepare(
     try:
         payload = _facts(kind, subject, data_dir)
     except Exception as exc:  # noqa: BLE001 - qualunque cosa, il lavoro si ferma qui
-        return False, f"The facts could not be built: {exc}", download
-    # Atomica come ogni altra scrittura: questo file lo apre un sottoprocesso
-    # `claude` subito dopo, ed era l'unico JSON del progetto scritto dritto
-    # sul posto.
-    write_json(facts, _jsonable(payload))
-    return True, None, download
+        return False, f"The facts could not be built: {exc}", download, None
+    return True, None, download, _jsonable(payload)
 
 
-def _planned(
+def _plan_text(
     kind: Report,
     section: Section,
     subject: date,
     summary_dir: Path | None,
-) -> str:
-    """La frase che mette il piano della settimana nel prompt, vuota per le
-    sezioni che non lo leggono e per i giorni che non ne hanno uno.
+) -> str | None:
+    """Il piano della settimana per chi lo legge, o `None`.
 
-    **La legge una sezione sola: il Training del giorno** (todo 64). Giudica
+    **Lo legge una sezione sola: il Training del giorno** (todo 64). Giudica
     la seduta di oggi, e senza il piano giudicava solo contro le sedute
     passate — da cui verdetti come «nothing was planned» (vero del file
     dell'orologio) su un giorno che un piano ce l'aveva, e nove chilometri
     lodati dove ne erano previsti cinque.
 
-    Erano due: anche Next lo leggeva, come punto di partenza di quello che
-    prescriveva, e per una data diversa — la sera, il giorno dopo. Da cui il
-    percorso calcolato qui, sezione per sezione, e non una volta per tutte in
-    `_run`. Next non c'e' piu', ne' nel giorno (todo 66) ne' nella settimana
-    (todo 69), e **nessuno prescrive piu' niente**: il piano si segue come e'
-    scritto.
+    Era Next a leggerlo per secondo, per una data diversa — la sera, il
+    giorno dopo — e da li' viene il calcolo sezione per sezione invece di uno
+    per tutte in `_run`. Next non c'e' piu', ne' nel giorno (todo 66) ne'
+    nella settimana (todo 69), e **nessuno prescrive piu' niente**: il piano
+    si segue come e' scritto.
 
     Le altre sezioni il piano non lo vedono: Health, Recovery, Load e Fitness
     raccontano dei numeri, e quello che era previsto non li cambia. Il
     Training della settimana resta fuori: li' il confronto e' con la forma
     dei sette giorni, un'altra domanda.
 
-    Un piano che non c'e' rende la stringa vuota, e il prompt torna quello di
-    sempre: all'agente non si dice ne' che un piano esiste ne' che non esiste.
-    Dirgli "per questo giorno non c'era un piano" sarebbe peggio di tacere —
-    e' la frase che sul 27 ottobre ha sviato il verdetto."""
-    if summary_dir is None:
-        return ""
-    if section.reads_plan:
-        plan = week_plan_path(summary_dir, subject)
-        if plan is None:
-            return ""
-        return (
-            f"The plan for the week is in {plan}: the session it lists for "
-            f"{subject.isoformat()} is what this one was meant to be. Read it, and judge "
-            f"the session against it as well as against the past ones. "
-        )
-    return ""
+    Un piano che non c'e' rende `None`, e il prompt torna quello di sempre:
+    all'agente non si dice ne' che un piano esiste ne' che non esiste. Dirgli
+    "per questo giorno non c'era un piano" sarebbe peggio di tacere — e' la
+    frase che sul 27 ottobre ha sviato il verdetto.
+
+    Dal todo 94 si rende il **testo** e non il percorso: il file lo leggeva
+    l'agente con un giro di tool, adesso glielo si mette sotto gli occhi. Un
+    file che non si legge e' come un piano che non c'e': meglio una sezione
+    scritta senza che una sezione non scritta."""
+    if summary_dir is None or not section.reads_plan:
+        return None
+    plan = week_plan_path(summary_dir, subject)
+    if plan is None:
+        return None
+    try:
+        return plan.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def _documents(
+    kind: Report,
+    section: Section,
+    subject: date,
+    facts: dict,
+    folder: Path,
+    summary_dir: Path | None,
+) -> dict[str, str]:
+    """Quello che la sezione ha sotto gli occhi, in blocchi col nome che il
+    suo prompt usa: `facts` sempre, `plan` a chi legge il piano, e i
+    frammenti accanto a chi scrive un verdetto sugli altri.
+
+    E' esattamente quello che gli agenti andavano a leggere da se'. Misurato
+    sui transcript dei giri col sottoprocesso (todo 94), per giro: 1,73
+    letture di frammenti dello stesso periodo, 0,74 del file dei fatti e 0,09
+    di un periodo passato — cioe' niente che non sia qui.
+
+    I frammenti sono **quelli che in quel momento ci sono**, come la cartella
+    li dava a chi la leggeva: uno che manca manca, e uno rimasto dal giro
+    prima arriva com'era. Il Summary non gira affatto se in questo giro
+    qualcuno e' fallito (vedi `_run`), che e' dove quel caso si decide."""
+    documents = {"facts": json_text(facts)}
+    plan = _plan_text(kind, section, subject, summary_dir)
+    if plan is not None:
+        documents["plan"] = plan
+    if section.reads_fragments:
+        for other in kind.run_order:
+            if other.key == section.key:
+                continue
+            path = folder / f"{other.key}.md"
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if text.strip():
+                documents[other.key] = text
+    return documents
 
 
 # La riga del voto, che la Training scrive in cima al suo frammento (todo
@@ -506,16 +511,24 @@ def _planned(
 # cornice della card.
 #
 # **Sta nel prompt e non solo nel file dell'agente** perche' `_style.md` —
-# che l'orchestratore attacca *dopo* il file dell'agente — dice "solo il
-# corpo, nessun preambolo", e quella riga sembra un preambolo. Provato: col
-# solo file dell'agente il frammento tornava senza. Il prompt e' l'ultima
+# che `agents.system_prompt` attacca *dopo* il file dell'agente — dice "solo
+# il corpo, nessun preambolo", e quella riga sembra un preambolo. Provato:
+# col solo file dell'agente il frammento tornava senza. Il prompt e' l'ultima
 # cosa che l'agente legge ed e' la piu' specifica, e chiedere qui una cosa
 # che qui si toglie tiene le due meta' nello stesso posto.
 VERDICT_LINE = (
-    "Begin the file with one line, `verdict: ` and one of terrible, low, medium, high, "
+    "Begin your answer with one line, `verdict: ` and one of terrible, low, medium, high, "
     "perfect, then a blank line, then your text. That line is not part of the body: it is "
     "taken off when the report is composed, and becomes the face on your card. Your agent "
     "file says how to choose the word. "
+)
+
+# Come si chiede il testo: niente file da scrivere, niente intestazione,
+# niente preambolo. Dal todo 94 la risposta **e'** il frammento, e chi
+# scrive e' `_write_section`.
+ANSWER_LINE = (
+    "Answer with the body of the section and nothing else: no `## ` heading, no preamble, "
+    "no closing remark."
 )
 
 
@@ -524,27 +537,40 @@ def _prompt(
     section: Section,
     subject: date,
     moment: str,
-    facts: Path,
-    folder: Path,
-    summary_dir: Path | None = None,
+    documents: dict[str, str],
 ) -> str:
-    where = f"Write the body of the section (no `## ` heading) to {folder / f'{section.key}.md'}."
-    if section.writes_verdict:
-        where = VERDICT_LINE + where
-    planned = _planned(kind, section, subject, summary_dir)
+    """Il lavoro della sezione, in coda ai documenti.
+
+    Dal todo 94 nessuna frase nomina un percorso: i fatti, il piano e i
+    frammenti sono blocchi del messaggio, e il prompt li chiama per nome. Chi
+    legge non ha modo di andare a prendere altro, quindi dirgli dove sta un
+    file sarebbe mandarlo contro un muro."""
+    answer = f"{VERDICT_LINE}{ANSWER_LINE}" if section.writes_verdict else ANSWER_LINE
     when = kind.moment_lines[moment]
     period = kind.period(subject)
+    plan = (
+        "The plan for the week is in the `plan` block: the session it lists for "
+        f"{subject.isoformat()} is what this one was meant to be. Judge the session "
+        "against it as well as against the past ones. "
+        if "plan" in documents
+        else ""
+    )
     if section.reads_fragments:
+        others = ", ".join(f"`{name}`" for name in documents if name not in ("facts", "plan"))
+        written = (
+            f"The other sections are already written, in the {others} blocks: they are your "
+            "input. "
+            if others
+            else ""
+        )
         return (
             f"Write the {section.title} part of the {kind.what} for {period}. "
-            f"{when} "
-            f"The other sections are already written in {folder}: read them, they are your "
-            f"input. {planned}The facts, if you need them, are in {facts}. {where}"
+            f"{when} {written}{plan}The facts, if you need them, are in the `facts` block. "
+            f"{answer}"
         )
     return (
         f"Write the {section.title} section of the {kind.what} for {period}. "
-        f"{when} "
-        f"{planned}The facts are in {facts}: read that file, do not run anything. {where}"
+        f"{when} {plan}The facts are in the `facts` block. {answer}"
     )
 
 
@@ -554,40 +580,29 @@ def _write_section(
     subject: date,
     moment: str,
     repo_root: Path,
-    facts: Path,
+    facts: dict,
     folder: Path,
-    began: datetime,
     summary_dir: Path,
 ) -> tuple[bool, str | None]:
-    claude = shutil.which("claude")
-    if claude is None:
-        return False, "The claude command is not on the PATH of the API."
-    command = [
-        claude, "-p", "--agent", section.agent,
-        "--append-system-prompt-file", str(repo_root / STYLE_FILE),
-        "--allowedTools", *_allowed_tools(kind, summary_dir),
-        "--", _prompt(kind, section, subject, moment, facts, folder, summary_dir),
-    ]
+    """Chiede la sezione al modello e scrive il frammento. Rende se e'
+    andata e, se no, perche'.
+
+    **Il file lo scrive chi controlla**, e questa e' la semplificazione del
+    todo 94. Col sottoprocesso a scrivere era l'agente, l'esito 0 non
+    bastava, e servivano tre controlli dopo — il file c'e', e' di adesso, non
+    e' vuoto — perche' un agente poteva finire bene senza aver scritto
+    niente. Adesso o c'e' un testo o c'e' un motivo."""
+    documents = _documents(kind, section, subject, facts, folder, summary_dir)
+    prompt = _prompt(kind, section, subject, moment, documents)
     try:
-        result = subprocess.run(
-            command, cwd=repo_root, stdin=subprocess.DEVNULL, capture_output=True,
-            text=True, timeout=TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired:
-        return False, f"{section.agent} did not finish in {TIMEOUT_SECONDS // 60} minutes."
-    if result.returncode != 0:
-        return False, _tail(result) or f"{section.agent} exited with {result.returncode}."
-    # L'uscita 0 non basta: il frammento deve essere stato scritto adesso, e
-    # deve avere dentro qualcosa. Un file vuoto passava per scritto, contava
-    # come sezione fatta, e in piu' copriva il frammento col nome vecchio
-    # (`_fragment_path`), lasciando la card bianca con il testo di prima
-    # irraggiungibile. Le altre due funzioni che dicono "scritto"
-    # (`_written`) chiede la dimensione da sempre.
+        text = agents.write(repo_root, section.agent, prompt, documents)
+    except agents.AgentError as exc:
+        return False, str(exc)
     fragment = folder / f"{section.key}.md"
-    if not (fragment.exists() and fragment.stat().st_mtime >= began.timestamp()):
-        return False, f"{section.agent} finished without writing {fragment.name}."
-    if fragment.stat().st_size == 0:
-        return False, f"{section.agent} wrote {fragment.name} empty."
+    try:
+        write_text(fragment, text.strip() + "\n")
+    except OSError as exc:
+        return False, f"{fragment.name} could not be written: {exc}"
     return True, None
 
 
