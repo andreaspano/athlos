@@ -146,9 +146,33 @@ h2 {
   display: flex;
   gap: 4px;
 }
-/* Activities non e' un periodo: sta fuori dalla griglia, a destra. */
-.topbar-aside {
+/* Il logo, all'estremo destro: `margin-left: auto` lo spinge li' qualunque
+   cosa ci sia a sinistra, e non si stringe quando la barra va stretta e
+   comincia a scorrere. La larghezza viene da sola, con la proporzione
+   640x200 del file.
+
+   **Quarantaquattro e non di piu'.** L'altezza della barra la decidono i
+   menu: due righe di pillole sulla Day e sulla Week fanno 71, una riga
+   sola sul Goal ne fa 45. Fin qui il logo ci sta dentro tutte e due, e la
+   barra resta quella che era; passato il 45 sarebbe il logo a tirare in
+   basso la barra del Goal, e quella pagina diventerebbe piu' alta delle
+   altre senza avere niente in piu' da mostrare. */
+.topbar-logo {
   margin-left: auto;
+  height: 44px;
+  width: auto;
+  flex-shrink: 0;
+}
+/* Il file e' nero su trasparente, e sul fondo scuro sparirebbe. `invert`
+   ribalta il chiaro e lo scuro — il nero diventa bianco — e `hue-rotate`
+   rimette al suo posto il colore che l'inversione aveva girato, cosi' la
+   barra della A resta arancione invece di diventare azzurra. Il giorno che
+   il logo esiste anche in bianco, questo filtro va via e al suo posto ci
+   vanno due file. */
+@media (prefers-color-scheme: dark) {
+  .topbar-logo {
+    filter: invert(1) hue-rotate(180deg);
+  }
 }
 .topbar nav {
   display: flex;
