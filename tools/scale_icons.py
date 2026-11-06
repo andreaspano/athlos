@@ -25,13 +25,14 @@ SCALE = 4
 S = SIZE * SCALE
 
 # Il colore porta il valore anche a icona piccola, dove la bocca e' tre
-# pixel: dal rosso cupo al verde acqua, passando per l'ambra. Tutti e cinque
+# pixel: dal rosso cupo al verde acqua, col celeste in mezzo. Tutti e cinque
 # abbastanza scuri da reggere il glifo bianco, che e' la regola delle icone
-# che ci sono (l'arancio della corsa, il carminio del recupero).
+# che ci sono (l'arancio della corsa, il carminio del recupero): il celeste
+# e' il piu' chiaro dei cinque, come l'ambra che stava al suo posto.
 FACES = [
     ("terrible", (176, 35, 47), -0.20),
     ("low",      (224, 122, 47), -0.09),
-    ("medium",   (214, 160, 22), 0.0),
+    ("medium",   (84, 169, 212), 0.0),
     ("high",     (76, 154, 82), 0.11),
     ("perfect",  (31, 138, 112), 0.22),
 ]
