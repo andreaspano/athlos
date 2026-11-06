@@ -9,7 +9,7 @@
 # si arriva con `tailscale serve`, che e' il punto in cui si decide chi
 # entra.
 [Unit]
-Description=mygarmin: l'API e la pagina
+Description=athlos: l'API e la pagina
 Documentation=file://__REPO__/README.md
 After=network.target
 

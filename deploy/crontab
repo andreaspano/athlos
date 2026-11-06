@@ -9,7 +9,7 @@
 # vanno tenuti accesi insieme: si ruberebbero il lock a vicenda.
 #
 # Li installa `make install_cron`, che riempie i segnaposto e lascia in pace
-# il resto del crontab: ogni riga finisce con il marcatore `# mygarmin`, e
+# il resto del crontab: ogni riga finisce con il marcatore `# athlos`, e
 # l'installazione toglie le vecchie righe che ce l'hanno. Il `#` finale lo
 # legge la shell, non cron, che gli passa la riga intera.
 #
@@ -37,6 +37,6 @@
 # riga del giorno da solo. Il mattino e' sempre il giorno da solo: dal todo
 # 68 la settimana ha un giro solo, la chiusura, e il lunedi' non scrive piu'
 # niente — il suo verdetto d'apertura non esiste.
-0 8 * * * cd __REPO__ && PATH=__UVDIR__:$PATH __UV__ run training-daily-report --moment morning >> __LOG__ 2>&1 # mygarmin
-0 21 * * 1-6 cd __REPO__ && PATH=__UVDIR__:$PATH __UV__ run training-daily-report --moment evening >> __LOG__ 2>&1 # mygarmin
-0 21 * * 0 cd __REPO__ && PATH=__UVDIR__:$PATH sh -c '__UV__ run training-daily-report --moment evening; __UV__ run training-weekly-report --moment end' >> __LOG__ 2>&1 # mygarmin
+0 8 * * * cd __REPO__ && PATH=__UVDIR__:$PATH __UV__ run training-daily-report --moment morning >> __LOG__ 2>&1 # athlos
+0 21 * * 1-6 cd __REPO__ && PATH=__UVDIR__:$PATH __UV__ run training-daily-report --moment evening >> __LOG__ 2>&1 # athlos
+0 21 * * 0 cd __REPO__ && PATH=__UVDIR__:$PATH sh -c '__UV__ run training-daily-report --moment evening; __UV__ run training-weekly-report --moment end' >> __LOG__ 2>&1 # athlos

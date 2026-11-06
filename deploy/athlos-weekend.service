@@ -6,9 +6,9 @@
 # essere in fila. Il `-` davanti al primo e' il `;` di systemd: se il giorno
 # fallisce, la settimana gira lo stesso.
 [Unit]
-Description=mygarmin: il report della sera e quello della settimana
+Description=athlos: il report della sera e quello della settimana
 Documentation=file://__REPO__/README.md
-OnFailure=mygarmin-alert@%n.service
+OnFailure=athlos-alert@%n.service
 
 [Service]
 Type=oneshot

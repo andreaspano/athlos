@@ -12,11 +12,11 @@ senza, si sta parlando di un'altra cosa che non esiste.
 
 | Unita' | Cos'e' | Quando |
 |---|---|---|
-| `mygarmin-api.service` | uvicorn: l'API **e** la pagina compilata, su `127.0.0.1:8000` | sempre su |
-| `mygarmin-morning.timer` | le cinque sezioni del corpo (lo Snap) | ogni giorno, 08:00 |
-| `mygarmin-evening.timer` | la Training, cioe' la seduta | lun-sab, 21:00 |
-| `mygarmin-weekend.timer` | la Training **e poi** il report della settimana | domenica, 21:00 |
-| `mygarmin-alert@.service` | l'avvisatore: lo lancia `OnFailure=` delle altre | solo sui guasti |
+| `athlos-api.service` | uvicorn: l'API **e** la pagina compilata, su `127.0.0.1:8000` | sempre su |
+| `athlos-morning.timer` | le cinque sezioni del corpo (lo Snap) | ogni giorno, 08:00 |
+| `athlos-evening.timer` | la Training, cioe' la seduta | lun-sab, 21:00 |
+| `athlos-weekend.timer` | la Training **e poi** il report della settimana | domenica, 21:00 |
+| `athlos-alert@.service` | l'avvisatore: lo lancia `OnFailure=` delle altre | solo sui guasti |
 
 La domenica e' un'unita' sola con due `ExecStart` perche' il settimanale deve
 girare **dopo** il giornaliero: il lock ne lascia passare uno alla volta e
@@ -30,7 +30,7 @@ make uninstall_services    # spegne e toglie le unita'
 ```
 
 E' ripetibile: rilancialo dopo aver cambiato un file di `deploy/`. Toglie
-anche le righe `# mygarmin` dal crontab, perche' i due meccanismi insieme si
+anche le righe `# athlos` dal crontab, perche' i due meccanismi insieme si
 ruberebbero il lock.
 
 **Una volta sola, e vuole sudo:**
@@ -48,15 +48,15 @@ controlla con `loginctl show-user andrea -p Linger` — deve dire `yes`.
 ## Guardare
 
 ```bash
-systemctl --user list-units 'mygarmin-*.service'   # cosa gira
-systemctl --user list-timers 'mygarmin-*'          # i prossimi giri
+systemctl --user list-units 'athlos-*.service'   # cosa gira
+systemctl --user list-timers 'athlos-*'          # i prossimi giri
 systemctl --user --failed                          # cosa e' andato storto
-journalctl --user -u 'mygarmin-*' -f               # il registro, dal vivo
-journalctl --user -u mygarmin-morning -n 50        # l'ultimo giro del mattino
+journalctl --user -u 'athlos-*' -f               # il registro, dal vivo
+journalctl --user -u athlos-morning -n 50        # l'ultimo giro del mattino
 ```
 
 Il registro e' nel journal, che ruota da solo. Il vecchio
-`~/.local/state/mygarmin-report.log` e' fermo all'ultimo giro di cron del
+`~/.local/state/athlos-report.log` e' fermo all'ultimo giro di cron del
 30 ottobre 2026: non ci scrive piu' niente.
 
 **Un guasto resta visibile.** Quando un giro esce ≠ 0 l'unita' resta
@@ -69,10 +69,10 @@ ne accorse nessuno per giorni.
 
 | Cosa hai toccato | Cosa fare |
 |---|---|
-| Python dell'API | `systemctl --user restart mygarmin-api` |
-| Frontend | `make frontend_build && systemctl --user restart mygarmin-api` |
+| Python dell'API | `systemctl --user restart athlos-api` |
+| Frontend | `make frontend_build && systemctl --user restart athlos-api` |
 | Un file di `deploy/` | `make install_services` |
-| Dipendenze (`uv add`) | `systemctl --user restart mygarmin-api` — `uv run` sincronizza da solo |
+| Dipendenze (`uv add`) | `systemctl --user restart athlos-api` — `uv run` sincronizza da solo |
 
 **Il servizio serve `frontend/dist`, non i sorgenti.** Senza
 `make frontend_build` continui a guardare la pagina di prima convinto che sia
@@ -91,10 +91,10 @@ Per ricaricare a caldo anche l'API, fermare il servizio e usare `make api`
 (che e' uvicorn con `--reload`):
 
 ```bash
-systemctl --user stop mygarmin-api
+systemctl --user stop athlos-api
 make api
 # ... poi
-systemctl --user start mygarmin-api
+systemctl --user start athlos-api
 ```
 
 ## La tailnet
@@ -127,10 +127,10 @@ Da un'altra macchina della tailnet basta aprire `http://mutolo:8000`.
 
 | Sintomo | Cosa guardare |
 |---|---|
-| La pagina non risponde | `systemctl --user status mygarmin-api`; se e' spenta e non sei collegato, manca `enable-linger` |
+| La pagina non risponde | `systemctl --user status athlos-api`; se e' spenta e non sei collegato, manca `enable-linger` |
 | La pagina e' vecchia | `make frontend_build` e riavvia: stai guardando `dist/` |
 | `/` da' 404 ma `/api` va | `frontend/dist` non c'e': `make frontend_build` |
-| Un report non e' stato scritto | `systemctl --user --failed`, poi `journalctl --user -u mygarmin-<giro> -n 50` |
+| Un report non e' stato scritto | `systemctl --user --failed`, poi `journalctl --user -u athlos-<giro> -n 50` |
 | Report su dati vecchi | nel registro c'e' `dati non scaricati`: login Garmin scaduto o rete. Il report **c'e' lo stesso**, scritto sui dati locali, ed e' il motivo per cui l'unita' risulta fallita |
 | Un giro "non ha fatto niente" | ne stava gia' girando un altro: il lock ne lascia passare uno alla volta, e il secondo esce 0 senza lavorare |
 | Dalla tailnet niente | `tailscale serve status`; e ricordati delle due trappole qui sopra prima di concludere che e' rotta |
@@ -139,7 +139,7 @@ Da un'altra macchina della tailnet basta aprire `http://mutolo:8000`.
 Un giro si puo' sempre rilanciare a mano, senza aspettare il timer:
 
 ```bash
-systemctl --user start mygarmin-morning.service     # come se fossero le 8
+systemctl --user start athlos-morning.service     # come se fossero le 8
 make daily_report                                   # oppure in primo piano, per vedere
 ```
 

@@ -884,7 +884,7 @@ def _cli(kind: Report) -> None:
     )
     if outcome is None:
         # Esce 1, non 0: il report di questo periodo **non e' stato scritto**,
-        # e chi lancia e' un timer con `OnFailure=mygarmin-alert@`. Uscendo 0
+        # e chi lancia e' un timer con `OnFailure=athlos-alert@`. Uscendo 0
         # systemd registrava un successo per un giro che non ha fatto niente,
         # che e' lo stesso silenzio sui dati vecchi che il docstring di
         # `_prepare` dice di non voler permettere.

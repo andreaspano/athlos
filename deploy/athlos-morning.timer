@@ -1,5 +1,5 @@
 [Unit]
-Description=mygarmin: il report del mattino, alle 8
+Description=athlos: il report del mattino, alle 8
 
 [Timer]
 OnCalendar=*-*-* 08:00:00

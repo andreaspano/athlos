@@ -1,9 +1,9 @@
 # Il giro del mattino (todo 47): le cinque sezioni del corpo, cioe' lo Snap.
 # I segnaposto li riempie `make install_services`.
 [Unit]
-Description=mygarmin: il report del mattino
+Description=athlos: il report del mattino
 Documentation=file://__REPO__/README.md
-OnFailure=mygarmin-alert@%n.service
+OnFailure=athlos-alert@%n.service
 
 [Service]
 Type=oneshot

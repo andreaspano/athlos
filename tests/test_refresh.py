@@ -252,7 +252,7 @@ class TestSummaryGate:
 
 class TestCollisionExitCode:
     def test_a_report_that_could_not_run_exits_non_zero(self, monkeypatch, tmp_path):
-        """Il timer ha `OnFailure=mygarmin-alert@`: uscendo 0, systemd
+        """Il timer ha `OnFailure=athlos-alert@`: uscendo 0, systemd
         registrava un successo per un giro che non ha scritto niente."""
         import contextlib
 
@@ -276,7 +276,7 @@ class TestCollisionExitCode:
 
 class TestCliExitCode:
     """Il codice d'uscita del comando: e' quello che systemd guarda, e con
-    `OnFailure=mygarmin-alert@` e' anche l'unico modo in cui un giro andato
+    `OnFailure=athlos-alert@` e' anche l'unico modo in cui un giro andato
     male si fa sentire. Non era coperto, ed e' il buco da cui e' passato un
     `NameError` nel ramo finale."""
 

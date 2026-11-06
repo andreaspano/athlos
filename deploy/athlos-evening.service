@@ -1,8 +1,8 @@
 # Il giro della sera (todo 66): la sola Training, cioe' la seduta.
 [Unit]
-Description=mygarmin: il report della sera
+Description=athlos: il report della sera
 Documentation=file://__REPO__/README.md
-OnFailure=mygarmin-alert@%n.service
+OnFailure=athlos-alert@%n.service
 
 [Service]
 Type=oneshot
