@@ -46,4 +46,4 @@ def safe_call(func, *args, retries: int = 3, **kwargs):
                 raise
             print(f"    Errore di connessione ({e}): nuovo tentativo tra 10s...")
             time.sleep(10)
-    raise RuntimeError("safe_call: tentativi finiti senza esito")
+    raise RuntimeError("safe_call: attempts ran out with no result")

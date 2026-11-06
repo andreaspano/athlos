@@ -223,8 +223,8 @@ def _set_current_flag(text: str, wanted: bool) -> str:
     match = _FRONT_MATTER.match(text)
     if not match and text.lstrip().startswith("---"):
         raise ValueError(
-            "il front matter di questo file non si legge: il flag non si scrive "
-            "per non rovinarlo"
+            "the front matter of this file cannot be read: the flag is not "
+            "written, so as not to ruin it"
         )
     front, rest = (match.group(1), text[match.end() :]) if match else ("", text)
     kept = []

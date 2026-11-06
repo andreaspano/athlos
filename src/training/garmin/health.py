@@ -137,8 +137,8 @@ def export_daily_health(
 
     if failures:
         raise RuntimeError(
-            f"{len(failures)} metriche non scaricate su {total_days} giorni "
-            f"({downloaded} file scritti). La prima: {failures[0]}"
+            f"metrics not downloaded: {len(failures)} over {total_days} days "
+            f"({downloaded} files written). The first: {failures[0]}"
         )
 
 

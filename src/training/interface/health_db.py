@@ -122,8 +122,8 @@ def _source_mtimes(health_dir: Path) -> dict[str, float]:
                     out[day] = mtime
     if unreadable:
         raise OSError(
-            f"{unreadable} cartelle di health/ non si leggono: la scansione non e' "
-            f"attendibile e la cache non si tocca"
+            f"{unreadable} folders in health/ cannot be read: the scan is not "
+            f"trustworthy, so the cache is left alone"
         )
     return out
 
@@ -172,8 +172,8 @@ def _sync_health_locked(data_dir: Path, health_dir: Path) -> int:
         # problema e' la scansione.
         if cached and not mtimes:
             raise OSError(
-                f"nessun file di salute in {health_dir}, ma la cache ne ha "
-                f"{len(cached)} giorni: non la svuoto"
+                f"no health files in {health_dir}, but the cache has "
+                f"{len(cached)} days of them: it is not emptied"
             )
 
         parsed_at = datetime.now().isoformat(sep=" ")

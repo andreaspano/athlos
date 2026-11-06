@@ -76,7 +76,7 @@ class TestSetCurrentFlag:
         broken = "---\nrace: 2027-02-28\nblock_weeks: 18\n\n# Titolo\n"
         path = write(tmp_path, "rotto.md", broken)
 
-        with pytest.raises(ValueError, match="non si legge"):
+        with pytest.raises(ValueError, match="cannot be read"):
             _set_current_flag(broken, True)
         with pytest.raises(ValueError):
             set_current(tmp_path, "rotto")
