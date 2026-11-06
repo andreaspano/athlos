@@ -95,8 +95,8 @@ export function TopBar({
           className="topbar-logo"
           src={iconUrl("athlos.png")}
           alt="Athlos"
-          width={102}
-          height={32}
+          width={141}
+          height={44}
         />
       </div>
     </header>

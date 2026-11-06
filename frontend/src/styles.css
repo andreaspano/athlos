@@ -148,10 +148,18 @@ h2 {
 }
 /* Il logo, all'estremo destro: `margin-left: auto` lo spinge li' qualunque
    cosa ci sia a sinistra, e non si stringe quando la barra va stretta e
-   comincia a scorrere. Alto 32, che e' la proporzione 640x200 del file. */
+   comincia a scorrere. La larghezza viene da sola, con la proporzione
+   640x200 del file.
+
+   **Quarantaquattro e non di piu'.** L'altezza della barra la decidono i
+   menu: due righe di pillole sulla Day e sulla Week fanno 71, una riga
+   sola sul Goal ne fa 45. Fin qui il logo ci sta dentro tutte e due, e la
+   barra resta quella che era; passato il 45 sarebbe il logo a tirare in
+   basso la barra del Goal, e quella pagina diventerebbe piu' alta delle
+   altre senza avere niente in piu' da mostrare. */
 .topbar-logo {
   margin-left: auto;
-  height: 32px;
+  height: 44px;
   width: auto;
   flex-shrink: 0;
 }
