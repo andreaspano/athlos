@@ -34,9 +34,10 @@
 //
 // La **Plan** sta sullo stesso asse, `?period=plan`, ma non e' un periodo: i
 // piani di `plan/` guardano avanti e durano quanto dura un blocco, non un
-// giorno o una settimana. Per questo nella barra sta a destra, staccata, e
-// non fra Day e Week; il piano aperto e' `?plan=<slug>`, cioe' il nome del
-// suo file senza `.md`. Viste non ne ha.
+// giorno o una settimana. Nella barra stava per questo a destra, staccata;
+// adesso si legge in fila dopo Week, perche' staccata si trovava male ed e'
+// comunque una delle tre pagine. Il piano aperto e' `?plan=<slug>`, cioe' il
+// nome del suo file senza `.md`. Viste non ne ha.
 export type Page = "day" | "week" | "plan";
 export type View = "snap" | "training" | "trend";
 

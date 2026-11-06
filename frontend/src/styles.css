@@ -146,9 +146,25 @@ h2 {
   display: flex;
   gap: 4px;
 }
-/* Activities non e' un periodo: sta fuori dalla griglia, a destra. */
-.topbar-aside {
+/* Il logo, all'estremo destro: `margin-left: auto` lo spinge li' qualunque
+   cosa ci sia a sinistra, e non si stringe quando la barra va stretta e
+   comincia a scorrere. Alto 32, che e' la proporzione 640x200 del file. */
+.topbar-logo {
   margin-left: auto;
+  height: 32px;
+  width: auto;
+  flex-shrink: 0;
+}
+/* Il file e' nero su trasparente, e sul fondo scuro sparirebbe. `invert`
+   ribalta il chiaro e lo scuro — il nero diventa bianco — e `hue-rotate`
+   rimette al suo posto il colore che l'inversione aveva girato, cosi' la
+   barra della A resta arancione invece di diventare azzurra. Il giorno che
+   il logo esiste anche in bianco, questo filtro va via e al suo posto ci
+   vanno due file. */
+@media (prefers-color-scheme: dark) {
+  .topbar-logo {
+    filter: invert(1) hue-rotate(180deg);
+  }
 }
 .topbar nav {
   display: flex;

@@ -1,8 +1,8 @@
 // La barra in alto (todo 34), su due righe dal todo 55.
 //
-// Prima riga il **periodo** (Day, Week), seconda riga **cosa se ne guarda**:
-// due assi veri, mentre prima Day, Week e Activities stavano in fila come se
-// fossero la stessa cosa.
+// Prima riga la **pagina** (Day, Week, Goal), seconda riga **cosa se ne
+// guarda**: due assi veri, mentre prima Day, Week e Activities stavano in
+// fila come se fossero la stessa cosa.
 //
 // Le viste sono di ogni periodo e stanno in `VIEWS` (todo 59): Snap,
 // Training e Trend sotto Day, Snap, Trend e Plan sotto Week. Lo Snap e' la
@@ -12,10 +12,12 @@
 // si scrivono stanno li' accanto (`ETICHETTE`), che servono anche al titolo
 // della pagina.
 //
-// A destra sta **Goal**, perche' un obiettivo non e' un periodo: non guarda
-// indietro a un giorno o a una settimana, guarda avanti a una gara, e dura
-// quanto dura il blocco. Di viste non ne ha, quindi apre la barra con una
-// riga sola.
+// **Goal** sta in quella prima riga, dopo Week. Un obiettivo non e' un
+// periodo — non guarda indietro a un giorno o a una settimana, guarda avanti
+// a una gara, e dura quanto dura il blocco — e per questo stava a destra,
+// staccato. Ma staccato si trovava male: e' una delle tre pagine, e le tre
+// pagine si leggono in fila. Di viste non ne ha, quindi aprendola la barra
+// resta a una riga sola.
 //
 // Si chiamava Plan, come la pagina e come `?period=plan`, che restano. Nella
 // barra erano **due Plan**: questo e la vista della Week, che e' un'altra
@@ -23,15 +25,26 @@
 // quello che la pagina mostra, cioe' la gara a cui si va e quanto manca; il
 // piano e' il come, ed e' una scheda dentro.
 //
+// All'estremo destro, dove stava il Goal, adesso c'e' il **logo**:
+// `icons/athlos.png`, servito da `/icons` come tutte le altre icone — in
+// sviluppo il proxy di Vite, in produzione il mount di `app.py`. Non e' un
+// collegamento, e' il nome della casa: le tre pagine stanno tutte a
+// sinistra, e una quarta cosa da premere qui confonderebbe.
+//
 // **Niente voci grigie, da nessuna parte.** Month, Year e Activities si
 // aggiungono quando esistono, non prima: Activities e' stata per mesi una
 // pillola disattivata che non portava in nessun posto, e una voce che non si
 // puo' premere e' rumore, non una promessa.
+import { iconUrl } from "../api/client";
 import { ETICHETTE, VIEWS, defaultView, hrefFor, type Page, type View } from "../navigation";
 
-const PERIODI: { page: Page; label: string }[] = [
+/** Le voci della prima riga, nell'ordine in cui si leggono. Il Goal non e'
+ * un periodo ma e' una pagina, ed e' come pagina che sta in fila con le
+ * altre due; `VIEWS` resta il posto che dice chi ha delle viste e chi no. */
+const PAGINE: { page: Page; label: string }[] = [
   { page: "day", label: "Day" },
   { page: "week", label: "Week" },
+  { page: "plan", label: "Goal" },
 ];
 
 export function TopBar({
@@ -51,8 +64,8 @@ export function TopBar({
     <header className="topbar">
       <div className="topbar-inner">
         <div className="topbar-menus">
-          <nav aria-label="Periods">
-            {PERIODI.map(({ page, label }) => (
+          <nav aria-label="Pages">
+            {PAGINE.map(({ page, label }) => (
               <a
                 key={page}
                 className={page === current ? "tab active" : "tab"}
@@ -78,15 +91,13 @@ export function TopBar({
             </nav>
           )}
         </div>
-        <nav aria-label="Other pages" className="topbar-aside">
-          <a
-            className={current === "plan" ? "tab active" : "tab"}
-            href={hrefFor("plan")}
-            aria-current={current === "plan" ? "page" : undefined}
-          >
-            Goal
-          </a>
-        </nav>
+        <img
+          className="topbar-logo"
+          src={iconUrl("athlos.png")}
+          alt="Athlos"
+          width={102}
+          height={32}
+        />
       </div>
     </header>
   );
