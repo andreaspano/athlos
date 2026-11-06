@@ -6,9 +6,6 @@ settimana. I dati vengono dall'orologio **Garmin** — attivita', sonno,
 frequenza, readiness — e il testo lo scrivono degli agenti, una sezione per
 volta.
 
-Si chiamava `mygarmin` (todo 95). Il nome diceva la sorgente; adesso dice il
-soggetto, che e' chi si allena.
-
 ## I dati stanno fuori dal repo
 
 Dal todo 65 il confine e' netto: **nel repo solo il codice**, e tutto quello
