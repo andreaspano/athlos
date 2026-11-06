@@ -12,7 +12,7 @@
 # resterebbe appesa sul timeout di D-Bus proprio mentre si sta gestendo un
 # guasto. Se un giorno ci fosse un desktop, e' una riga da aggiungere qui.
 [Unit]
-Description=mygarmin: avviso che %i non e' andata a buon fine
+Description=athlos: avviso che %i non e' andata a buon fine
 
 [Service]
 Type=oneshot

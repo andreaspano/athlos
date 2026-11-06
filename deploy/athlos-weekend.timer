@@ -1,5 +1,5 @@
 [Unit]
-Description=mygarmin: il giro della domenica sera, alle 21
+Description=athlos: il giro della domenica sera, alle 21
 
 [Timer]
 OnCalendar=Sun *-*-* 21:00:00

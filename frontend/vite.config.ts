@@ -20,7 +20,7 @@ export default defineConfig({
     // Vite ascolta solo su 127.0.0.1, anche su mutolo.
     //
     // **Dal todo 82 la tailnet non passa piu' di qui.** Quello che gira
-    // sulla macchina e' `mygarmin-api.service`, che serve l'API e la
+    // sulla macchina e' `athlos-api.service`, che serve l'API e la
     // pagina compilata sulla 8000, e `tailscale serve` punta li':
     //   sudo tailscale serve --bg --http=8000 http://127.0.0.1:8000
     // Questo file resta quello dello sviluppo: `make frontend` per avere il

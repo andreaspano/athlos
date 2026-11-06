@@ -52,9 +52,9 @@ fitness_status:
 # http://127.0.0.1:8000/docs
 #
 # Questo e' per lavorarci: ha `--reload` e vuole la porta libera. Quella che
-# gira sulla macchina e' `mygarmin-api.service` (todo 82, vedi
+# gira sulla macchina e' `athlos-api.service` (todo 82, vedi
 # docs/service.md), che serve anche la pagina compilata: per usare questo,
-# prima `systemctl --user stop mygarmin-api`.
+# prima `systemctl --user stop athlos-api`.
 api:
 	uv run uvicorn training.api.app:app --host 127.0.0.1 --port 8000 --reload
 
@@ -167,10 +167,10 @@ UV := $(abspath $(shell command -v uv))
 # lanciare il comando, non a `make update_activity` che dentro chiama un
 # altro `uv run`.
 UV_DIR := $(dir $(UV))
-CRON_LOG := $(abspath $(HOME)/.local/state/mygarmin-report.log)
+CRON_LOG := $(abspath $(HOME)/.local/state/athlos-report.log)
 UNIT_DIR := $(abspath $(HOME)/.config/systemd/user)
-TIMERS := mygarmin-morning mygarmin-evening mygarmin-weekend
-SERVICES := mygarmin-api
+TIMERS := athlos-morning athlos-evening athlos-weekend
+SERVICES := athlos-api
 
 # Tutto quello che gira da solo sulla macchina: l'app (todo 82) e i tre giri
 # dei report (todo 81).
@@ -186,7 +186,7 @@ SERVICES := mygarmin-api
 install_services: frontend_build
 	@test -n "$(UV)" || { echo "uv non e' nel PATH"; exit 1; }
 	@mkdir -p $(UNIT_DIR)
-	@for f in deploy/mygarmin-*.service deploy/mygarmin-*.timer; do \
+	@for f in deploy/athlos-*.service deploy/athlos-*.timer; do \
 	   sed -e 's|__REPO__|$(CURDIR)|g' -e 's|__UV__|$(UV)|g' \
 	       -e 's|__UVDIR__|$(UV_DIR:/=)|g' "$$f" > "$(UNIT_DIR)/$$(basename $$f)"; \
 	 done
@@ -194,13 +194,13 @@ install_services: frontend_build
 	@for t in $(TIMERS); do systemctl --user enable --now $$t.timer >/dev/null; done
 	@for s in $(SERVICES); do systemctl --user enable --now $$s.service >/dev/null; \
 	   systemctl --user restart $$s.service; done
-	@{ crontab -l 2>/dev/null | grep -v '# mygarmin$$' || true; } | crontab - 2>/dev/null || true
+	@{ crontab -l 2>/dev/null | grep -v '# athlos$$' || true; } | crontab - 2>/dev/null || true
 	@echo "Installati. L'app:"
-	@systemctl --user --no-pager --no-legend list-units 'mygarmin-*.service' | head -3
+	@systemctl --user --no-pager --no-legend list-units 'athlos-*.service' | head -3
 	@echo "  http://127.0.0.1:8000"
 	@echo "I prossimi giri:"
-	@systemctl --user list-timers 'mygarmin-*' --no-pager
-	@echo "Il registro: journalctl --user -u 'mygarmin-*' -f"
+	@systemctl --user list-timers 'athlos-*' --no-pager
+	@echo "Il registro: journalctl --user -u 'athlos-*' -f"
 	@test "$$(loginctl show-user $$USER -p Linger --value 2>/dev/null)" = yes || { \
 	   echo; \
 	   echo "Nota: Linger e' spento, quindi i timer girano da quando fai"; \
@@ -212,28 +212,28 @@ install_services: frontend_build
 uninstall_services:
 	@for s in $(SERVICES); do systemctl --user disable --now $$s.service >/dev/null 2>&1 || true; done
 	@for t in $(TIMERS); do systemctl --user disable --now $$t.timer >/dev/null 2>&1 || true; done
-	@rm -f $(UNIT_DIR)/mygarmin-*.service $(UNIT_DIR)/mygarmin-*.timer
+	@rm -f $(UNIT_DIR)/athlos-*.service $(UNIT_DIR)/athlos-*.timer
 	@systemctl --user daemon-reload
 	@echo "Tolti."
 
 # Le righe di cron: il modo vecchio (todo 47), prima dei timer del todo 81.
 # Resta perche' chi le ha ancora possa toglierle, e per poterci tornare.
 #
-# L'installazione e' ripetibile: toglie le righe `# mygarmin` che ci sono gia'
+# L'installazione e' ripetibile: toglie le righe `# athlos` che ci sono gia'
 # e rimette queste, senza toccare il resto del tuo crontab.
 install_cron:
 	@test -n "$(UV)" || { echo "uv non e' nel PATH"; exit 1; }
 	@mkdir -p $(dir $(CRON_LOG))
-	@{ crontab -l 2>/dev/null | grep -v '# mygarmin$$' || true; \
+	@{ crontab -l 2>/dev/null | grep -v '# athlos$$' || true; \
 	   sed -e 's|__REPO__|$(CURDIR)|g' -e 's|__UV__|$(UV)|g' -e 's|__UVDIR__|$(UV_DIR:/=)|g' \
 	       -e 's|__LOG__|$(CRON_LOG)|g' \
-	       deploy/crontab | grep '# mygarmin$$'; } | crontab -
+	       deploy/crontab | grep '# athlos$$'; } | crontab -
 	@echo "Installato. Il crontab adesso:"
-	@crontab -l | grep '# mygarmin$$'
+	@crontab -l | grep '# athlos$$'
 	@echo "Il registro dei giri: $(CRON_LOG)"
 
 # Toglie i due giri e lascia il resto del crontab com'e'.
 uninstall_cron:
-	@{ crontab -l 2>/dev/null | grep -v '# mygarmin$$' || true; } | crontab -
+	@{ crontab -l 2>/dev/null | grep -v '# athlos$$' || true; } | crontab -
 	@echo "Tolti. Il crontab adesso:"
 	@crontab -l 2>/dev/null || echo "  (vuoto)"

@@ -1,4 +1,13 @@
-# mygarmin
+# athlos
+
+Il diario di allenamento di una persona sola: una pagina che dice come sta
+il corpo stamattina, com'e' andata la seduta di ieri e che cosa chiede la
+settimana. I dati vengono dall'orologio **Garmin** — attivita', sonno,
+frequenza, readiness — e il testo lo scrivono degli agenti, una sezione per
+volta.
+
+Si chiamava `mygarmin` (todo 95). Il nome diceva la sorgente; adesso dice il
+soggetto, che e' chi si allena.
 
 ## I dati stanno fuori dal repo
 
@@ -416,7 +425,7 @@ e' stato scritto e un tasto che la rifa' da sola (todo 44 e 47). In cima, a
 tutta larghezza, il **Summary**: il verdetto sulle quattro, e il solo testo
 del Report che non appartiene a una card.
 
-**Sulla macchina gira da sola** (todo 82): `mygarmin-api.service` e'
+**Sulla macchina gira da sola** (todo 82): `athlos-api.service` e'
 uvicorn che serve l'API **e** la pagina compilata, tutto sulla 8000. Un
 processo solo, niente vite acceso in produzione, niente proxy. I comandi per
 gestirla sono in **[`docs/service.md`](docs/service.md)**.
@@ -441,7 +450,7 @@ si spegne.
 
 **Dopo un cambio al frontend il servizio non se ne accorge**: serve
 `make frontend_build` (o `make install_services`, che lo fa) e poi
-`systemctl --user restart mygarmin-api`. La pagina servita e'
+`systemctl --user restart athlos-api`. La pagina servita e'
 `frontend/dist`, non i sorgenti.
 
 #### Per lavorarci
@@ -854,14 +863,14 @@ I giri sono **timer di systemd utente**, in `deploy/`:
 ```bash
 make install_services                      # app e timer, ripetibile
 make uninstall_services                    # li toglie
-systemctl --user list-timers 'mygarmin-*'  # quando girano
-journalctl --user -u 'mygarmin-*' -f       # com'e' andata
+systemctl --user list-timers 'athlos-*'  # quando girano
+journalctl --user -u 'athlos-*' -f       # com'e' andata
 systemctl --user --failed                  # cosa e' andato storto
 ```
 
 Tre coppie, con gli stessi orari delle righe di cron che c'erano prima:
-`mygarmin-morning` alle 8, `mygarmin-evening` alle 21 da lunedi a sabato,
-`mygarmin-weekend` la domenica alle 21. La domenica e' un'unita' sola con due
+`athlos-morning` alle 8, `athlos-evening` alle 21 da lunedi a sabato,
+`athlos-weekend` la domenica alle 21. La domenica e' un'unita' sola con due
 `ExecStart` perche' il settimanale deve girare **dopo** il giornaliero: il
 lock ne lascia passare uno alla volta e chi lo trova occupato se ne va senza
 fare niente. Il `-` davanti al primo e' il `;` del crontab — se il giorno
@@ -889,7 +898,7 @@ dopo. Cron questo non lo sa fare: al massimo lascia una riga in un file che
 nessuno apre.
 
 In piu' l'output va nel journal, che ruota da solo:
-`~/.local/state/mygarmin-report.log` cresceva e basta, e non c'era niente
+`~/.local/state/athlos-report.log` cresceva e basta, e non c'era niente
 che lo tagliasse mai. Il file vecchio resta dov'e', fermo all'ultimo giro di
 cron.
 
@@ -913,7 +922,7 @@ la pagina si spegne quando esci, e dalla tailnet non risponde piu' niente.
 #### Le righe di cron, se servisse tornarci
 
 `deploy/crontab` resta, con `make install_cron` e `make uninstall_cron`.
-`install_services` toglie le righe `# mygarmin` dal crontab, perche' i due
+`install_services` toglie le righe `# athlos` dal crontab, perche' i due
 meccanismi insieme si ruberebbero il lock a vicenda: ogni giro troverebbe
 l'altro in corso e uscirebbe senza fare niente — il silenzio che somiglia al
 successo.
