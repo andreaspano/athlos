@@ -22,28 +22,6 @@ La domenica e' un'unita' sola con due `ExecStart` perche' il settimanale deve
 girare **dopo** il giornaliero: il lock ne lascia passare uno alla volta e
 chi lo trova occupato se ne va senza fare niente.
 
-## La chiave del modello
-
-Dal todo 94 le sezioni sono chiamate all'API di Anthropic, quindi serve una
-chiave. Le quattro unita' che lanciano agenti — l'API (il tasto Refresh) e i
-tre giri — la leggono da un file:
-
-```bash
-mkdir -p ~/.config/mygarmin
-printf 'ANTHROPIC_API_KEY=%s\n' 'sk-ant-...' > ~/.config/mygarmin/api.env
-chmod 600 ~/.config/mygarmin/api.env
-systemctl --user restart mygarmin-api
-```
-
-Il file sta **fuori dal repo** e l'`EnvironmentFile=` ha un `-` davanti: se
-non c'e', l'unita' parte comunque. La chiave che manca non e' un guasto di
-systemd ma un messaggio nella pagina — lo scrive `agents.write`, e si legge
-nel banner della sezione che non e' stata scritta. Quindi: se un giro
-fallisce con *"The Anthropic client could not be built"*, il file e' questo.
-
-Da terminale la chiave e' quella dell'ambiente: `make daily_report` usa
-`ANTHROPIC_API_KEY` come qualunque altro comando.
-
 ## Accendere e spegnere
 
 ```bash

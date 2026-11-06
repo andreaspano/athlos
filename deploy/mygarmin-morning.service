@@ -12,9 +12,5 @@ WorkingDirectory=__REPO__
 # lavoro c'e' un `make update_activity` che a sua volta chiama `uv run`.
 # I primi giri di cron (21/10) hanno scritto su dati vecchi proprio per
 # questo.
-# La chiave per chiamare il modello (todo 94). Il `-` davanti vuol dire che
-# un file che non c'e' non blocca l'avvio: la chiave che manca la dice
-# `agents.write`, nel banner della pagina, dove si legge.
-EnvironmentFile=-%h/.config/mygarmin/api.env
 Environment=PATH=__UVDIR__:/usr/local/bin:/usr/bin:/bin
 ExecStart=__UV__ run training-daily-report --moment morning
