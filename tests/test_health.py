@@ -87,7 +87,7 @@ def test_a_broken_metric_is_counted_and_raised_at_the_end(tmp_path, monkeypatch)
     monkeypatch.setattr(H, "safe_call", lambda func, *a, **k: func(*a, **k))
     day = H.today_local() - timedelta(days=3)
 
-    with pytest.raises(RuntimeError, match="non scaricate"):
+    with pytest.raises(RuntimeError, match="metrics not downloaded"):
         H.export_daily_health(object(), tmp_path, day, day)
 
     written = tmp_path / "health" / "buono" / f"{day}.json"

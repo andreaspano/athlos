@@ -362,17 +362,17 @@ def cache_state(data_dir: Path = DATA_DIR) -> dict:
         return {
             "ok": False,
             "message": (
-                "la cache delle attivita' e' vuota: lancia `make rebuild` per "
-                "costruirla dai file FIT."
+                "the cache is empty — run `make rebuild` to build it from the "
+                "FIT files."
             ),
         }
     if stored != LOGIC_VERSION:
         return {
             "ok": False,
             "message": (
-                f"la cache e' alla versione {stored} e il codice vuole la "
-                f"{LOGIC_VERSION}: quello che vedi e' vero ma calcolato col codice "
-                f"di prima. Per rifarla: `make rebuild`."
+                f"the cache is at version {stored} and the code wants "
+                f"{LOGIC_VERSION} — what you see is true, but computed with the "
+                f"code from before. To rebuild it: `make rebuild`."
             ),
         }
     return {"ok": True, "message": None}

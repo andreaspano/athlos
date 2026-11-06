@@ -98,7 +98,7 @@ class TestItDoesNotWipeTheCache:
         assert self.rows(tmp_path) == seeded
 
         (tmp_path / "health").rename(tmp_path / "health-altrove")
-        with pytest.raises(OSError, match="non la svuoto"):
+        with pytest.raises(OSError, match="it is not emptied"):
             sync_health(tmp_path)
 
         assert self.rows(tmp_path) == seeded, "la cache e' ancora tutta li'"
@@ -124,7 +124,7 @@ class TestItDoesNotWipeTheCache:
         folder.mkdir()
         os.chmod(folder, 0o000)
         try:
-            with pytest.raises(OSError, match="non si leggono"):
+            with pytest.raises(OSError, match="cannot be read"):
                 _source_mtimes(tmp_path / "health")
         finally:
             os.chmod(folder, 0o755)

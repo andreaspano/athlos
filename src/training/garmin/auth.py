@@ -37,11 +37,11 @@ def init_api() -> Garmin:
     except (GarminConnectAuthenticationError, FileNotFoundError) as exc:
         if not sys.stdin.isatty():
             raise GarminConnectAuthenticationError(
-                "Il token Garmin non c'e' piu' o e' scaduto, e qui non c'e' "
-                "nessuno a cui chiedere la password (stdin chiuso). Lancia "
-                "`make update_activity` da un terminale per rifare il login: "
-                "servono password e codice MFA. Poi i timer riprendono da "
-                f"soli. ({exc})"
+                "The Garmin token is gone or has expired, and there is "
+                "nobody here to ask for the password (stdin is closed). Run "
+                "`make update_activity` from a terminal to log in again: it "
+                "needs the password and an MFA code. After that the timers "
+                f"pick up on their own. ({exc})"
             ) from exc
         print("Nessun token valido trovato: serve un login completo.\n")
 

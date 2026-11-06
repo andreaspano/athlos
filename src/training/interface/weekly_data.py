@@ -673,10 +673,10 @@ def build_weekly_data(
     cache, perche' rileggerli a ogni richiesta costa un secondo mentre tutto
     il conto della settimana ne costa un decimo; senza, si leggono qui."""
     if monday.weekday() != 0:
-        raise ValueError(f"{monday} non e' un lunedi'")
+        raise ValueError(f"{monday} is not a Monday")
     today = today or date.today()
     if monday > today:
-        raise ValueError(f"la settimana del {monday} non e' ancora cominciata")
+        raise ValueError(f"the week of {monday} has not started yet")
 
     end = monday + timedelta(days=6)
     partial = end >= today
