@@ -7,5 +7,9 @@ OnFailure=mygarmin-alert@%n.service
 [Service]
 Type=oneshot
 WorkingDirectory=__REPO__
+# La chiave per chiamare il modello (todo 94). Il `-` davanti vuol dire che
+# un file che non c'e' non blocca l'avvio: la chiave che manca la dice
+# `agents.write`, nel banner della pagina, dove si legge.
+EnvironmentFile=-%h/.config/mygarmin/api.env
 Environment=PATH=__UVDIR__:/usr/local/bin:/usr/bin:/bin
 ExecStart=__UV__ run training-daily-report --moment evening

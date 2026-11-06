@@ -468,10 +468,20 @@ solo: ogni sezione ha il suo (`01_health`, `02_load`, `03_recovery`,
 hanno concluso gli altri), e ognuno scrive il suo file in
 `summary/01.daily/<giorno>/`. Il numero sei manca: era `06_next`, cancellato
 col todo 66, e gli altri tengono il loro numero perche' sono anche il nome
-del file. L'API li lancia **uno alla volta** con `claude -p` (il comando
-`claude` deve essere nel `PATH` di `make api`), dopo aver scaricato i dati e
-preparato i fatti una volta sola: un minuto e mezzo in tutto. Le regole che gli agenti condividono stanno in
+del file. L'API li lancia **uno alla volta**, dopo aver scaricato i dati e
+preparato i fatti una volta sola: una decina di secondi per sezione, meno di
+un minuto in tutto. Le regole che gli agenti condividono stanno in
 `.claude/agents/_style.md`.
+
+**Una sezione e' una chiamata al modello** (todo 94), non un processo `claude
+-p`: `api/agents.py` manda il prompt dell'agente come blocco di sistema e i
+fatti nel messaggio, e il frammento lo scrive l'orchestratore. Prima era una
+sessione intera di Claude Code per sezione — 46.000 token in ingresso per
+1.500 di testo, e cinque o sei richieste al modello per leggere un file che
+l'orchestratore aveva appena scritto. Serve `ANTHROPIC_API_KEY`
+nell'ambiente: per il servizio e i timer sta in
+`~/.config/mygarmin/api.env` (vedi `docs/service.md`), e se manca lo dice il
+banner della pagina.
 
 Ogni card ha anche **un tasto suo**, che rifa' solo quella sezione: una
 sessione invece di sette quando si vuole ritoccare un testo. Una sezione che
@@ -636,12 +646,13 @@ make week_plans FROM=2026-12-07 TO=2027-01-04
 ```
 
 **Le scrive un agente, una settimana per volta** (`.claude/agents/p_week.md`,
-lanciato come le sezioni dei report) e non una funzione: il blocco e' prosa —
+chiamato come le sezioni dei report) e non una funzione: il blocco e' prosa —
 la tabella delle diciotto settimane, le tabelle di fase, i ritmi, le deroghe —
 e un parser di quelle tabelle sarebbe il parser del markdown di una persona,
 che si rompe sul primo blocco scritto diversamente e si rompe in silenzio. Ogni
-agente riceve il blocco, l'identita' della sua settimana e **il file della
-settimana prima**, che e' da dove la sua continua. Lo stile dei report
+agente riceve il blocco, l'identita' della sua settimana e **la settimana
+prima**, che e' da dove la sua continua — tutti e tre dentro il messaggio,
+come i fatti delle sezioni (todo 94). Lo stile dei report
 (`_style.md`) non si attacca: dice "nessun titolo, un paragrafo, niente
 tabelle", e una settimana e' tutto il contrario.
 
@@ -676,8 +687,8 @@ l'unico gesto distruttivo dentro `summary/`, e rilanciare il comando non e'
 innocuo come rilanciare un backfill.
 
 Il comando **prende il lock dei report** (`.refresh.lock`): due serie di
-`claude` sugli stessi file non si fanno. Sono una sessione per settimana,
-mezz'ora in tutto, quindi non si lancia vicino ai giri delle 8 e delle 21, che
+agenti sugli stessi file non si fanno. Sono una chiamata per settimana, pochi
+minuti in tutto, quindi non si lancia vicino ai giri delle 8 e delle 21, che
 troverebbero il lock occupato e salterebbero il report. E stampa una riga per
 settimana — numero del blocco, fase, km, lungo, quante qualita': **quelle righe
 sono la verifica**, da leggere accanto alla tabella del blocco, perche' i
@@ -839,9 +850,9 @@ l'apertura). L'apertura di una settimana legge il report di
 quella **precedente**: se non c'e' ancora, si salta e la scrive il
 rilancio dopo, quando c'e'.
 
-**Sono ore di agenti**: sei sezioni per giorno, a una ventina di secondi
-l'una, fanno un paio d'ore e mezza per gli ottanta giorni da agosto; le
-settimane mezz'ora. Si lancia quando non c'e' altro in corso.
+**Sono ore di agenti**: sei sezioni per giorno, a una decina di secondi
+l'una, fanno piu' di un'ora per gli ottanta giorni da agosto; le settimane
+pochi minuti. Si lancia quando non c'e' altro in corso.
 
 ### I timer di systemd
 
