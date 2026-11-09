@@ -388,6 +388,20 @@ _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
+def distance_km_value(value: Any) -> float | None:
+    """I chilometri di una seduta come **numero**, da sommare.
+
+    Un intervallo (`distance_km: [10, 11]`) si riduce al suo centro:
+    `_distance_label` lo scrive "10-11 km", che e' giusto da leggere e non si
+    puo' sommare. Serve a chi conta i chilometri previsti di una settimana
+    (`block_data`, todo 96); la pagina continua a usare l'etichetta."""
+    if isinstance(value, (list, tuple)):
+        numbers = [_as_number(v) for v in value]
+        measured = [n for n in numbers if n is not None]
+        return sum(measured) / len(measured) if measured else None
+    return _as_number(value)
+
+
 def _distance_label(value: Any) -> str | None:
     """La distanza di una seduta come la legge una persona: `"7 km"`, o
     `"10-11 km"` quando il piano da' un intervallo.
@@ -442,6 +456,10 @@ def _session(entry: dict, day: date, text: str) -> dict[str, Any]:
         "sport": _as_text(entry.get("sport")),
         "kind": _as_text(entry.get("kind")),
         "distance_label": _distance_label(entry.get("distance_km")),
+        # Il numero accanto all'etichetta: `PlannedSession` non lo dichiara,
+        # quindi non arriva alla pagina e lo schema non cambia. Lo legge chi
+        # deve sommare i chilometri previsti.
+        "distance_km": distance_km_value(entry.get("distance_km")),
         "optional": _as_text(entry.get("optional")),
         "text": _day_row(text, day),
     }

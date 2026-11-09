@@ -1036,3 +1036,238 @@ def trend_panel_charts(panel: dict, days: int, theme: str = "light") -> list[dic
 def week_trend_panel_charts(panel: dict, weeks: int, theme: str = "light") -> list[dict]:
     """I grafici di un pannello del Trend della Week, uno per settimana."""
     return _panel_charts(panel, week_trend_chart, weeks, theme)
+
+
+# --- I tre pannelli del blocco (todo 96) ---
+
+# L'altezza di un pannello del blocco: piu' dei 110 del Trend, che qui i
+# pannelli sono tre affiancati invece di venti in colonna, e le barre vogliono
+# aria in verticale per farsi contare.
+BLOCK_HEIGHT = 190
+
+# Una tinta per KPI, tutte e tre gia' nel progetto: il turchese del carico,
+# l'indaco delle zone e l'arancio della velocita' equivalente — che il ritmo
+# gara viene proprio da quella. Provate col validatore delle palette: la
+# coppia peggiore sta a 21.5 di distanza in deuteranopia, cioe' ben sopra la
+# soglia di 8.
+BLOCK_COLORS = {
+    "volume": {"light": "#1098AD", "dark": "rgb(110,200,215)"},
+    "long_run": {"light": "rgb(74,58,167)", "dark": "rgb(144,133,233)"},
+    "race_pace": {"light": "#eb6834", "dark": "#d95926"},
+}
+
+# Il fondo della settimana che la pagina sta mostrando. Due grigi, uno per
+# tema: il grafico e' del blocco e l'intestazione della settimana, e senza il
+# segno non si sa dove si e'.
+BLOCK_VIEWED_FILL = {"light": "#eef0f3", "dark": "#2b2f36"}
+
+
+def _block_axis(theme: str, labels: bool) -> dict:
+    """Gli assi di un pannello del blocco.
+
+    **Uguali su ogni strato**, e la ragione e' costata un giro: in un `layer`
+    basta che uno strato dichiari `axis: null` perche' l'asse unito sparisca da
+    tutti, e il grafico esce senza numeri e senza riga."""
+    muted = palette_muted(theme)
+    return {
+        "x": alt.Axis(
+            title="block week",
+            labelAngle=0,
+            grid=False,
+            titleFontSize=10,
+            labelFontSize=10,
+            titleColor=muted,
+            labelColor=muted,
+        ),
+        "y": alt.Axis(
+            title="% of what the race asks" if labels else None,
+            format="d",
+            titleFontSize=10,
+            labelFontSize=10,
+            titleColor=muted,
+            labelColor=muted,
+            domain=False,
+        ),
+    }
+
+
+def _block_x(axis: dict) -> alt.X:
+    return alt.X("block_week:O", title=None, axis=axis["x"])
+
+
+def _block_y(field: str, axis: dict, top: float) -> alt.Y:
+    """La y di uno strato. Il dominio e' **dichiarato e uguale** nei tre
+    pannelli: sono tre specifiche separate, quindi ognuna calcolerebbe il suo —
+    il volume arriverebbe a 100 e il ritmo gara a 45, e due pannelli affiancati
+    con due scale diverse si confrontano **sbagliando**.
+
+    Parte da zero per forza: ci sono delle barre, e una barra che non parte da
+    zero mente sulla sua altezza. Qui viene gratis, che l'asse e' una
+    percentuale del bersaglio."""
+    return alt.Y(f"{field}:Q", title=None, scale=alt.Scale(domain=[0, top]), axis=axis["y"])
+
+
+def _block_tooltip(panel: dict) -> list[alt.Tooltip]:
+    """Il tooltip dice i **numeri veri** e non le sole percentuali: una
+    percentuale senza il numero da cui viene non si verifica a occhio. E le
+    percentuali sono due, quella dell'asse e quella del progresso, quindi
+    vanno scritte tutte e due con le parole che le distinguono."""
+    unit = panel["unit"]
+    return [
+        alt.Tooltip("block_week:O", title="Block week"),
+        alt.Tooltip("plan_text:N", title=f"Plan ({unit})"),
+        alt.Tooltip("done_text:N", title=f"Done ({unit})"),
+        alt.Tooltip("best_text:N", title=f"Best so far ({unit})"),
+        alt.Tooltip("progress_text:N", title="Of the way"),
+        alt.Tooltip("elapsed_text:N", title="Elapsed time"),
+    ]
+
+
+def _block_data(panel: dict, viewed: int) -> pd.DataFrame:
+    """I punti di un pannello, coi testi del tooltip gia' scritti."""
+    rows = []
+    for point in panel["points"]:
+        text = lambda v, suffix="": "-" if v is None else f"{v:g}{suffix}"
+        rows.append(
+            {
+                **point,
+                "viewed": point["block_week"] == viewed,
+                "plan_text": text(point["plan"]),
+                "done_text": text(point["done"]),
+                "best_text": text(point["best"]),
+                "progress_text": text(point["progress_pct"], "%"),
+                "elapsed_text": text(point["time_pct"], "% of the block"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def block_chart(panel: dict, viewed: int, top: float, theme: str = "light", labels: bool = False) -> alt.Chart:
+    """Un pannello del blocco: le barre della settimana, la linea del
+    cricchetto, le due righe e la diagonale del tempo (todo 96).
+
+    **Il grafico batte una volta a settimana**: ogni settimana porta la sua
+    barra, quanto ha chiesto il piano e quanto e' stato fatto. Senza le barre
+    il ritmo del blocco non si vedrebbe — il cricchetto e' per costruzione una
+    scala che non scende, e le settimane di scarico, che sono una scelta del
+    piano e non un incidente, sparirebbero dal disegno.
+
+    Il ritmo gara non ha le barre del previsto: il front matter delle sedute
+    non porta i km a ritmo gara, e quel lavoro vive solo nella prosa."""
+    data = _block_data(panel, viewed)
+    axis = _block_axis(theme, labels)
+    colore = BLOCK_COLORS[panel["key"]][theme if theme in ("light", "dark") else "light"]
+    muted = palette_muted(theme)
+    strati = []
+
+    # La settimana che si sta guardando, dietro a tutto.
+    strati.append(
+        alt.Chart(data[data["viewed"]])
+        .mark_rect(fill=BLOCK_VIEWED_FILL.get(theme, BLOCK_VIEWED_FILL["light"]))
+        .encode(x=_block_x(axis))
+    )
+    # Il bersaglio e la partenza: due righe **orizzontali**, quindi senza la x.
+    # Con la x erediterebbero il campo delle settimane, finirebbero in un
+    # `undefined` del dominio ordinale e verrebbero disegnate verticali.
+    for y, dash in ((100.0, [1, 3]), (panel["start_pct"], [4, 3])):
+        strati.append(
+            alt.Chart(pd.DataFrame([{"y": y}]))
+            .mark_rule(stroke=muted, strokeDash=dash, strokeWidth=1.2)
+            .encode(y=_block_y("y", axis, top))
+        )
+    # Le barre: il previsto a contorno, il fatto pieno. Affiancate e non
+    # sovrapposte, con due pixel di fondo fra l'una e l'altra.
+    if panel["has_plan"]:
+        strati.append(
+            alt.Chart(data)
+            .mark_bar(width=9, xOffset=-5.5, fill="transparent", stroke=muted, strokeWidth=1.1, cornerRadiusEnd=2)
+            .encode(x=_block_x(axis), y=_block_y("plan_pct", axis, top))
+        )
+    strati.append(
+        alt.Chart(data)
+        .mark_bar(
+            width=9 if panel["has_plan"] else 11,
+            xOffset=5.5 if panel["has_plan"] else 0,
+            fill=colore,
+            fillOpacity=0.85,
+            cornerRadiusEnd=2,
+        )
+        .encode(x=_block_x(axis), y=_block_y("done_pct", axis, top))
+    )
+    # Il tempo trascorso, dalla partenza alla gara.
+    strati.append(
+        alt.Chart(data)
+        .mark_line(stroke=muted, strokeDash=[5, 3], strokeWidth=1.5)
+        .encode(x=_block_x(axis), y=_block_y("elapsed_pct", axis, top))
+    )
+    # Il cricchetto.
+    strati.append(
+        alt.Chart(data[data["best_pct"].notna()])
+        .mark_line(
+            stroke=colore,
+            strokeWidth=2.5,
+            point=alt.OverlayMarkDef(color=colore, size=45, stroke="white", strokeWidth=1.2),
+        )
+        .encode(x=_block_x(axis), y=_block_y("best_pct", axis, top))
+    )
+    # La barra del passaggio, che porta il tooltip: la stessa idea del Trend,
+    # con la x ordinale invece che temporale.
+    vicino = alt.selection_point(
+        name="hover", nearest=True, on="pointerover", clear="pointerout", encodings=["x"], empty=False
+    )
+    strati.append(
+        alt.Chart(data)
+        .mark_rule(color=muted, strokeWidth=1)
+        .encode(
+            x=_block_x(axis),
+            opacity=alt.condition(vicino, alt.value(0.8), alt.value(0)),
+            tooltip=_block_tooltip(panel),
+        )
+        .add_params(vicino)
+    )
+    sottotitolo = [f"start {panel['start']:g} {panel['unit']} · race {panel['target']:g} {panel['unit']}"]
+    if not panel["has_plan"]:
+        sottotitolo.append("no plan bars: the block does not say")
+    return alt.layer(*strati).properties(
+        height=BLOCK_HEIGHT,
+        width="container",
+        title=alt.TitleParams(
+            panel["label"],
+            anchor="start",
+            fontSize=12,
+            offset=6,
+            dy=-2,
+            subtitle=sottotitolo,
+            subtitleFontSize=10,
+            subtitleColor=palette_muted(theme),
+        ),
+    )
+
+
+def block_panel_charts(data: dict, theme: str = "light") -> list[dict]:
+    """I tre pannelli del blocco, una specifica Vega-Lite per KPI.
+
+    Il tetto della y si calcola **su tutti e tre** e si passa a ognuno: e' la
+    sola cosa che i tre grafici devono sapere l'uno dell'altro, ed e' quella
+    che li rende confrontabili. Cento quando nessuno lo supera, cioe' quasi
+    sempre; di piu' quando qualcuno ha gia' passato quello che la gara chiede,
+    che e' uno stato vero e non si taglia."""
+    valori = [
+        value
+        for panel in data["panels"]
+        for point in panel["points"]
+        for value in (point["plan_pct"], point["done_pct"], point["best_pct"])
+        if value is not None
+    ]
+    top = max(100.0, math.ceil(max(valori, default=0) / 10) * 10)
+    return [
+        {
+            "key": panel["key"],
+            "label": panel["label"],
+            # `validate=False` come nel Trend, e per lo stesso motivo.
+            "spec": block_chart(panel, data["block_week"], top, theme, labels=i == 0).to_dict(
+                validate=False
+            ),
+        }
+        for i, panel in enumerate(data["panels"])
+    ]

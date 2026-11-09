@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from training.interface.db import list_activities
+from training.interface.block_data import race_pace_km
+from training.interface.db import list_activities, load_activity_records
 from training.interface.health_db import load_health_db
 
 # Un minuto: un'attivita' scaricata mentre il server gira compare da se',
@@ -58,6 +59,19 @@ class _Cached:
 _ACTIVITIES = _Cached(list_activities)
 _HEALTH = _Cached(load_health_db)
 
+# Il ritmo gara di ogni seduta (todo 96), **senza scadenza**: a differenza dei
+# due lettori qui sopra questo non guarda una cartella che cambia, ma una
+# seduta gia' letta, e una seduta gia' letta non cambia piu'. La chiave porta
+# anche il bersaglio, che viene dal goal e non dall'attivita': cambiando goal i
+# numeri sono altri, e i vecchi restano validi per il goal vecchio.
+#
+# Serve perche' il conto legge i `records` di ogni corsa del blocco: a blocco
+# pieno sono una cinquantina di sedute da tre-cinquemila campioni, cioe' un
+# quarto di milione di righe per richiesta, e il grafico si ridisegna a ogni
+# cambio di settimana.
+_RACE_PACE: dict[tuple[Path, int, float], float] = {}
+_RACE_PACE_LOCK = threading.Lock()
+
 
 def load_activities(data_dir: Path) -> pd.DataFrame:
     """Le attivita' come `list_activities()`, dalla cache."""
@@ -69,10 +83,40 @@ def load_health(data_dir: Path) -> pd.DataFrame:
     return _HEALTH.get(data_dir)
 
 
+def race_pace_of(data_dir: Path, activity_id: int, target_kmh: float) -> float:
+    """Il tratto continuo piu' lungo a ritmo gara di una seduta, dalla cache.
+
+    Il lucchetto e' solo attorno al dizionario: il conto si fa fuori, perche'
+    tenerlo dentro bloccherebbe ogni altra richiesta per tutta la lettura dei
+    campioni. Due richieste insieme sulla stessa seduta lo fanno due volte, che
+    costa un po' di lavoro e niente di sbagliato — e' la stessa scelta che fa
+    `_Cached` fra le cartelle dati diverse."""
+    key = (Path(data_dir), int(activity_id), float(target_kmh))
+    with _RACE_PACE_LOCK:
+        found = _RACE_PACE.get(key)
+    if found is not None:
+        return found
+    records = load_activity_records(
+        activity_id, data_dir, columns=("distance_km", "equiv_speed_kmh")
+    )
+    value = race_pace_km(records, target_kmh)
+    with _RACE_PACE_LOCK:
+        _RACE_PACE[key] = value
+    return value
+
+
 def invalidate(data_dir: Path) -> None:
     """Dimentica attivita' e salute di una cartella dati: la prossima richiesta le
     rilegge. Dopo una scrittura (il terreno, todo 35; il tipo di corsa, todo
     36) e alla fine di un Refresh (todo 41), cosi' la modifica si vede subito
-    e non dopo un minuto."""
+    e non dopo un minuto.
+
+    Il ritmo gara va via con loro: un Refresh puo' aver scaricato sedute nuove,
+    e soprattutto un `make rebuild` riscrive i campioni da cui quel numero
+    viene."""
     _ACTIVITIES.forget(data_dir)
     _HEALTH.forget(data_dir)
+    root = Path(data_dir)
+    with _RACE_PACE_LOCK:
+        for key in [k for k in _RACE_PACE if k[0] == root]:
+            del _RACE_PACE[key]

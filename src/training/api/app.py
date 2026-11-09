@@ -21,7 +21,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 
 from training.api import refresh
-from training.api.cache import invalidate, load_activities, load_health
+from training.api.cache import invalidate, load_activities, load_health, race_pace_of
 from training.api.context import DIST_DIR, ICONS_DIR, REPO_ROOT, UserContext, get_user_context
 from training.api.daily import daily_payload
 from training.api.plans import (
@@ -36,9 +36,12 @@ from training.api.plans import (
 from training.api.sections import DAILY, SECTIONS, WEEKLY
 from training.api.sections import Report as Report_
 from training.api.weekly import weekly_payload
+from training.interface.block_data import adherence_payload, block_payload
 from training.api.models import (
     Activity,
     ActivityDetail,
+    Adherence,
+    BlockProgress,
     ChartBin,
     ChartData,
     DailyData,
@@ -89,6 +92,7 @@ from training.interface.run_chart import (
     has_effects,
     pauses,
     run_analysis_chart,
+    block_panel_charts,
     trend_panel_charts,
     week_trend_panel_charts,
     zone_bands,
@@ -549,6 +553,85 @@ def get_weekly(monday: date, ctx: Context) -> WeeklyData:
     _week_monday(monday)
     data = weekly_payload(monday, ctx.data_dir)
     return WeeklyData(**{name: data[name] for name in WeeklyData.model_fields})
+
+
+# Le tre rotte del blocco (todo 96) stanno **dopo** `/api/weekly/{monday}` e
+# non prima, a differenza di quelle del Trend: hanno due segmenti o piu', e un
+# percorso di due segmenti non puo' finire dentro uno di uno. La guardia e'
+# quella di `get_week_plan` e non `_week_monday`, per la stessa ragione: una
+# settimana futura e' legittima qui, che il blocco e' scritto in anticipo e la
+# vista Training si apre anche in avanti (todo 88).
+def _plan_monday(monday: date) -> None:
+    """Il lunedi' di una settimana di cui si puo' chiedere il piano."""
+    if monday.weekday() != 0:
+        raise HTTPException(status_code=422, detail=f"{monday} is not a Monday.")
+
+
+def _block(monday: date, ctx: UserContext) -> dict[str, Any]:
+    """I dati del blocco della settimana, o 404."""
+    _plan_monday(monday)
+    data = block_payload(
+        ctx.summary_dir,
+        ctx.plan_dir,
+        load_activities(ctx.data_dir),
+        monday,
+        lambda activity_id, target: race_pace_of(ctx.data_dir, activity_id, target),
+    )
+    if data is None:
+        raise HTTPException(
+            status_code=404, detail=f"The week of {monday} is not part of a block."
+        )
+    return data
+
+
+@app.get("/api/weekly/{monday}/block", response_model=BlockProgress, summary="Block progress")
+def get_block(monday: date, ctx: Context) -> BlockProgress:
+    """How far the block has carried you, week by week (todo 96) — the **response**, which is
+    not the adherence: this says whether the plan is working, `/adherence` says whether you are
+    following it. `docs/aderenza.md` keeps them apart on purpose.
+
+    Three KPIs — weekly kilometres, the long run, and the longest continuous stretch at race
+    pace — each as a percentage of what the race asks. Every week carries what the plan asked
+    and what was done (the bars) and the best up to there (the line, a ratchet). The ratchet is
+    not decoration: a block's planned kilometres are a saw, with four deliberate dips over
+    eighteen weeks, and a line of weekly values would read as four collapses.
+
+    A week outside any block is a 404 and not an error — the weeks before the block started
+    have no file. A Monday in the future is allowed, as for the plan."""
+    data = _block(monday, ctx)
+    return BlockProgress(**{name: data[name] for name in BlockProgress.model_fields})
+
+
+@app.get("/api/weekly/{monday}/block/charts/vega", summary="Block charts, Vega-Lite")
+def get_block_charts(
+    monday: date, ctx: Context, theme: Literal["light", "dark"] = "light"
+) -> list[dict[str, Any]]:
+    """One Vega-Lite spec per KPI, all three in one answer (todo 96).
+
+    Plural like the trend's, and for the same reason: three panels that are drawn together or
+    are not compared. They share the y domain, declared and identical — three separate specs
+    would each compute their own, and two panels side by side with two scales are compared
+    **wrongly**."""
+    data = _block(monday, ctx)
+    return block_panel_charts(data, theme)
+
+
+@app.get("/api/weekly/{monday}/adherence", response_model=Adherence, summary="Weekly adherence")
+def get_adherence(monday: date, ctx: Context) -> Adherence:
+    """How well the week was executed against its plan (todo 96) — the **adherence**.
+
+    Session by session, `s_vol = max(0, 1 - |ln r| / ln 2)` on the kilometres: one on target,
+    zero at half or double, symmetric in log scale, so overshooting weighs as much as falling
+    short. The week is their mean weighted by the planned kilometres, with long and quality
+    sessions counting double. Beside it, always, the ratio of kilometres run to kilometres
+    asked — adherence says *how* you executed, the ratio says whether you were over or under.
+
+    A week with no plan file is a 404, like `/plan`."""
+    _plan_monday(monday)
+    data = adherence_payload(ctx.summary_dir, load_activities(ctx.data_dir), monday)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"No plan for the week of {monday}.")
+    return Adherence(**{name: data[name] for name in Adherence.model_fields})
 
 
 @app.get("/api/weekly/{monday}/plan", response_model=WeekPlan, summary="Weekly plan")

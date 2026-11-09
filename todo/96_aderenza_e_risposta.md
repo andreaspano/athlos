@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 
 # Aderenza e risposta, separate
@@ -61,14 +61,22 @@ uv run --with cairosvg python todo/assets/96_block_mockup.py
 
 | KPI | misura | sorgente |
 |---|---|---|
-| **Volume** | i km di corsa della settimana | `activities`, `sport in (running, treadmill)` |
+| **Volume** | i km di corsa della settimana | `activities`, `sport = running` |
 | **Long run** | la corsa singola piu' lunga della settimana | la stessa |
 | **Race pace** | il tratto continuo piu' lungo a velocita' equivalente >= `target_speed_kmh` | `records.equiv_speed_kmh`, solo `running` |
 
 Sono tre cose diverse — quanto corri, quanto a lungo, quanto in fretta — e
-nessuna delle tre si puo' dedurre dalle altre due. Il tapis roulant conta nel
-volume (una corsa da 7 km fatta sul nastro e' quella seduta, fatta) ma **non**
-nel race pace: il passo del nastro e' una stima del polso, non una misura.
+nessuna delle tre si puo' dedurre dalle altre due.
+
+**Il tapis roulant resta fuori da tutte e tre.** La prima stesura di questo
+todo lo faceva contare nel volume — «una corsa da 7 km fatta sul nastro e'
+quella seduta, fatta» — e nel race pace no. Ma il progetto ha gia' deciso
+altrimenti e da piu' lontano: `sports.DISTANCELESS_SPORTS` lo chiama sport
+senza distanza (todo 45), perche' sul nastro i chilometri li stima il polso e
+in salita sbagliano di molto, e `has_distance` li esclude da **ogni** somma.
+Un blocco che si misura in chilometri non puo' contare chilometri che nessuno
+ha misurato. Cosi' i tre KPI leggono tutti `sport = running` e il rischio di
+due somme che non tornano, scritto piu' sotto, non esiste.
 
 **Il race pace e' il KPI della velocita', e la velocita' non lo e'.** Il
 candidato ovvio — la velocita' equivalente migliore della settimana — e' morto
@@ -499,9 +507,14 @@ entrambe e con le parole che le distinguono.
   scale diverse si confrontano a occhio **sbagliando**. Il dominio si dichiara
   uguale per tutti e tre, calcolato su tutti i dati. E' la trappola piu' facile
   di questo lavoro.
-- **Il tapis roulant entra nel volume e non nel race pace**, quindi la somma
-  dei km del volume e quella delle corse usate per il race pace non tornano. E'
-  voluto, e va scritto nella didascalia o sembra un baco.
+- ~~**Il tapis roulant entra nel volume e non nel race pace.**~~ Caduto: resta
+  fuori da tutti e tre, che e' la regola che il progetto ha gia'
+  (`has_distance`, todo 45). Le due somme tornano.
+- **Una corsa prevista e fatta sul nastro non ha un punteggio.** Non vale zero
+  — e' stata fatta — ma non ha una distanza confrontabile, quindi sta fuori
+  dalla media della settimana, come un giorno di riposo. Succede di rado e la
+  riga del piano resta muta: se diventasse frequente vorrebbe una parola a
+  schermo.
 
 ---
 
@@ -517,21 +530,26 @@ Settimana 1 (lunedi' 26 ottobre):
 
 | giorno | tipo | previsti | fatti | r | `s_vol` | peso |
 |---|---|---|---|---|---|---|
-| 27 Oct | easy | 5 | 9.1 | 1.82 | 0.136 | 5 |
-| 29 Oct | quality | 7 | 7.6 | 1.09 | 0.881 | 14 |
-| 31 Oct | long | 14 | 14.8 | 1.06 | 0.920 | 28 |
+| 27 Oct | easy | 5 | 9.1 | 1.818 | 0.137 | 5 |
+| 29 Oct | quality | 7 | 7.6 | 1.086 | 0.881 | 14 |
+| 31 Oct | long | 14 | 14.8 | 1.060 | 0.916 | 28 |
 
-`volume_adherence` **82.5**, `ratio` **1.21**.
+`volume_adherence` **82.3**, `ratio` **1.21**.
 
 Settimana 2 (lunedi' 2 novembre):
 
 | giorno | tipo | previsti | fatti | r | `s_vol` | peso |
 |---|---|---|---|---|---|---|
-| 3 Nov | easy | 7 | 10.0 | 1.43 | 0.485 | 7 |
-| 5 Nov | quality | 8 | 8.2 | 1.02 | 0.964 | 16 |
-| 7 Nov | long | 15 | 15.5 | 1.03 | 0.953 | 30 |
+| 3 Nov | easy | 7 | 10.0 | 1.434 | 0.480 | 7 |
+| 5 Nov | quality | 8 | 8.2 | 1.028 | 0.959 | 16 |
+| 7 Nov | long | 15 | 15.5 | 1.033 | 0.953 | 30 |
 
-`volume_adherence` **89.5**, `ratio` **1.12**.
+`volume_adherence` **89.3**, `ratio` **1.13**.
+
+I numeri di queste due tabelle sono stati ricalcolati sui dati veri a cose
+fatte: quelli scritti prima dell'implementazione (82.5, 89.5, 1.12) venivano
+da un conto a mano sulle distanze **arrotondate a un decimale**, e il codice
+usa quelle intere — 14.79 km e non 14.8. La differenza e' tutta li'.
 
 La bici del 28 ottobre, del 1 novembre e dell'8 novembre non entra da nessuna
 parte: era `optional`. Il rapporto della settimana 1 **non** conta i 16 minuti
@@ -552,13 +570,13 @@ linee**, cioe' quello che si disegna, in percentuale del bersaglio:
 | | wk | barra plan | barra done | cricchetto | diagonale |
 |---|---|---|---|---|---|
 | Volume | 1 | 56.5% | 68.5% | 68.5% | 58.9% |
-| | 2 | 65.2% | 73.5% | 73.5% | 61.4% |
-| Long run | 1 | 66.4% | 70.2% | 70.2% | 68.2% |
-| | 2 | 71.1% | 73.5% | 73.5% | 70.1% |
+| | 2 | 65.2% | 73.4% | 73.4% | 61.4% |
+| Long run | 1 | 66.4% | 70.3% | 70.3% | 68.2% |
+| | 2 | 71.1% | 73.4% | 73.4% | 70.1% |
 | Race pace | 1 | — | 43.1% | 43.1% | 41.4% |
-| | 2 | — | 36.5% | **43.1%** | 44.8% |
+| | 2 | — | 36.6% | **43.1%** | 44.9% |
 
-Le righe orizzontali della partenza: **56.5%**, **66.4%**, **37.9%**.
+Le righe orizzontali della partenza: **56.5%**, **66.4%**, **38.0%**.
 
 Due controlli che valgono da soli:
 
@@ -575,8 +593,8 @@ partenza) / (bersaglio - partenza)`, da confrontare col tempo trascorso:
 
 | wk | tempo | volume | long run | race pace |
 |---|---|---|---|---|
-| 1 | 5.6% | 27.5% | 11.3% | 8.4% |
-| 2 | 11.1% | 39.0% | 21.1% | **8.4%** |
+| 1 | 5.6% | 27.7% | 11.8% | 8.2% |
+| 2 | 11.1% | 38.8% | 21.0% | **8.2%** |
 
 Cricchetto previsto, prime sei settimane — volume 0, 20, 35, 35, 45, 60%;
 long run 0, 14.1, 28.2, 28.2, 42.3, 56.4%. Sull'asse del disegno, cioe' in
@@ -603,7 +621,10 @@ fa mai correre la gara prima della gara, e gli ultimi cento metri li scopri il
   funziona: se una delle due si rompe, le rotte nuove sono finite nel posto
   sbagliato.
 - `/api/weekly/2026-09-28/adherence`: il file di settembre non ha front
-  matter, quindi 404 e non un 500.
+  matter. Risponde **200** con tutto a `null` e `done_km` 40.5, non 404: il
+  piano di quella settimana **c'e'**, e dire "non c'e'" sarebbe falso; quello
+  che manca sono le sedute a macchina, cioe' niente da confrontare. La cosa
+  che contava — che non sia un 500 — vale.
 
 ### 4. Il grafico
 
@@ -611,12 +632,15 @@ fa mai correre la gara prima della gara, e gli ultimi cento metri li scopri il
   solo strato per pannello dichiara la scala y.
 - I tre `scale.domain` della y sono **identici**, e dichiarati. Se differiscono
   i pannelli non si confrontano.
-- Volume e long run rendono sette strati (`bar, bar, rule, rule, line, line,
-  rule` piu' la barra del passaggio); il race pace **sei**, che non ha le barre
-  `plan`.
+- Volume e long run rendono **otto** strati — `rect` (la settimana mostrata),
+  `rule` (bersaglio), `rule` (partenza), `bar` (previsto), `bar` (fatto),
+  `line` (diagonale), `line` (cricchetto), `rule` (la barra del passaggio) — e
+  il race pace **sette**, che non ha le barre `plan`.
 - Le barre sono affiancate e non sovrapposte, e partono da zero.
 - La barra della settimana 4 e' piu' bassa di quella della 3 su volume e long
-  run.
+  run: 56.5 contro 71.7, e 56.9 contro 75.8.
+- La linea del cricchetto **finisce alla settimana corrente** e non prosegue
+  piatta fino alla gara.
 - La riga verticale sta sulla settimana dell'intestazione in tutti e tre, e si
   muove con le frecce.
 - Nei due temi, e sotto i 900 px i tre pannelli vanno in colonna.
@@ -662,3 +686,118 @@ fa mai correre la gara prima della gara, e gli ultimi cento metri li scopri il
   la dose del lavoro specifico, gemella cumulata del race pace. Si accumula
   come i chilometri, ma non ha un bersaglio pulito — la gara e' 21.097 km in
   una volta, non sommati. Candidato per dopo.
+
+## Come e' andata
+
+Fatto. Le cose decise o scoperte per strada, che il todo da solo non diceva.
+
+**Il tapis roulant e' uscito da tutti e tre i KPI.** Il todo lo faceva contare
+nel volume; `sports.DISTANCELESS_SPORTS` dice da prima (todo 45) che di quello
+sport la distanza non si somma, perche' la stima il polso. Fra una regola
+scritta in un todo di oggi e una gia' nel codice da mesi ha vinto la seconda:
+i tre KPI leggono `sport = running` e basta. Un rischio in meno e una riga di
+didascalia in meno.
+
+**Il ritmo gara non spezza sulle pause, e la differenza era grossa.** La prima
+versione tagliava i tratti su `segments`, cioe' su ogni buco di cinque secondi
+nei record. Sulla corsa del 25 ottobre 2026 — otto chilometri **interi** sopra
+il bersaglio — dava **7.2 km**, perche' dentro c'e' una pausa dell'orologio.
+Otto e' il numero che il blocco dichiara di suo («You have never run at 6'38"
+for more than 8 km»), quindi 7.2 era un'invenzione del filtro. Adesso il tempo
+e' quello in movimento (`sample_seconds`, che collassa le pause a un secondo)
+ma il tratto le attraversa — ed e' anche la regola che `db._zone_minutes` gia'
+segue. Si paga che una sosta vera di dieci minuti non spezza: capita poco, e
+sbaglia dalla parte che non inventa.
+
+**Il cricchetto doveva fermarsi, e se n'e' accorto l'occhio.** La prima
+versione portava avanti il massimo fino alla settimana 18: a schermo la linea
+proseguiva piatta attraverso quindici settimane che non sono ancora successe,
+e si leggeva come «da qui alla gara non migliori piu'». Adesso finisce alla
+settimana corrente. Dentro il misurato invece porta avanti il massimo anche
+attraverso una settimana senza corse, che e' tutto il suo mestiere. Non si
+vedeva in nessun numero: solo guardando il disegno.
+
+**L'aderenza sta in fondo alla card del piano, non in cima.** Il todo diceva
+«due riquadri `Stat` in cima». In cima e' una riga in piu' davanti al lunedi',
+e spinge le sette righe in basso disallineandole dalle sedute della colonna
+accanto — che e' **esattamente** quello che il todo 75 aveva tolto da li' e il
+todo 77 aveva messo in riga. In fondo c'e' gia' `.week-days-foot`, che e' una
+riga sua, e un verdetto sull'esecuzione si legge dopo i sette giorni.
+
+**I chilometri previsti sono un numero e non un'etichetta.** `load_week_plan`
+rendeva solo `distance_label` ("10-11 km"), e la prima stesura la rileggeva
+all'indietro per riavere il numero. Al suo posto `plans.distance_km_value`, e
+il numero viaggia accanto all'etichetta nel dizionario della seduta.
+`PlannedSession` non lo dichiara, quindi non arriva alla pagina e **lo schema
+non cambia**: il `git diff` su `schema.ts` e' di sole aggiunte, 458 righe e
+zero tolte.
+
+**Le rotte del blocco stanno dopo `/api/weekly/{monday}` e non prima.** Quelle
+del Trend devono stare prima perche' hanno un segmento solo; queste ne hanno
+due o piu' e non possono finire dentro un percorso di uno. La trappola
+d'ordine del todo 55 non si applica, e metterle prima sarebbe stato un culto
+del cargo.
+
+**`/api/weekly/2026-09-28/adherence` risponde 200, non 404.** Il todo si
+aspettava 404 perche' quel file non ha front matter. Ma il piano di quella
+settimana **c'e'**: quello che manca sono le sedute a macchina. Dire "non c'e'
+un piano" sarebbe falso, e 200 con tutto a `null` e' la risposta vera. Quello
+che il controllo voleva davvero — che non sia un 500 — vale.
+
+**I numeri della verifica sono stati ricalcolati.** Quelli scritti prima
+dell'implementazione (aderenza 82.5 e 89.5, rapporto 1.12) venivano da un
+conto a mano sulle distanze arrotondate a un decimale; il codice usa quelle
+intere, 14.79 km e non 14.8. I veri sono 82.3, 89.3 e 1.13, e le percentuali
+dei pannelli cambiano nella seconda cifra. Nessuna conclusione si muove: alla
+settimana 2 il cricchetto sta sopra la diagonale su volume e long run e sotto
+sul race pace, che e' il verdetto che il grafico deve dare.
+
+**`onPick` di `OneChart` e' diventato facoltativo**, come previsto. Senza di
+lui non si attacca l'ascoltatore del clic, e dai pannelli del blocco non si va
+da nessuna parte: la settimana si cambia dall'intestazione.
+
+**`.plan-day-row` ha una quarta colonna**, `auto`, per il punteggio della
+seduta. C'e' anche nelle righe che non ce l'hanno, cosi' il telaio e' lo
+stesso per tutte e sette e il dettaglio comincia alla stessa x.
+
+### La verifica a schermo, e cosa non si e' potuto provare
+
+Come nel todo 78: le specifiche sono state **rese**, non fotografate dalla
+pagina. Qui non per scelta — `chromium-browser` e' uno stub di snap non
+installato, `firefox --headless --screenshot` si e' piantato per due minuti, e
+l'estensione Claude in Chrome non e' collegata. Le tre specifiche sono state
+compilate con il `vl2svg` del frontend e rese in PNG, nei due temi, con sopra
+lo stesso `themeConfig` che `vega-embed` applica in pagina — senza quello il
+render mente sui colori, e la prima volta aveva mostrato dei titoli neri su
+fondo scuro che in pagina non esistono.
+
+Si vede quello che si doveva vedere: le barre affiancate con lo scarico della
+settimana 4 piu' basso della 3, il cricchetto che si ferma alla settimana 3,
+le due righe orizzontali, la diagonale che le attraversa, la fascia grigia
+sulla settimana mostrata, e il pannello del ritmo gara senza barre del
+previsto. **Restano da guardare nella pagina vera** due cose che da qui non si
+provano: il tooltip del passaggio e come i tre pannelli si impilano sotto i
+900 px.
+
+La regressione invece e' stata provata per davvero, e meglio del previsto:
+sulla macchina girava gia' un'API con il codice di `main` caricato in memoria,
+quindi le due versioni sono state interrogate fianco a fianco. Otto risposte
+confrontate — i due Trend, le due specifiche dei Trend, il piano della
+settimana, il piano del giorno, i fatti della settimana e i goal — **tutte
+identiche byte per byte**.
+
+## Revert
+
+```bash
+git revert -m 1 $(git log main --merges --grep="^Merge branch 'todo_96'$" --format=%H -1)
+```
+
+Effetti fuori dal repo: nessuno. Le tre rotte leggono e basta — niente
+scritture in `summary/`, nessuna colonna nuova in `activities.db`, nessuna
+chiamata a Garmin. `LOGIC_VERSION` e `HEALTH_LOGIC_VERSION` non si muovono,
+quindi il revert non fa rileggere i FIT ne' i JSON della salute. La cache del
+ritmo gara vive in memoria nel processo dell'API: muore da sola quando il
+servizio riparte.
+
+Dopo il revert, rifare il merge di `todo_96` non riporta le modifiche (git le
+considera gia' unite): per riaverle serve il revert del revert.

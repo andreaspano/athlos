@@ -911,3 +911,120 @@ class DayPlan(PlannedSession):
     week: date = Field(description="The Monday of the week this comes from.")
     file: str = Field(description="The file name in `summary/05.plan/`.")
     written_at: datetime | None = Field(description="When the file was last written.")
+
+
+# --- Il blocco: la risposta e l'aderenza, separate (todo 96) ---
+#
+# Due modelli e due rotte, non uno con dentro tutto. E' la decisione di
+# `docs/aderenza.md`: l'aderenza dice quanto stai seguendo il piano, la
+# risposta quanto il piano sta funzionando, e fonderle in un numero unico
+# toglie proprio la distinzione su cui si decide cosa fare.
+
+
+class BlockPoint(BaseModel):
+    """One week of the block, for one KPI: the two bars, the line, the diagonal."""
+
+    block_week: int = Field(description="1 to `block_weeks`.")
+    plan: float | None = Field(description="What the plan asks for that week, in km.")
+    plan_pct: float | None = Field(description="`plan` as a percentage of the target: the outline bar.")
+    done: float | None = Field(
+        description="What was done that week, in km. Null for a week that has not started, "
+        "and for a week with no running at all — which is not the same as zero."
+    )
+    done_pct: float | None = Field(description="`done` as a percentage of the target: the filled bar.")
+    best: float | None = Field(description="The best up to this week, in km: the ratchet.")
+    best_pct: float | None = Field(description="`best` as a percentage of the target: the line.")
+    best_plan_pct: float | None = Field(description="The plan's own ratchet, same percentage.")
+    progress_pct: float | None = Field(
+        description="How far from the start line to the target, in percent: "
+        "`(best - start) / (target - start)`. The number the tooltip says, not the axis."
+    )
+    plan_progress_pct: float | None = Field(description="The same, for the plan's ratchet.")
+    elapsed_pct: float | None = Field(
+        description="The dashed diagonal, on the axis of the target: from the start line at "
+        "week zero to 100% at the race."
+    )
+    time_pct: float | None = Field(description="Plain elapsed time of the block, `week / block_weeks`.")
+
+
+class BlockPanel(BaseModel):
+    """One KPI across the whole block: volume, long run or race pace."""
+
+    key: str = Field(description="volume, long_run or race_pace.")
+    label: str = Field(description="As it reads on screen.")
+    unit: str = Field(description="km for all three, today.")
+    start: float = Field(description="The start line, in km.")
+    start_pct: float = Field(description="The start line on the axis, as a percentage of the target.")
+    target: float = Field(description="What the race asks, in km: the top of the axis.")
+    has_plan: bool = Field(
+        description="False for race pace: the front matter carries no race-pace kilometres, so "
+        "that panel has no outline bars and only the diagonal to compare against."
+    )
+    now: float | None = Field(description="The best reached so far, in km.")
+    progress_pct: float | None = Field(description="The best reached, from the start line, in percent.")
+    points: list[BlockPoint] = Field(description="One per week of the block, in order.")
+
+
+class BlockWeek(BaseModel):
+    """A week of the block in the calendar, so a point can be named."""
+
+    block_week: int
+    monday: Date | None = Field(description="Null for a week of the block with no file written yet.")
+    phase: str | None = Field(description="base, build, specific, taper or race.")
+
+
+class BlockProgress(BaseModel):
+    """How far the block has carried you: the response, three KPIs over the weeks."""
+
+    plan: str = Field(description="Slug of the block in `plan/` these weeks declare.")
+    title: str | None = Field(description="The goal's title.")
+    race: Date | None
+    target_time: str | None = Field(description='As written ("2:20:00").')
+    target_speed_kmh: float | None = Field(description="Race speed, which race pace is measured against.")
+    block_week: int = Field(description="Which week of the block the page is showing.")
+    block_weeks: int = Field(description="How many weeks the block lasts.")
+    weeks: list[BlockWeek]
+    panels: list[BlockPanel] = Field(
+        description="Volume, long run, race pace. A KPI whose target the goal does not declare "
+        "is not in the list: no target, no percentage to draw."
+    )
+
+
+class AdherenceSession(BaseModel):
+    """One planned session, and what was run in its place."""
+
+    day: Date = Field(description="The day the plan asks for it.")
+    kind: str | None = Field(description="easy, quality or long.")
+    key: bool = Field(description="True for long and quality: they weigh double.")
+    planned_km: float
+    done_km: float | None = Field(description="Null when no run was matched to it.")
+    ratio: float | None = Field(description="`done / planned`.")
+    score: float | None = Field(
+        description="`s_vol`: 1 on target, 0 at half or double, symmetric in log scale. Zero for a "
+        "session not done; null when a run was matched but carries no comparable distance, and "
+        "then it stays out of the week's mean."
+    )
+    moved_to: Date | None = Field(description="The day it was actually run, when it was not its own.")
+
+
+class Adherence(BaseModel):
+    """How well one week was executed — not how well it worked, which is `BlockProgress`.
+
+    It is called volume adherence and not adherence because it is **half** of the measure in
+    `docs/aderenza.md`, which is `(s_vol + s_int) / 2`: the intensity half needs the planned
+    time-in-zone, and the front matter of a session does not carry it."""
+
+    week: Date = Field(description="The Monday.")
+    plan: str | None = Field(description="Slug of the block this week comes from.")
+    block_week: int | None
+    sessions: list[AdherenceSession] = Field(description="The planned runs, in day order.")
+    volume_adherence: float | None = Field(
+        description="0 to 100, the mean of the sessions' scores weighted by planned kilometres, "
+        "with long and quality counting double. Null for a week that asks for no running."
+    )
+    planned_km: float | None = Field(description="Total asked for by the plan.")
+    done_km: float = Field(description="Total run that week, including sessions the plan did not ask for.")
+    ratio: float | None = Field(
+        description="`done_km / planned_km`. Adherence says how you executed, this says whether "
+        "you were over or under."
+    )

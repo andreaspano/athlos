@@ -682,7 +682,11 @@ h2 {
 }
 .plan-day-row {
   display: grid;
-  grid-template-columns: 5.5rem 26px 1fr;
+  /* La quarta colonna e' il punteggio dell'aderenza (todo 96). C'e' sempre,
+     anche nelle righe che non ce l'hanno: cosi' il telaio e' lo stesso per
+     tutte e sette, e il dettaglio della seduta comincia alla stessa x. Dove
+     manca, la colonna e' larga zero. */
+  grid-template-columns: 5.5rem 26px 1fr auto;
   align-items: center;
   /* In cima alla riga, non in mezzo: quando la riga si alza perche' di
      fronte c'e' una seduta da due righe, il giorno deve restare sulla stessa
@@ -1486,4 +1490,51 @@ h2 {
    del percorso del file, che `.plan-file` dava insieme al monospaziato. */
 .plan-path {
   margin-top: 22px;
+}
+
+/* La card Block (todo 96): i tre pannelli del blocco, uno per KPI. Tre
+   colonne uguali, come le due di `.week-work`, e sotto i 900 px in colonna —
+   tre grafici a barre affiancati su un telefono sarebbero tre strisce. */
+.block-panels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 8px;
+}
+.block-week-note {
+  margin: -4px 0 10px;
+}
+/* Il punteggio di una seduta nella riga del piano: in fondo a destra, dove
+   la riga ha gia' detto cosa chiedeva quel giorno. */
+.plan-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95em;
+  white-space: nowrap;
+}
+.plan-score .muted {
+  font-size: 0.8em;
+}
+/* I due numeri dell'aderenza, in fondo alla card del piano. In fondo e non
+   in cima: una riga in cima spingerebbe il lunedi' sotto la prima seduta
+   della colonna accanto (todo 75 e 77). */
+.plan-adherence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  align-items: baseline;
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+}
+.plan-adherence .muted {
+  margin-left: 6px;
+  font-size: 0.85em;
+}
+@media (max-width: 900px) {
+  .block-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

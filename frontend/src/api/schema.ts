@@ -416,6 +416,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/weekly/{monday}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Block progress
+         * @description How far the block has carried you, week by week (todo 96) — the **response**, which is
+         *     not the adherence: this says whether the plan is working, `/adherence` says whether you are
+         *     following it. `docs/aderenza.md` keeps them apart on purpose.
+         *
+         *     Three KPIs — weekly kilometres, the long run, and the longest continuous stretch at race
+         *     pace — each as a percentage of what the race asks. Every week carries what the plan asked
+         *     and what was done (the bars) and the best up to there (the line, a ratchet). The ratchet is
+         *     not decoration: a block's planned kilometres are a saw, with four deliberate dips over
+         *     eighteen weeks, and a line of weekly values would read as four collapses.
+         *
+         *     A week outside any block is a 404 and not an error — the weeks before the block started
+         *     have no file. A Monday in the future is allowed, as for the plan.
+         */
+        get: operations["get_block_api_weekly__monday__block_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/weekly/{monday}/block/charts/vega": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Block charts, Vega-Lite
+         * @description One Vega-Lite spec per KPI, all three in one answer (todo 96).
+         *
+         *     Plural like the trend's, and for the same reason: three panels that are drawn together or
+         *     are not compared. They share the y domain, declared and identical — three separate specs
+         *     would each compute their own, and two panels side by side with two scales are compared
+         *     **wrongly**.
+         */
+        get: operations["get_block_charts_api_weekly__monday__block_charts_vega_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/weekly/{monday}/adherence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Weekly adherence
+         * @description How well the week was executed against its plan (todo 96) — the **adherence**.
+         *
+         *     Session by session, `s_vol = max(0, 1 - |ln r| / ln 2)` on the kilometres: one on target,
+         *     zero at half or double, symmetric in log scale, so overshooting weighs as much as falling
+         *     short. The week is their mean weighted by the planned kilometres, with long and quality
+         *     sessions counting double. Beside it, always, the ratio of kilometres run to kilometres
+         *     asked — adherence says *how* you executed, the ratio says whether you were over or under.
+         *
+         *     A week with no plan file is a 404, like `/plan`.
+         */
+        get: operations["get_adherence_api_weekly__monday__adherence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/weekly/{monday}/plan": {
         parameters: {
             query?: never;
@@ -885,6 +969,98 @@ export interface components {
             effect_seconds: components["schemas"]["EffectSeconds"] | null;
         };
         /**
+         * Adherence
+         * @description How well one week was executed — not how well it worked, which is `BlockProgress`.
+         *
+         *     It is called volume adherence and not adherence because it is **half** of the measure in
+         *     `docs/aderenza.md`, which is `(s_vol + s_int) / 2`: the intensity half needs the planned
+         *     time-in-zone, and the front matter of a session does not carry it.
+         */
+        Adherence: {
+            /**
+             * Week
+             * Format: date
+             * @description The Monday.
+             */
+            week: string;
+            /**
+             * Plan
+             * @description Slug of the block this week comes from.
+             */
+            plan: string | null;
+            /** Block Week */
+            block_week: number | null;
+            /**
+             * Sessions
+             * @description The planned runs, in day order.
+             */
+            sessions: components["schemas"]["AdherenceSession"][];
+            /**
+             * Volume Adherence
+             * @description 0 to 100, the mean of the sessions' scores weighted by planned kilometres, with long and quality counting double. Null for a week that asks for no running.
+             */
+            volume_adherence: number | null;
+            /**
+             * Planned Km
+             * @description Total asked for by the plan.
+             */
+            planned_km: number | null;
+            /**
+             * Done Km
+             * @description Total run that week, including sessions the plan did not ask for.
+             */
+            done_km: number;
+            /**
+             * Ratio
+             * @description `done_km / planned_km`. Adherence says how you executed, this says whether you were over or under.
+             */
+            ratio: number | null;
+        };
+        /**
+         * AdherenceSession
+         * @description One planned session, and what was run in its place.
+         */
+        AdherenceSession: {
+            /**
+             * Day
+             * Format: date
+             * @description The day the plan asks for it.
+             */
+            day: string;
+            /**
+             * Kind
+             * @description easy, quality or long.
+             */
+            kind: string | null;
+            /**
+             * Key
+             * @description True for long and quality: they weigh double.
+             */
+            key: boolean;
+            /** Planned Km */
+            planned_km: number;
+            /**
+             * Done Km
+             * @description Null when no run was matched to it.
+             */
+            done_km: number | null;
+            /**
+             * Ratio
+             * @description `done / planned`.
+             */
+            ratio: number | null;
+            /**
+             * Score
+             * @description `s_vol`: 1 on target, 0 at half or double, symmetric in log scale. Zero for a session not done; null when a run was matched but carries no comparable distance, and then it stays out of the week's mean.
+             */
+            score: number | null;
+            /**
+             * Moved To
+             * @description The day it was actually run, when it was not its own.
+             */
+            moved_to: string | null;
+        };
+        /**
          * Alert
          * @description A warning sign, with its own numbers in extra fields.
          */
@@ -932,6 +1108,191 @@ export interface components {
              * @description Two standard deviations above the average.
              */
             outer_high: number;
+        };
+        /**
+         * BlockPanel
+         * @description One KPI across the whole block: volume, long run or race pace.
+         */
+        BlockPanel: {
+            /**
+             * Key
+             * @description volume, long_run or race_pace.
+             */
+            key: string;
+            /**
+             * Label
+             * @description As it reads on screen.
+             */
+            label: string;
+            /**
+             * Unit
+             * @description km for all three, today.
+             */
+            unit: string;
+            /**
+             * Start
+             * @description The start line, in km.
+             */
+            start: number;
+            /**
+             * Start Pct
+             * @description The start line on the axis, as a percentage of the target.
+             */
+            start_pct: number;
+            /**
+             * Target
+             * @description What the race asks, in km: the top of the axis.
+             */
+            target: number;
+            /**
+             * Has Plan
+             * @description False for race pace: the front matter carries no race-pace kilometres, so that panel has no outline bars and only the diagonal to compare against.
+             */
+            has_plan: boolean;
+            /**
+             * Now
+             * @description The best reached so far, in km.
+             */
+            now: number | null;
+            /**
+             * Progress Pct
+             * @description The best reached, from the start line, in percent.
+             */
+            progress_pct: number | null;
+            /**
+             * Points
+             * @description One per week of the block, in order.
+             */
+            points: components["schemas"]["BlockPoint"][];
+        };
+        /**
+         * BlockPoint
+         * @description One week of the block, for one KPI: the two bars, the line, the diagonal.
+         */
+        BlockPoint: {
+            /**
+             * Block Week
+             * @description 1 to `block_weeks`.
+             */
+            block_week: number;
+            /**
+             * Plan
+             * @description What the plan asks for that week, in km.
+             */
+            plan: number | null;
+            /**
+             * Plan Pct
+             * @description `plan` as a percentage of the target: the outline bar.
+             */
+            plan_pct: number | null;
+            /**
+             * Done
+             * @description What was done that week, in km. Null for a week that has not started, and for a week with no running at all — which is not the same as zero.
+             */
+            done: number | null;
+            /**
+             * Done Pct
+             * @description `done` as a percentage of the target: the filled bar.
+             */
+            done_pct: number | null;
+            /**
+             * Best
+             * @description The best up to this week, in km: the ratchet.
+             */
+            best: number | null;
+            /**
+             * Best Pct
+             * @description `best` as a percentage of the target: the line.
+             */
+            best_pct: number | null;
+            /**
+             * Best Plan Pct
+             * @description The plan's own ratchet, same percentage.
+             */
+            best_plan_pct: number | null;
+            /**
+             * Progress Pct
+             * @description How far from the start line to the target, in percent: `(best - start) / (target - start)`. The number the tooltip says, not the axis.
+             */
+            progress_pct: number | null;
+            /**
+             * Plan Progress Pct
+             * @description The same, for the plan's ratchet.
+             */
+            plan_progress_pct: number | null;
+            /**
+             * Elapsed Pct
+             * @description The dashed diagonal, on the axis of the target: from the start line at week zero to 100% at the race.
+             */
+            elapsed_pct: number | null;
+            /**
+             * Time Pct
+             * @description Plain elapsed time of the block, `week / block_weeks`.
+             */
+            time_pct: number | null;
+        };
+        /**
+         * BlockProgress
+         * @description How far the block has carried you: the response, three KPIs over the weeks.
+         */
+        BlockProgress: {
+            /**
+             * Plan
+             * @description Slug of the block in `plan/` these weeks declare.
+             */
+            plan: string;
+            /**
+             * Title
+             * @description The goal's title.
+             */
+            title: string | null;
+            /** Race */
+            race: string | null;
+            /**
+             * Target Time
+             * @description As written ("2:20:00").
+             */
+            target_time: string | null;
+            /**
+             * Target Speed Kmh
+             * @description Race speed, which race pace is measured against.
+             */
+            target_speed_kmh: number | null;
+            /**
+             * Block Week
+             * @description Which week of the block the page is showing.
+             */
+            block_week: number;
+            /**
+             * Block Weeks
+             * @description How many weeks the block lasts.
+             */
+            block_weeks: number;
+            /** Weeks */
+            weeks: components["schemas"]["BlockWeek"][];
+            /**
+             * Panels
+             * @description Volume, long run, race pace. A KPI whose target the goal does not declare is not in the list: no target, no percentage to draw.
+             */
+            panels: components["schemas"]["BlockPanel"][];
+        };
+        /**
+         * BlockWeek
+         * @description A week of the block in the calendar, so a point can be named.
+         */
+        BlockWeek: {
+            /** Block Week */
+            block_week: number;
+            /**
+             * Monday
+             * @description Null for a week of the block with no file written yet.
+             */
+            monday: string | null;
+            /**
+             * Phase
+             * @description base, build, specific, taper or race.
+             */
+            phase: string | null;
         };
         /**
          * ChartBin
@@ -3013,6 +3374,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WeeklyData"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_block_api_weekly__monday__block_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                monday: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockProgress"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_block_charts_api_weekly__monday__block_charts_vega_get: {
+        parameters: {
+            query?: {
+                theme?: "light" | "dark";
+            };
+            header?: never;
+            path: {
+                monday: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_adherence_api_weekly__monday__adherence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                monday: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Adherence"];
                 };
             };
             /** @description Validation Error */
