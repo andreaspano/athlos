@@ -173,7 +173,13 @@ LOGIC_VERSION = "11"
 
 # I conti che si ricavano dalle righe in tabella. "1": il primo numero, da
 # quando le due versioni si sono separate (todo 93).
-DERIVED_VERSION = "1"
+#
+# "2": si prestano anche i tetti delle zone, non solo la soglia
+# (`hr_zone_bounds_borrowed`). Cambia chi ha dei minuti per zona: le sedute
+# senza zone proprie, da `THRESHOLD_FALLBACK_FROM` in poi, prima non ne
+# avevano nessuno — una pedalata al rullo esportata da MyWhoosh restava fuori
+# dalla divisione fra lavoro facile e duro della Week.
+DERIVED_VERSION = "2"
 
 _LOGIC_KEY = "logic_version"
 _DERIVED_KEY = "derived_version"
@@ -208,9 +214,16 @@ CREATE TABLE IF NOT EXISTS activities (
     aerobic_te        REAL,
     anaerobic_te      REAL,
     hr_zone_bounds    TEXT,
+    -- I tetti delle zone **prestati** da un'altra seduta, come
+    -- `threshold_hr_borrowed` qui sotto e per la stessa ragione: il profilo
+    -- Bici dell'orologio non salva il messaggio delle zone, e un FIT che non
+    -- viene da Garmin (l'esportazione di MyWhoosh) non lo ha affatto. Stessa
+    -- forma della colonna misurata, JSON. Le due cose arrivano **dalla stessa
+    -- seduta donatrice** (vedi `_lend_zone_settings`).
+    hr_zone_bounds_borrowed TEXT,
     threshold_hr      INTEGER,
     -- La soglia **prestata** da un'altra seduta, quando questa non ne ha una
-    -- sua (vedi `_fill_missing_thresholds`). Sta in una colonna a parte
+    -- sua (vedi `_lend_zone_settings`). Sta in una colonna a parte
     -- perche' non e' una misura di questa seduta: scritta in `threshold_hr`
     -- non si distingueva da una vera, e l'API dava 148 come "la soglia" di
     -- una sessione di arrampicata. Chi divide i minuti per zona usa
@@ -275,12 +288,19 @@ _LAP_COLUMNS = (
 
 # Le colonne che un database costruito prima di loro non ha. `CREATE TABLE
 # IF NOT EXISTS` non le aggiunge, e un `LOGIC_VERSION` nuovo costringerebbe a
-# rileggere 979 file FIT per un dato che si calcola dai record gia' in
+# rileggere 979 file FIT per un dato che si calcola dalle righe gia' in
 # tabella: tanto vale aggiungerle e riempirle (todo 54).
+#
+# Qui ci sta solo cio' che si **ricava** da quello che c'e' — i minuti per
+# zona, i tetti prestati: per quelle il salto di `DERIVED_VERSION` le riempie
+# in secondi. Una colonna che si legge dal FIT non puo' stare in questa lista,
+# perche' nascerebbe vuota e nessuno la riempirebbe: quella vuole
+# `LOGIC_VERSION` e un rebuild.
 _ADDED_COLUMNS = {
     "min_low_aerobic": "REAL",
     "min_high_aerobic": "REAL",
     "min_anaerobic": "REAL",
+    "hr_zone_bounds_borrowed": "TEXT",
 }
 
 
@@ -507,6 +527,10 @@ def _parse_and_store(
     conn: sqlite3.Connection, path: Path, names: dict, types: dict, parsed_at: str
 ) -> bool:
     summary = load_activity_summary(path)
+    # Non e' una colonna: e' il nome di ripiego letto dal FIT (vedi
+    # `fit.load_activity_summary`), e la riga lo prende solo se Garmin Connect
+    # non ne ha uno suo.
+    fit_name = summary.pop("fit_name", None)
     if summary["activity_id"] is None or summary["start_time"] is None:
         return False
     records = _parse_fit_records(path)
@@ -538,7 +562,7 @@ def _parse_and_store(
                 records["equiv_speed_kmh"] = equivalent_speed_series(records)
             except Exception as exc:
                 print(f"  {path.name}: serie della velocita' equivalente non calcolata ({exc}).")
-    _insert_activity(conn, summary, names.get(activity_id), parsed_at)
+    _insert_activity(conn, summary, names.get(activity_id) or fit_name, parsed_at)
     _insert_records(conn, summary["activity_id"], records)
     _insert_laps(conn, summary["activity_id"], _parse_fit_laps(path))
     return True
@@ -559,11 +583,12 @@ def _zone_minutes(conn: sqlite3.Connection, activity_id: int) -> tuple[float, fl
     """I minuti passati nelle tre fasce di sforzo di Garmin — basso aerobico,
     alto aerobico, anaerobico — da `records` (todo 54).
 
-    I confini sono quelli **di quella seduta** (`hr_zone_bounds`,
-    `threshold_hr`), non quelli di oggi: una soglia alzata a settembre non
-    deve riscrivere i minuti di agosto. Basso aerobico fino alla cima della
-    terza zona, alto aerobico fino alla soglia, anaerobico oltre — gli stessi
-    tagli di `daily_data._hr_zones`.
+    I confini sono quelli **di quella seduta**, non quelli di oggi: una
+    soglia alzata a settembre non deve riscrivere i minuti di agosto. Dove la
+    seduta non li ha misurati valgono quelli prestati dalla corsa piu' vicina
+    (`_lend_zone_settings`), che e' una sola per entrambi. Basso aerobico fino
+    alla cima della terza zona, alto aerobico fino alla soglia, anaerobico
+    oltre — gli stessi tagli di `daily_data._hr_zones`.
 
     Quanto vale ogni campione lo dice `grade.sample_seconds`, **la stessa
     regola di `run_chart.effects`**: fino al campione dopo, e un secondo solo
@@ -581,7 +606,8 @@ def _zone_minutes(conn: sqlite3.Connection, activity_id: int) -> tuple[float, fl
     si retrodata — sono 926 sedute su 979, tutte anteriori ad agosto 2026,
     e la Week guarda dodici settimane."""
     row = conn.execute(
-        "SELECT hr_zone_bounds, COALESCE(threshold_hr, threshold_hr_borrowed) "
+        "SELECT COALESCE(hr_zone_bounds, hr_zone_bounds_borrowed), "
+        "COALESCE(threshold_hr, threshold_hr_borrowed) "
         "FROM activities WHERE activity_id = ?",
         (activity_id,),
     ).fetchone()
@@ -632,7 +658,7 @@ def fill_zone_minutes(data_dir: Path = DATA_DIR, force: bool = False) -> tuple[i
     """Riempie i minuti per zona delle sedute che non li hanno (todo 54).
     Rende quante ne ha fatte e quante sono rimaste senza.
 
-    Gira dopo ogni `sync()`, come `_fill_missing_thresholds`, cosi' le
+    Gira dopo ogni `sync()`, come `_lend_zone_settings`, cosi' le
     sedute nuove li hanno senza che nessuno ci pensi; da terminale
     (`make backfill_zones`) serve a rifare lo storico, e con `force` a
     ricalcolare tutto quando il modo di contarli cambia."""
@@ -652,14 +678,29 @@ def _fill_zone_minutes(conn: sqlite3.Connection, force: bool = False) -> tuple[i
     return done, len(ids) - done
 
 
-def _fill_missing_thresholds(conn: sqlite3.Connection) -> None:
-    """La soglia dell'ultima corsa precedente (o, in mancanza, della prima
-    successiva) alle attivita' senza soglia o con soglia zero, da
-    THRESHOLD_FALLBACK_FROM in poi. Gira dopo ogni rebuild e sync, cosi' vale
-    anche per i file nuovi e per gli sport riclassificati.
+# La corsa che puo' prestare: una che ha **misurato** sia i tetti delle zone
+# sia la soglia. Una riga che li aveva ricevuti in prestito faceva da
+# donatrice alla successiva, e il risultato dipendeva dall'ordine in cui le
+# righe venivano riempite.
+_DONOR = """
+    SELECT run.activity_id FROM activities AS run
+    WHERE run.sport = 'running' AND run.threshold_hr > 0
+      AND run.hr_zone_bounds IS NOT NULL
+      AND run.start_time {order_sign} target.start_time
+    ORDER BY run.start_time {order} LIMIT 1
+"""
 
-    **Va in `threshold_hr_borrowed`, non in `threshold_hr`.** Scritta nella
-    stessa colonna di una soglia misurata non si distingueva piu' da lei: 32
+
+def _lend_zone_settings(conn: sqlite3.Connection) -> None:
+    """Presta i tetti delle zone e la soglia anaerobica alle sedute che non li
+    hanno: quelli dell'ultima corsa precedente che li ha misurati, o in
+    mancanza della prima successiva, da THRESHOLD_FALLBACK_FROM in poi. Gira
+    dopo ogni rebuild e sync, cosi' vale anche per i file nuovi e per gli
+    sport riclassificati.
+
+    **Vanno in colonne a parte** (`threshold_hr_borrowed`,
+    `hr_zone_bounds_borrowed`), non in quelle misurate. Scritta nella stessa
+    colonna di una soglia misurata non si distingueva piu' da lei: 32
     attivita' non di corsa portavano una soglia da corsa come se fosse loro,
     `GET /api/activities/<id>` dava 148 come soglia di una sessione di
     arrampicata e 154 per una camminata al tapis roulant con le zone della
@@ -667,33 +708,73 @@ def _fill_missing_thresholds(conn: sqlite3.Connection) -> None:
     mentre `_zone_minutes` promette che "una soglia alzata a settembre non
     deve riscrivere i minuti di agosto".
 
-    I donatori sono solo le corse con una soglia **misurata**: una riga che
-    l'aveva ricevuta in prestito faceva da donatrice alla successiva, e il
-    risultato dipendeva dall'ordine in cui le righe venivano riempite.
+    **I due valori vengono dalla stessa seduta donatrice**, e non e' un
+    dettaglio: i tetti del profilo Bici sono calcolati sulla frequenza
+    massima, quelli del profilo Corsa sulla soglia. Mescolare il tetto di Z3
+    di un profilo con la soglia di un altro puo' dare un tetto **sopra** la
+    soglia, cioe' una fascia alta aerobica vuota in `_zone_minutes` e nessun
+    effetto stimato in `run_chart.has_effects`.
 
-    Che la riceva qualunque sport e che si possa guardare avanti nel tempo
-    sono invece scelte: il profilo Bici non salva la soglia, e l'orologio
-    salva soglie vere solo dall'11/09/2026 (vedi `THRESHOLD_FALLBACK_FROM`)."""
+    **Si azzera e si rifa' da se'.** E' un valore derivato, e un giro derivato
+    che non sa togliere non e' un giro derivato: se la corsa donatrice sparisse
+    dall'archivio, il prestito che le sopravvive resterebbe li' per sempre.
+
+    Che li riceva qualunque sport e che si possa guardare avanti nel tempo
+    sono invece scelte: il profilo Bici non salva la soglia, un FIT che non
+    viene da Garmin non salva nemmeno le zone, e l'orologio salva soglie vere
+    solo dall'11/09/2026 (vedi `THRESHOLD_FALLBACK_FROM`)."""
     conn.execute(
-        """
-        UPDATE activities SET threshold_hr_borrowed = COALESCE(
-            (
-                SELECT run.threshold_hr FROM activities AS run
-                WHERE run.sport = 'running' AND run.threshold_hr > 0
-                  AND run.start_time < activities.start_time
-                ORDER BY run.start_time DESC LIMIT 1
-            ),
-            (
-                SELECT run.threshold_hr FROM activities AS run
-                WHERE run.sport = 'running' AND run.threshold_hr > 0
-                  AND run.start_time > activities.start_time
-                ORDER BY run.start_time LIMIT 1
-            )
-        )
-        WHERE (threshold_hr IS NULL OR threshold_hr = 0) AND hr_zone_bounds IS NOT NULL AND start_time >= ?
+        "UPDATE activities SET threshold_hr_borrowed = NULL, hr_zone_bounds_borrowed = NULL"
+    )
+    conn.execute(
+        f"""
+        UPDATE activities AS target
+           SET threshold_hr_borrowed = CASE
+                   WHEN target.threshold_hr IS NULL OR target.threshold_hr = 0
+                   THEN donor.threshold_hr
+               END,
+               hr_zone_bounds_borrowed = CASE
+                   WHEN target.hr_zone_bounds IS NULL
+                   THEN donor.hr_zone_bounds
+               END
+          FROM activities AS donor
+         WHERE target.start_time >= ?
+           AND (
+                 target.threshold_hr IS NULL OR target.threshold_hr = 0
+                 OR target.hr_zone_bounds IS NULL
+               )
+           AND donor.activity_id = COALESCE(
+                 ({_DONOR.format(order_sign="<", order="DESC")}),
+                 ({_DONOR.format(order_sign=">", order="ASC")})
+               )
         """,
         (THRESHOLD_FALLBACK_FROM,),
     )
+
+
+def _paths_to_parse(conn: sqlite3.Connection, data_dir: Path) -> list[Path]:
+    """I FIT che la cache non ha ancora, nell'ordine in cui stanno su disco.
+
+    **Due chiavi, perche' non tutti i file portano l'id nel nome.** Quelli di
+    Garmin si riconoscono dal nome, e questo e' il punto: sapere che un file
+    e' gia' dentro senza aprirlo, perche' aprirlo e' un secondo di parsing a
+    testa (vedi la nota in testa al modulo). Gli altri — l'esportazione di
+    MyWhoosh, un file portato a mano — l'id lo hanno solo dentro, e per loro
+    la chiave e' il percorso, che la tabella conserva in `path`.
+
+    Senza il controllo sul percorso un file senza id nel nome sarebbe stato
+    riletto a **ogni** sync, cioe' a ogni apertura di una pagina dopo che la
+    cache di `api/cache.py` e' scaduta: `activity_id_from_path` rende None, e
+    None non e' mai fra gli id in tabella."""
+    ids = {r[0] for r in conn.execute("SELECT activity_id FROM activities")}
+    paths = {r[0] for r in conn.execute("SELECT path FROM activities")}
+    pending = []
+    for path in list_activity_files(data_dir):
+        activity_id = activity_id_from_path(path)
+        known = activity_id in ids if activity_id is not None else str(path) in paths
+        if not known:
+            pending.append(path)
+    return pending
 
 
 # Ogni quante attivita' si chiude una transazione durante la ricostruzione.
@@ -731,10 +812,10 @@ def rebuild(data_dir: Path = DATA_DIR, say=print) -> int:
         names = load_activity_names(data_dir)
         types = load_activity_types(data_dir)
         parsed_at = datetime.now().isoformat(sep=" ")
-        done = {r[0] for r in conn.execute("SELECT activity_id FROM activities")}
+        done = conn.execute("SELECT count(*) FROM activities").fetchone()[0]
         if done:
-            say(f"  {building.name} c'era gia': riprendo, {len(done)} attivita' sono a posto")
-        paths = [p for p in list_activity_files(data_dir) if activity_id_from_path(p) not in done]
+            say(f"  {building.name} c'era gia': riprendo, {done} attivita' sono a posto")
+        paths = _paths_to_parse(conn, data_dir)
         count = 0
         for index, path in enumerate(paths, 1):
             count += _parse_and_store_or_warn(conn, path, names, types, parsed_at)
@@ -753,7 +834,7 @@ def rebuild(data_dir: Path = DATA_DIR, say=print) -> int:
             "UPDATE activities SET sport='treadmill', equiv_speed_kmh=NULL "
             "WHERE sub_sport='treadmill'"
         )
-        _fill_missing_thresholds(conn)
+        _lend_zone_settings(conn)
         _fill_zone_minutes(conn)
         _write_version(conn, _LOGIC_KEY, LOGIC_VERSION)
         _write_version(conn, _DERIVED_KEY, DERIVED_VERSION)
@@ -780,14 +861,13 @@ def refresh_derived(conn: sqlite3.Connection) -> None:
     2026 cambiavano solo questi, e sono costate mezz'ora di ricostruzione
     ciascuna. Misurato sull'archivio: 0.2 secondi su 986 attivita'.
 
-    **Si azzera prima di rifare**, le soglie prestate e i minuti per zona. Il
-    riempimento delle soglie guarda solo le righe che non ne hanno una, e
-    `_store_zone_minutes` non scrive mai un NULL: senza l'azzeramento un
-    valore che non si puo' piu' calcolare — perche' la soglia che lo rendeva
-    possibile e' sparita — resterebbe in tabella per sempre, e un giro
-    derivato che non sa togliere non e' un giro derivato."""
-    conn.execute("UPDATE activities SET threshold_hr_borrowed = NULL")
-    _fill_missing_thresholds(conn)
+    **Si azzera prima di rifare**, i prestiti e i minuti per zona. Il
+    prestito se ne occupa da se' (`_lend_zone_settings`); qui restano i minuti
+    per zona, che `_store_zone_minutes` non mette mai a NULL: senza
+    l'azzeramento un valore che non si puo' piu' calcolare — perche' la soglia
+    che lo rendeva possibile e' sparita — resterebbe in tabella per sempre, e
+    un giro derivato che non sa togliere non e' un giro derivato."""
+    _lend_zone_settings(conn)
     conn.execute(
         "UPDATE activities SET min_low_aerobic = NULL, min_high_aerobic = NULL, "
         "min_anaerobic = NULL"
@@ -796,9 +876,10 @@ def refresh_derived(conn: sqlite3.Connection) -> None:
 
 
 def sync(data_dir: Path = DATA_DIR) -> int:
-    """Legge e mette in cache i soli FIT che non ci sono ancora (per
-    `activity_id`, preso dal nome del file: nessun parsing in piu'), e
-    rinfresca i nomi dai JSON.
+    """Legge e mette in cache i soli FIT che non ci sono ancora (quali, lo
+    dice `_paths_to_parse`: per id quando il nome del file lo porta, per
+    percorso quando no — in nessuno dei due casi si apre un file che c'e'
+    gia'), e rinfresca i nomi dai JSON.
 
     **Non ricostruisce** (todo 93). Se `LOGIC_VERSION` non coincide con
     quella in tabella non si puo' fare niente di utile — le righe sono state
@@ -826,8 +907,7 @@ def _sync_locked(data_dir: Path) -> int:
             # `cache_state()`, che lo rilegge da se'.
             return 0
 
-        existing_ids = {r[0] for r in conn.execute("SELECT activity_id FROM activities")}
-        new_paths = [p for p in list_activity_files(data_dir) if activity_id_from_path(p) not in existing_ids]
+        new_paths = _paths_to_parse(conn, data_dir)
 
         names = load_activity_names(data_dir)
         types = load_activity_types(data_dir)
@@ -876,7 +956,7 @@ def _sync_locked(data_dir: Path) -> int:
             refresh_derived(conn)
             _write_version(conn, _DERIVED_KEY, DERIVED_VERSION)
         else:
-            _fill_missing_thresholds(conn)
+            _lend_zone_settings(conn)
             _fill_zone_minutes(conn)
         conn.commit()
         return added

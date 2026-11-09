@@ -180,17 +180,26 @@ def zone_bands(records: pd.DataFrame, bounds: list[int]) -> pd.DataFrame:
     return pd.DataFrame(bands, columns=columns)
 
 
+def zone_bounds(value) -> list[int] | None:
+    """I tetti delle zone da una delle due colonne del database, dove sono
+    testo JSON, o None se la colonna e' vuota."""
+    return json.loads(value) if isinstance(value, str) else None
+
+
 def zone_settings(activity) -> tuple[list[int] | None, int | None]:
     """I tetti di Z1-Z4 e la soglia anaerobica **da usare** per questa
     seduta, o None (file vecchi senza il messaggio delle zone). `activity`
-    e' una riga di `list_activities`: nel database i tetti sono testo JSON.
+    e' una riga di `list_activities`.
 
-    La soglia e' quella misurata se c'e', altrimenti quella prestata
-    (`db.threshold_hr_borrowed`): il profilo Bici non la salva, e senza
-    nessuna soglia la scheda non stima gli effetti. Qui serve un numero per
+    Sono quelli misurati se ci sono, altrimenti quelli prestati dalla corsa
+    piu' vicina (`db._lend_zone_settings`): il profilo Bici non salva la
+    soglia, un FIT che non viene da Garmin non salva nemmeno le zone, e senza
+    i due numeri la scheda non stima gli effetti. Qui serve un numero per
     dividere le zone, non la misura di questa seduta — chi mostra la misura
-    guarda il solo `threshold_hr`."""
-    bounds = json.loads(activity.hr_zone_bounds) if isinstance(activity.hr_zone_bounds, str) else None
+    guarda le sole colonne misurate."""
+    bounds = zone_bounds(activity.hr_zone_bounds)
+    if bounds is None:
+        bounds = zone_bounds(getattr(activity, "hr_zone_bounds_borrowed", None))
     threshold = activity.threshold_hr
     if pd.isna(threshold):
         threshold = getattr(activity, "threshold_hr_borrowed", None)

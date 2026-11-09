@@ -79,7 +79,17 @@ class EffectSeconds(BaseModel):
 class ActivityDetail(Activity):
     """One activity with its heart-rate settings and estimated effects."""
 
-    hr_zone_bounds: list[int] | None = Field(description="Upper limits of zones Z1-Z4, in bpm.")
+    hr_zone_bounds: list[int] | None = Field(
+        description="Upper limits of zones Z1-Z4 as this session measured them, in bpm. Null "
+        "when the watch did not save them: the Bike profile does not, and a file that does not "
+        "come from Garmin has no such message at all."
+    )
+    hr_zone_bounds_borrowed: list[int] | None = Field(
+        default=None,
+        description="The zone limits taken from the nearest run that measured them, used to "
+        "split the effort bands when this session has none of its own. Null when the limits "
+        "above are real. They come from the same run as the borrowed threshold below.",
+    )
     threshold_hr: int | None = Field(
         description="Anaerobic threshold as this session measured it, in bpm. Null when the "
         "watch did not save one: the Bike profile never does, and some hikes save a zero."
