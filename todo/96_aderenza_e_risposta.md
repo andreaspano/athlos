@@ -786,6 +786,29 @@ confrontate — i due Trend, le due specifiche dei Trend, il piano della
 settimana, il piano del giorno, i fatti della settimana e i goal — **tutte
 identiche byte per byte**.
 
+### La settimana in corso non vale zero, dopo il merge
+
+Chiesto da Andrea guardando la pagina vera, e fuori da questo todo perche'
+arrivato dopo. Aperta la Week sulla settimana corrente — lunedi' mattina, un
+giorno su sette — la card del piano diceva **aderenza 0**, rapporto **0.00**,
+«0 of 33 km», e tre sedute marcate «not done»: martedi' 10, giovedi' 12 e
+domenica 15 novembre. Nessuna delle tre era stata saltata. Non erano ancora
+arrivate.
+
+Era il difetto piu' brutto possibile per questa misura, perche' la
+trasformava in un rimprovero per qualcosa che non e' successo. Adesso
+l'aderenza conta **solo le sedute il cui giorno e' passato**: quelle davanti
+non hanno punteggio (`pending: true` nel modello), non entrano nella media e
+non entrano nel previsto del rapporto. Una settimana che non ha ancora
+raggiunto la sua prima seduta non mostra i due numeri affatto.
+
+Per una settimana finita non cambia niente, ed e' stato verificato: la
+settimana 1 resta 82.3 con rapporto 1.21, la settimana 2 resta 89.3 con 1.13.
+
+Non si vedeva in nessuno dei numeri della verifica, perche' tutti e due i
+casi provati erano settimane chiuse. Si vedeva solo aprendo la pagina su
+oggi.
+
 ## Revert
 
 ```bash

@@ -279,8 +279,18 @@ def _match(runs: pd.DataFrame, planned: list[dict[str, Any]]) -> dict[int, int]:
     return found
 
 
-def adherence(runs: pd.DataFrame, planned: list[dict[str, Any]]) -> dict[str, Any]:
+def adherence(
+    runs: pd.DataFrame, planned: list[dict[str, Any]], today: date | None = None
+) -> dict[str, Any]:
     """L'aderenza di volume di una settimana, seduta per seduta e in totale.
+
+    **Si contano solo le sedute il cui giorno e' passato.** Una settimana in
+    corso ne ha davanti a se', e quelle non sono state saltate: non sono
+    ancora arrivate. Senza questa regola il lunedi' mattina la settimana
+    segnava zero con tre sedute «not done», cioe' un rimprovero per qualcosa
+    che non e' successo — e il rapporto diceva «0.00, 0 of 33 km» su una
+    settimana che deve ancora cominciare. Per una settimana finita non cambia
+    niente, che sono passate tutte.
 
     Si chiama cosi' e non "aderenza" perche' e' **meta'** della misura del
     documento, che e' `(s_vol + s_int) / 2`: `s_int` vuole la distribuzione del
@@ -293,12 +303,18 @@ def adherence(runs: pd.DataFrame, planned: list[dict[str, Any]]) -> dict[str, An
     e' un dettaglio: martedi' 27 ottobre 2026 era prevista `easy 5 km` e sono
     stati corsi 9.1 km a ritmo gara, cioe' `s_vol` 0.14 — e pesata sui 5 km
     previsti la settimana chiude a 82 invece che a 72."""
+    today = today or date.today()
     found = _match(runs, planned)
     rows = runs.reset_index(drop=True)
     sessions = []
     numerator = weight_total = 0.0
+    planned_km = 0.0
     for position, session in enumerate(planned):
         index = found.get(position)
+        # Una seduta che deve ancora arrivare non ha un punteggio e non entra
+        # nel previsto del rapporto. Resta nell'elenco, perche' la riga del
+        # giorno c'e' lo stesso: semplicemente non dice ancora niente.
+        pending = session["day"] > today
         done_km = done_day = None
         if index is not None:
             done_km = rows.at[index, "total_distance_km"]
@@ -306,8 +322,13 @@ def adherence(runs: pd.DataFrame, planned: list[dict[str, Any]]) -> dict[str, An
             done_day = rows.at[index, "start_time"].date()
         ratio = done_km / session["planned_km"] if done_km else None
         # Prevista e non fatta vale zero; fatta ma senza una distanza
-        # confrontabile non vale niente, e sta fuori dalla media.
-        score = 0.0 if index is None else (s_vol(ratio) if ratio is not None else None)
+        # confrontabile non vale niente, e sta fuori dalla media; e una che
+        # deve ancora arrivare non vale niente nemmeno lei.
+        if pending:
+            score = None
+        else:
+            score = 0.0 if index is None else (s_vol(ratio) if ratio is not None else None)
+            planned_km += session["planned_km"]
         if score is not None:
             weight = session["planned_km"] * (2 if session["key"] else 1)
             numerator += weight * score
@@ -324,9 +345,9 @@ def adherence(runs: pd.DataFrame, planned: list[dict[str, Any]]) -> dict[str, An
                 # Scritto solo quando non e' il suo giorno: e' la finestra di
                 # un giorno che ha lavorato, e si deve poter vedere.
                 "moved_to": done_day if done_day and done_day != session["day"] else None,
+                "pending": pending,
             }
         )
-    planned_km = sum(session["planned_km"] for session in planned)
     # Il rapporto conta **tutte** le corse della settimana, anche quelle che il
     # piano non chiedeva: l'aderenza dice come hai eseguito, il rapporto se sei
     # sopra o sotto.
@@ -552,7 +573,7 @@ def block_payload(
 
 
 def adherence_payload(
-    summary_dir: Path, activities: pd.DataFrame, monday: date
+    summary_dir: Path, activities: pd.DataFrame, monday: date, today: date | None = None
 ) -> dict[str, Any] | None:
     """L'aderenza di volume della settimana di `monday`, o `None` se quella
     settimana non ha un piano."""
@@ -560,7 +581,7 @@ def adherence_payload(
     if plan is None:
         return None
     planned = _planned_runs(plan)
-    measures = adherence(_runs_of(activities, monday), planned)
+    measures = adherence(_runs_of(activities, monday), planned, today)
     return {
         "week": monday,
         "plan": plan.get("plan"),

@@ -997,12 +997,12 @@ export interface components {
             sessions: components["schemas"]["AdherenceSession"][];
             /**
              * Volume Adherence
-             * @description 0 to 100, the mean of the sessions' scores weighted by planned kilometres, with long and quality counting double. Null for a week that asks for no running.
+             * @description 0 to 100, the mean of the sessions' scores weighted by planned kilometres, with long and quality counting double. Only the sessions whose day has passed count: a week still running is judged on what it has already asked for. Null for a week that asks for no running, and for one whose first session is still ahead.
              */
             volume_adherence: number | null;
             /**
              * Planned Km
-             * @description Total asked for by the plan.
+             * @description Total asked for by the plan, counting only the sessions whose day has passed. Null on a week that has not reached its first session yet.
              */
             planned_km: number | null;
             /**
@@ -1059,6 +1059,11 @@ export interface components {
              * @description The day it was actually run, when it was not its own.
              */
             moved_to: string | null;
+            /**
+             * Pending
+             * @description True for a session whose day has not come yet: it has not been missed, it has not happened. It carries no score and stays out of the week's mean and ratio.
+             */
+            pending: boolean;
         };
         /**
          * Alert

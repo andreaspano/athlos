@@ -1005,6 +1005,10 @@ class AdherenceSession(BaseModel):
         "then it stays out of the week's mean."
     )
     moved_to: Date | None = Field(description="The day it was actually run, when it was not its own.")
+    pending: bool = Field(
+        description="True for a session whose day has not come yet: it has not been missed, it "
+        "has not happened. It carries no score and stays out of the week's mean and ratio."
+    )
 
 
 class Adherence(BaseModel):
@@ -1020,9 +1024,14 @@ class Adherence(BaseModel):
     sessions: list[AdherenceSession] = Field(description="The planned runs, in day order.")
     volume_adherence: float | None = Field(
         description="0 to 100, the mean of the sessions' scores weighted by planned kilometres, "
-        "with long and quality counting double. Null for a week that asks for no running."
+        "with long and quality counting double. Only the sessions whose day has passed count: a "
+        "week still running is judged on what it has already asked for. Null for a week that asks "
+        "for no running, and for one whose first session is still ahead."
     )
-    planned_km: float | None = Field(description="Total asked for by the plan.")
+    planned_km: float | None = Field(
+        description="Total asked for by the plan, counting only the sessions whose day has "
+        "passed. Null on a week that has not reached its first session yet."
+    )
     done_km: float = Field(description="Total run that week, including sessions the plan did not ask for.")
     ratio: float | None = Field(
         description="`done_km / planned_km`. Adherence says how you executed, this says whether "
