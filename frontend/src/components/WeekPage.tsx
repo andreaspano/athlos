@@ -30,6 +30,7 @@ import {
   type Verdict,
   type WeekMeasure,
   type WeekPlan,
+  type Adherence,
 } from "../api/client";
 import {
   addDays,
@@ -56,6 +57,7 @@ import { TopBar } from "./TopBar";
 import { WeekPicker } from "./WeekPicker";
 import { WeekTrendPanels } from "./WeekTrendPanels";
 import { WeekPlanBrief } from "./WeekPlanCard";
+import { WeekBlockCard } from "./WeekBlockCard";
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
@@ -162,6 +164,9 @@ const CARD_ICONS: Record<string, string> = {
   // ha sotto, e due riquadri di fila con lo stesso segno si leggevano come
   // uno solo.
   comment: "comment.png",
+  // Il blocco (todo 96): la freccia del trend, che e' la stessa domanda su un
+  // periodo piu' lungo — dove sta andando questo.
+  block: "trend.png",
 };
 const sectionIconFile = (card: string) => CARD_ICONS[card] ?? null;
 
@@ -212,6 +217,10 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
   const [report, setReport] = useState<Report | null>(null);
   const [plan, setPlan] = useState<WeekPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  // L'aderenza della settimana (todo 96): l'altra meta' di `docs/aderenza.md`,
+  // e sta nella card del piano perche' e' il confronto con quello che il
+  // piano chiedeva. `null` per una settimana senza file, come il piano.
+  const [adherence, setAdherence] = useState<Adherence | null>(null);
   // I lunedi' che hanno un piano (todo 88): il confine fin dove si puo'
   // andare avanti. Vuoto finche' non arriva, e allora avanti non si va —
   // che e' la pagina di prima.
@@ -385,6 +394,20 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
     return () => controller.abort();
   }, [monday, view]);
 
+
+  // L'aderenza va insieme al piano: stessa vista, stessa settimana, stesso
+  // 404 che vuol dire "non c'e'". Una chiamata sua e non un campo dentro
+  // `/plan`, che il piano e' il piano e l'aderenza e' un confronto.
+  useEffect(() => {
+    if (view !== "training") return;
+    const controller = new AbortController();
+    setAdherence(null);
+    api
+      .adherence(monday, controller.signal)
+      .then(setAdherence)
+      .catch((e) => !isAbort(e) && setError(API_DOWN));
+    return () => controller.abort();
+  }, [monday, view]);
 
   // Lo stato del lavoro, solo se e' di questo tipo: giorno e settimana
   // condividono un lavoro alla volta, e le chiavi delle sezioni sono
@@ -659,6 +682,7 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               loading={planLoading}
               sport={{ label: sportLabel, icon: (key) => sportIcons.get(key ?? "") ?? null }}
               restIcon={sportList?.rest_icon ?? null}
+              adherence={adherence}
             />
             <section className="card week-days" aria-label="Sessions">
               <CardHead icon={sectionIconFile("training")} title="Sessions" />
@@ -716,6 +740,16 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               )}
             </section>
             </div>
+            {/* Il blocco, in fondo (todo 96): e' la cornice larga, e si
+                guarda per ultima. Sopra c'e' il verdetto della settimana (il
+                commento, todo 74), poi i sette giorni; questo dice dove ti
+                sta portando il blocco, che e' un'altra domanda e un altro
+                periodo. Fuori da un blocco la card non si disegna. */}
+            <WeekBlockCard
+              monday={monday}
+              theme={theme}
+              icon={sectionIconFile("block")}
+            />
           </>
         )}
         {/* Lo Snap e' il corpo, come quello del giorno (todo 68): il

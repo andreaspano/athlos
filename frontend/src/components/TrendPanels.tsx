@@ -95,7 +95,16 @@ export function OneChart({
   // Il giorno su cui si e' cliccato, letto dalla scala. Dove va a finire lo
   // decide chi usa il componente: la Day apre quel giorno, la Week la
   // settimana del lunedi' piu' vicino.
-  onPick: (day: string) => void;
+  //
+  // **Facoltativo dal todo 96**, e senza di lui non si attacca l'ascoltatore
+  // del clic. I pannelli del blocco hanno la x sulla settimana del blocco,
+  // che e' ordinale: `dayAt` legge la scala come date (`scale.invert(x) as
+  // Date`), e su una scala a bande quell'invito o rende un numero — e allora
+  // la guardia `instanceof Date` salva per caso — o non esiste affatto, e
+  // tira un `TypeError` dentro l'ascoltatore, fuori dal `try` che avvolge
+  // solo il montaggio. E comunque da quei pannelli non si va da nessuna
+  // parte: la settimana si cambia dall'intestazione.
+  onPick?: (day: string) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
@@ -117,12 +126,15 @@ export function OneChart({
           view.finalize();
           return;
         }
-        // Un clic nel grafico apre lo Snap del periodo cliccato.
-        view.view.addEventListener("click", (event) => {
-          if (!box.current || !view) return;
-          const day = dayAt(view.view, box.current, event as MouseEvent);
-          if (day) onPick(day);
-        });
+        // Un clic nel grafico apre lo Snap del periodo cliccato, dove c'e'
+        // un posto dove andare.
+        if (onPick) {
+          view.view.addEventListener("click", (event) => {
+            if (!box.current || !view) return;
+            const day = dayAt(view.view, box.current, event as MouseEvent);
+            if (day) onPick(day);
+          });
+        }
       } catch (error) {
         console.error(error);
         if (!cancelled) setFailed(true);
