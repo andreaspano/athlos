@@ -92,6 +92,7 @@ from training.interface.run_chart import (
     trend_panel_charts,
     week_trend_panel_charts,
     zone_bands,
+    zone_bounds,
     zone_settings,
 )
 from training.interface.laps import session_laps
@@ -216,10 +217,11 @@ def get_sports(ctx: Context) -> SportList:
 def get_activity(activity_id: int, ctx: Context) -> ActivityDetail:
     """One activity, with its heart-rate zones, threshold and estimated time per training effect."""
     row = _activity_row(activity_id, ctx)
-    # `zone_settings` da' la soglia **da usare** per dividere le zone, che
-    # puo' essere prestata da un'altra seduta: serve agli effetti qui sotto.
-    # Nella risposta invece i due numeri restano separati, perche' dire che
-    # una pedalata ha misurato la soglia di una corsa e' una bugia.
+    # `zone_settings` da' i tetti delle zone e la soglia **da usare** per
+    # dividere lo sforzo, che possono essere prestati da un'altra seduta:
+    # servono agli effetti qui sotto. Nella risposta invece il misurato e il
+    # prestato restano separati, perche' dire che una pedalata ha misurato le
+    # zone e la soglia di una corsa e' una bugia.
     bounds, threshold = zone_settings(row)
     effect_seconds = None
     if has_effects(bounds, threshold):
@@ -234,7 +236,8 @@ def get_activity(activity_id: int, ctx: Context) -> ActivityDetail:
     measured = _clean(row["threshold_hr"])
     return ActivityDetail(
         **_activity_fields(row),
-        hr_zone_bounds=bounds,
+        hr_zone_bounds=zone_bounds(_clean(row["hr_zone_bounds"])),
+        hr_zone_bounds_borrowed=zone_bounds(_clean(row["hr_zone_bounds_borrowed"])),
         threshold_hr=measured if measured else None,
         threshold_hr_borrowed=_clean(row["threshold_hr_borrowed"]),
         effect_seconds=effect_seconds,

@@ -16,7 +16,7 @@ FIT, JSON, salute e database tutti piatti nella stessa cartella.
 
 ```
 ~/adrive/data/training/
-  fit/       i FIT scaricati da Garmin
+  fit/       i FIT delle attivita' (da Garmin, o esportati altrove)
   health/    le metriche giornaliere, una cartella per endpoint
   json/      le correzioni (terreno, tipo di corsa) e le cache di nomi e tipi
   db/        activities.db, la cache ricostruibile dai FIT

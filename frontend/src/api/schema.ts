@@ -863,9 +863,14 @@ export interface components {
             run_type_source: ("guess" | "user") | null;
             /**
              * Hr Zone Bounds
-             * @description Upper limits of zones Z1-Z4, in bpm.
+             * @description Upper limits of zones Z1-Z4 as this session measured them, in bpm. Null when the watch did not save them: the Bike profile does not, and a file that does not come from Garmin has no such message at all.
              */
             hr_zone_bounds: number[] | null;
+            /**
+             * Hr Zone Bounds Borrowed
+             * @description The zone limits taken from the nearest run that measured them, used to split the effort bands when this session has none of its own. Null when the limits above are real. They come from the same run as the borrowed threshold below.
+             */
+            hr_zone_bounds_borrowed?: number[] | null;
             /**
              * Threshold Hr
              * @description Anaerobic threshold as this session measured it, in bpm. Null when the watch did not save one: the Bike profile never does, and some hikes save a zero.

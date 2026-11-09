@@ -61,6 +61,25 @@ Un file per attivita', `<activity_id>_ACTIVITY.fit`, estratto dallo zip che
 manda Garmin. 985 file, in media 128 KB, il piu' grande 957 KB. Vanno dal
 **16 novembre 2014** al **29 ottobre 2026**.
 
+**Non tutti vengono da Garmin.** Un FIT esportato altrove — MyWhoosh chiama il
+file come il gettone con cui lo scarichi,
+`9xhBLisD1yrpjp0BGOC2JAOajk6OiLqYCkI717pw.fit` — si copia in questa cartella e
+basta: l'archivio legge tutti i `.fit`, non solo quelli col nome di Garmin.
+L'id, che nel nome non c'e', viene dall'istante di partenza letto dentro il
+file: `10**12 + epoch`, tredici cifre che non si possono confondere con quelle
+di Garmin (progressive, nell'archivio da 634168011 a 24995834009). A
+riconoscere un file gia' in cache senza aprirlo — un secondo di parsing a
+testa — ci pensa `db._paths_to_parse`: per nome quando l'id c'e', per percorso
+quando manca.
+
+Due cose questi file non le hanno, perche' le scrive l'orologio e non il
+simulatore: le zone cardiache della seduta (il messaggio 216) e il nome di
+Garmin Connect. Le prime si prendono in prestito dalla corsa piu' vicina che
+le ha misurate, insieme alla soglia e dalla stessa seduta
+(`db._lend_zone_settings`), cosi' anche una pedalata al rullo ha i suoi minuti
+per fascia di sforzo; al posto del secondo si prende il titolo scritto nel
+FIT, dove c'e' — per MyWhoosh il percorso, "Al Qudra".
+
 Li scarica `make update_activity`, che chiede l'elenco attivita' dalla piu'
 recente alla piu' vecchia e **si ferma alla prima che ha gia'**: lo storico
 intero e' un'altra cosa (`make backfill FROM=... TO=...`).
@@ -177,7 +196,7 @@ erDiagram
     activities ||--o{ laps    : "un giro per riga"
 
     activities {
-        INTEGER activity_id PK "dal nome del file FIT"
+        INTEGER activity_id PK "dal nome del FIT, o dall'ora di partenza"
         TEXT    path           "il .fit da cui viene"
         TEXT    sport
         TEXT    sub_sport
@@ -189,7 +208,9 @@ erDiagram
         INTEGER max_heart_rate
         REAL    vo2max
         TEXT    hr_zone_bounds
+        TEXT    hr_zone_bounds_borrowed "derivato"
         INTEGER threshold_hr
+        INTEGER threshold_hr_borrowed   "derivato"
         TEXT    workout_name
         REAL    equiv_speed_kmh "derivato"
         REAL    min_low_aerobic "derivato"
@@ -258,7 +279,7 @@ Le due relazioni vere sono `ON DELETE CASCADE`, e `records` e `laps` sono
 `WITHOUT ROWID` con chiave composta: in `records` ci sono 2,7 milioni di
 righe, e la riga **e'** la sua chiave.
 
-### `activities` — 27 colonne
+### `activities` — 29 colonne
 
 Il riassunto `session` del FIT, piu' quattro cose che il FIT non dice.
 Quelle **non scaricate**, cioe' calcolate da noi:
@@ -266,8 +287,8 @@ Quelle **non scaricate**, cioe' calcolate da noi:
 | Colonna | Da dove viene davvero |
 |---|---|
 | `equiv_speed_kmh` | la velocita' equivalente in piano, dai record (`interface/grade.py`). A `NULL` sul tapis roulant: il modello di costo vale per chi si muove sul terreno |
-| `min_low_aerobic`, `min_high_aerobic`, `min_anaerobic` | i minuti nelle tre fasce di sforzo, contati dai `records` coi confini di **quella** seduta. Un buco fra due campioni oltre 30 secondi non e' tempo allenato (todo 54) |
-| `threshold_hr` | del FIT, ma dove manca o e' zero si prende quella della corsa piu' vicina, dal 2026-08-01 in poi |
+| `min_low_aerobic`, `min_high_aerobic`, `min_anaerobic` | i minuti nelle tre fasce di sforzo, contati dai `records` coi confini di **quella** seduta — i suoi, o quelli prestati (vedi la riga qui sotto). Un buco fra due campioni oltre 30 secondi non e' tempo allenato (todo 54) |
+| `hr_zone_bounds_borrowed`, `threshold_hr_borrowed` | i tetti delle zone e la soglia **prestati**, quando la seduta non li ha misurati: quelli dell'ultima corsa prima di lei che li ha entrambi (o della prima dopo), dal 2026-08-01 in poi. In colonne a parte perche' non sono misure di quella seduta, e **dalla stessa corsa** perche' i tetti del profilo Bici sono calcolati sulla frequenza massima e quelli del profilo Corsa sulla soglia: mescolarli puo' dare un tetto di Z3 sopra la soglia. Chi divide lo sforzo usa `COALESCE(misurato, prestato)`; chi mostra una misura guarda solo la prima colonna |
 | `activity_name` | `json/activity_names.json`, riscritta a ogni sync |
 | `sport` | del FIT, ma `activity_types.json` la corregge, e **`sub_sport = treadmill` vince su tutto** (todo 45) |
 | `parsed_at` | quando l'abbiamo letta |
@@ -341,8 +362,9 @@ le vuole intere, e `garmin/fitness_status.py` se le legge da se'.
 
 | Chiave | Valore oggi | Governa |
 |---|---|---|
-| `logic_version` | `9` | il parsing dei FIT (`interface/db.py`) |
-| `health_logic_version` | `2` | il parsing della salute (`interface/health_db.py`) |
+| `logic_version` | `11` | quello che si legge **dai FIT** (`interface/db.py`): cambiarla vuole `make rebuild` |
+| `derived_version` | `2` | quello che si ricava **dalle righe che ci sono** — i prestiti, i minuti per zona: si rifa' da se' al primo `sync()` (todo 93) |
+| `health_logic_version` | `3` | il parsing della salute (`interface/health_db.py`) |
 
 ## Come si ricostruisce
 

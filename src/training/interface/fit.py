@@ -1,4 +1,4 @@
-"""Parsing dei file FIT delle attivita' (data/*_ACTIVITY.fit)."""
+"""Parsing dei file FIT delle attivita' (`fit/*.fit`)."""
 
 import json
 import os
@@ -17,6 +17,20 @@ _ACTIVITY_ID_RE = re.compile(r"(\d+)_ACTIVITY\.fit$")
 _SEMICIRCLE_TO_DEGREES = 180 / 2**31
 _NAMES_FILENAME = "activity_names.json"
 _TYPES_FILENAME = "activity_types.json"
+
+# I FIT che non vengono da Garmin Connect non hanno un id nel nome: quello di
+# MyWhoosh si chiama come il gettone con cui lo scarichi
+# (`9xhBLisD1yrpjp0BGOC2JAOajk6OiLqYCkI717pw.fit`). Il loro id lo da'
+# l'istante di partenza, che sta nel file e non cambia mai: due attivita' non
+# possono cominciare nello stesso secondo, quindi l'id e' stabile fra un
+# rebuild e l'altro — ed e' quello che la tabella pretende, perche' `path` e
+# `activity_id` devono dire la stessa cosa a ogni lettura.
+#
+# L'offset tiene separati i due spazi di numeri. Gli id di Garmin sono
+# progressivi e nell'archivio vanno da 634168011 a 24995834009: **attraversano**
+# gli epoch di questi anni (1.76e9 oggi), e un epoch nudo sarebbe potuto
+# cadere sull'id di un'attivita' vera. 1e12 Garmin lo raggiungera' fra secoli.
+MANUAL_ID_BASE = 10**12
 
 
 def _to_local(dt):
@@ -78,14 +92,41 @@ def _semicircles_to_degrees(value: int | None) -> float | None:
 
 
 def list_activity_files(data_dir: Path = DATA_DIR) -> list[Path]:
-    # I FIT stanno in `fit/` dal todo 65; prima erano piatti nella radice,
-    # mischiati al database e ai JSON.
-    return sorted((Path(data_dir) / "fit").glob("*_ACTIVITY.fit"))
+    """Tutti i FIT della cartella dati.
+
+    I FIT stanno in `fit/` dal todo 65; prima erano piatti nella radice,
+    mischiati al database e ai JSON.
+
+    **Tutti i `.fit`**, non solo i `*_ACTIVITY.fit` che scarica Garmin: una
+    seduta registrata altrove — l'esportazione di MyWhoosh di una pedalata al
+    rullo — e' un allenamento come gli altri, e restava fuori dall'archivio
+    solo per il nome che porta. Un file che non si legge lo scarta
+    `db._parse_and_store_or_warn`, come ha sempre fatto per i FIT rovinati.
+    """
+    return sorted((Path(data_dir) / "fit").glob("*.fit"))
 
 
 def activity_id_from_path(path: Path) -> int | None:
+    """L'id di Garmin scritto nel nome del file, o None se non c'e'.
+
+    None non vuol dire "file da scartare": vuol dire che l'id va cercato
+    dentro, e lo fa `load_activity_summary` con `_manual_activity_id`. Chi
+    deve sapere se un file e' gia' in cache senza aprirlo (`db._paths_to_parse`)
+    si regge su questo nome finche' c'e', e sul percorso quando manca."""
     match = _ACTIVITY_ID_RE.search(Path(path).name)
     return int(match.group(1)) if match else None
+
+
+def _manual_activity_id(start_time) -> int | None:
+    """L'id di un FIT senza id nel nome, dal suo istante di partenza (vedi
+    `MANUAL_ID_BASE`). None se il file non dice nemmeno quando e' cominciato:
+    li' non c'e' niente da mettere in cache.
+
+    `start_time` e' quello che scrive fitparse, cioe' UTC senza fuso: l'epoch
+    si calcola da li' e non dall'ora locale, che cambia due volte l'anno."""
+    if start_time is None:
+        return None
+    return MANUAL_ID_BASE + int(start_time.replace(tzinfo=timezone.utc).timestamp())
 
 
 # Il VO2max stimato dall'orologio sta in un messaggio non documentato, il
@@ -228,10 +269,19 @@ def load_activity_summary(path: Path) -> dict:
     session = next(fit.get_messages("session"), None)
     values = session.get_values() if session else {}
     zone_tops, threshold_hr = _hr_zones(fit)
+    activity_id = activity_id_from_path(path)
+    if activity_id is None:
+        activity_id = _manual_activity_id(values.get("start_time"))
 
     return {
-        "activity_id": activity_id_from_path(path),
+        "activity_id": activity_id,
         "path": str(path),
+        # Il nome che il file si porta dietro, quando ce l'ha: `activity_names.json`
+        # ha solo le attivita' di Garmin Connect, e di una pedalata esportata da
+        # MyWhoosh il nome del percorso ("Al Qudra") sta in un campo dello
+        # sviluppatore della sessione. Vince comunque il nome di Connect, dove
+        # c'e': e' quello che Andrea puo' correggere (vedi `db._parse_and_store`).
+        "fit_name": values.get("Title"),
         "sport": values.get("sport"),
         "sub_sport": values.get("sub_sport"),
         "start_time": _to_local(values.get("start_time")),
