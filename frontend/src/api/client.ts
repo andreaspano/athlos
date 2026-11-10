@@ -225,11 +225,24 @@ export const api = {
   weekPlan: (monday: string, signal?: AbortSignal) =>
     getOrNull<WeekPlan>(`/api/weekly/${monday}/plan`, signal),
 
-  // Del todo 96 la pagina non chiede piu' niente: ne' i tre pannelli del
-  // blocco ne' l'aderenza della settimana. Le tre rotte restano e si provano
-  // da `/docs` — `/api/weekly/<lunedi>/block`, `.../block/charts/vega` e
-  // `.../adherence` — ma qui non c'e' il loro involucro, che un involucro
-  // senza chiamante e' codice morto.
+  // Il blocco di un goal, in un grafico solo: i chilometri previsti e fatti
+  // settimana per settimana e come si distribuisce la velocita' di ognuna.
+  // Lo chiede la pagina Result, una card per goal.
+  //
+  // `null` quando il goal non ha un blocco: nessuna settimana scritta lo
+  // dichiara ancora. E' lo stato di un goal appena scritto o di
+  // un'alternativa che non si sta seguendo, non un guasto, e la card lo dice
+  // con una riga invece che con un avviso rosso.
+  blockShapeChart: (slug: string, theme: "light" | "dark", signal?: AbortSignal) =>
+    getOrNull<VegaSpec>(
+      `/api/plans/${encodeURIComponent(slug)}/block/chart/vega?theme=${theme}`,
+      signal,
+    ),
+
+  // Dei tre pannelli del todo 96 — `/api/weekly/<lunedi>/block` e
+  // `.../block/charts/vega` — e dell'aderenza la pagina non chiede niente:
+  // le rotte restano e si provano da `/docs`, ma qui non c'e' il loro
+  // involucro, che un involucro senza chiamante e' codice morto.
 
   // I lunedi' che hanno un piano (todo 88): il confine fin dove la pagina
   // Week lascia andare avanti. Una volta sola all'apertura — i file cambiano

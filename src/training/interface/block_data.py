@@ -29,7 +29,7 @@ import numpy as np
 import pandas as pd
 
 from training.api.plans import load_plans, load_week_plan, planned_weeks
-from training.interface.grade import sample_seconds
+from training.interface.grade import rolling_mean, sample_seconds
 
 # Lo sport dei tre KPI. **Solo `running`**: il tapis roulant e' uno sport a se'
 # (todo 45) e la sua distanza la stima il polso, tanto che `sports.has_distance`
@@ -46,6 +46,28 @@ RACE_PACE_MIN_KM = 1.0
 # Quante settimane prima dell'inizio del blocco si guardano per la partenza di
 # un KPI che il piano non dichiara.
 BASELINE_WEEKS = 4
+
+# La forma del blocco (la card della pagina Result): come si liscia la
+# velocita' equivalente prima di contarla, e sotto quale soglia si butta via.
+#
+# Trenta secondi perche' la velocita' campione per campione e' rumore — un
+# GPS che sbanda, un passo in salita — e la domanda e' a che andatura e'
+# stata corsa la settimana, non quanto ballava l'orologio.
+#
+# I tre km/h sono il confine fra correre e non correre: sotto ci sono il
+# semaforo, la borraccia e la salita camminata, che nel conto tirerebbero giu'
+# la mediana di una settimana per ragioni che non sono l'andatura. **Non e'
+# un dato**, e' una scelta nostra: per questo il minimo vero non si disegna.
+SPEED_SMOOTH = "30s"
+SPEED_FLOOR_KMH = 3.0
+
+# I cinque numeri della scatola. I baffi al 5 e al 95 percentile e non a 1.5
+# IQR: su quattordicimila campioni a settimana il baffo di Tukey finisce **sul
+# recinto** — l'ultimo dato dentro 1.5 IQR dista millesimi di km/h dal recinto
+# stesso — e non aggiunge niente alla scatola. Il 5-95 dice dove sta il 90%
+# del tempo, e cambia per ragioni vere.
+SPEED_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
+SPEED_KEYS = ("p5", "q1", "median", "q3", "p95")
 
 # Le sedute che pesano doppio nell'aderenza. Il documento dice «lungo,
 # ripetute, test»; il vocabolario del piano ha `easy | quality | long`.
@@ -122,6 +144,50 @@ def race_pace_km(
     return best if best >= min_km else 0.0
 
 
+# --- La velocita' di una settimana, dai campioni delle sue corse ---
+
+
+def speed_samples(records: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """La velocita' equivalente di una seduta e **i secondi che ogni campione
+    pesa**, gia' lisciata e gia' ripulita.
+
+    Due vettori e non uno: la distribuzione va pesata sul tempo, non sui
+    campioni. L'orologio registra piu' fitto quando il polso accelera, e a
+    campioni contati una ripetuta di tre minuti peserebbe quanto venti di
+    corsa lenta.
+
+    Il liscio e' per tratto (`rolling_mean` raggruppa su `segments`): una
+    media che attraversa una pausa di dieci minuti impasta l'andatura di prima
+    con quella di dopo."""
+    if records.empty or "equiv_speed_kmh" not in records:
+        return np.empty(0, dtype="float32"), np.empty(0, dtype="float32")
+    speed = rolling_mean(records["equiv_speed_kmh"], SPEED_SMOOTH).to_numpy(dtype="float64")
+    seconds = sample_seconds(records.index)
+    ok = np.isfinite(speed) & (speed >= SPEED_FLOOR_KMH) & np.isfinite(seconds)
+    return speed[ok].astype("float32"), seconds[ok].astype("float32")
+
+
+def weighted_quantiles(
+    values: np.ndarray, weights: np.ndarray, quantiles=SPEED_QUANTILES
+) -> list[float] | None:
+    """I quantili pesati, o `None` se non c'e' niente da riassumere.
+
+    La posizione di ogni valore e' il centro del suo peso — `(cumulata -
+    meta' del peso) / totale` — e fra due valori si interpola. E' la
+    definizione che rende il mediano il punto in cui meta' del **tempo** sta
+    sotto, che e' la domanda."""
+    if values.size == 0:
+        return None
+    order = np.argsort(values, kind="stable")
+    v = values[order].astype("float64")
+    w = weights[order].astype("float64")
+    total = w.sum()
+    if not np.isfinite(total) or total <= 0:
+        return None
+    position = (np.cumsum(w) - 0.5 * w) / total
+    return [float(np.interp(q, position, v)) for q in quantiles]
+
+
 # --- Le settimane del blocco, dai file del piano ---
 
 
@@ -149,6 +215,32 @@ def _planned_runs(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(runs, key=lambda r: r["day"])
 
 
+def weeks_of_slug(summary_dir: Path, slug: str) -> dict[int, dict[str, Any]]:
+    """Le settimane scritte che dichiarano `plan: <slug>`, per numero di
+    settimana del blocco.
+
+    Il blocco e' questo: **le settimane che lo dichiarano**, non quello che il
+    goal promette. Cambiare goal non riscrive le settimane gia' scritte (todo
+    86), quindi i due divergono, e il registro di quello che era previsto
+    allora sta nei file."""
+    weeks: dict[int, dict[str, Any]] = {}
+    for week_monday in planned_weeks(summary_dir):
+        plan = load_week_plan(summary_dir, week_monday)
+        if plan is None or plan.get("plan") != slug or plan.get("block_week") is None:
+            continue
+        runs = _planned_runs(plan)
+        weeks[plan["block_week"]] = {
+            "block_week": plan["block_week"],
+            "monday": week_monday,
+            "phase": plan.get("phase"),
+            "block_weeks": plan.get("block_weeks"),
+            "planned_km": sum(r["planned_km"] for r in runs) if runs else None,
+            "planned_long": max((r["planned_km"] for r in runs), default=None),
+            "runs": runs,
+        }
+    return weeks
+
+
 def block_of(summary_dir: Path, monday: date) -> dict[str, Any] | None:
     """Il blocco a cui appartiene la settimana di `monday`, settimana per
     settimana, o `None` se quella settimana non sta in un blocco.
@@ -163,20 +255,7 @@ def block_of(summary_dir: Path, monday: date) -> dict[str, Any] | None:
     if here is None or here.get("block_week") is None or not here.get("plan"):
         return None
     slug = here["plan"]
-    weeks: dict[int, dict[str, Any]] = {}
-    for week_monday in planned_weeks(summary_dir):
-        plan = load_week_plan(summary_dir, week_monday)
-        if plan is None or plan.get("plan") != slug or plan.get("block_week") is None:
-            continue
-        runs = _planned_runs(plan)
-        weeks[plan["block_week"]] = {
-            "block_week": plan["block_week"],
-            "monday": week_monday,
-            "phase": plan.get("phase"),
-            "planned_km": sum(r["planned_km"] for r in runs) if runs else None,
-            "planned_long": max((r["planned_km"] for r in runs), default=None),
-            "runs": runs,
-        }
+    weeks = weeks_of_slug(summary_dir, slug)
     if not weeks:
         return None
     total = here.get("block_weeks") or max(weeks)
@@ -569,6 +648,114 @@ def block_payload(
         "block_weeks": block_weeks,
         "weeks": calendar,
         "panels": panels,
+    }
+
+
+# --- La forma del blocco: i chilometri e la velocita', settimana per settimana ---
+
+
+def _week_shape(
+    activities: pd.DataFrame,
+    monday: date,
+    samples: Callable[[int], tuple[np.ndarray, np.ndarray]],
+) -> dict[str, Any]:
+    """Quello che una settimana ha fatto: i chilometri, le sedute, i minuti in
+    movimento e i cinque numeri della velocita'.
+
+    I campioni delle corse si impilano e **poi** si riassumono: i quantili di
+    una settimana non sono la media dei quantili delle sue sedute."""
+    runs = _runs_of(activities, monday)
+    if runs.empty:
+        return {"done_km": None, "sessions": 0, "minutes": None, "speed": None}
+    distance = pd.to_numeric(runs["total_distance_km"], errors="coerce")
+    speeds, seconds = [], []
+    for activity_id in runs["activity_id"]:
+        v, w = samples(int(activity_id))
+        if v.size:
+            speeds.append(v)
+            seconds.append(w)
+    quantiles = (
+        weighted_quantiles(np.concatenate(speeds), np.concatenate(seconds)) if speeds else None
+    )
+    moving = float(sum(float(w.sum()) for w in seconds)) / 60.0 if seconds else None
+    return {
+        "done_km": float(distance.sum(min_count=1)) if distance.notna().any() else None,
+        "sessions": int(len(runs)),
+        "minutes": round(moving, 1) if moving else None,
+        "speed": dict(zip(SPEED_KEYS, [round(v, 3) for v in quantiles])) if quantiles else None,
+    }
+
+
+def block_shape_payload(
+    summary_dir: Path,
+    plan_dir: Path,
+    activities: pd.DataFrame,
+    slug: str,
+    samples: Callable[[int], tuple[np.ndarray, np.ndarray]],
+    today: date | None = None,
+) -> dict[str, Any] | None:
+    """Il blocco di un goal settimana per settimana: i chilometri previsti e
+    fatti, e come si distribuisce la velocita' di ognuna.
+
+    **E' una lettura diversa dai tre pannelli** di `block_payload`: quelli
+    dicono a che punto sei di quello che la gara chiede, in percentuale del
+    bersaglio; questo dice come si e' mossa la settimana — i chilometri nella
+    loro unita' e l'andatura con cui sono stati corsi.
+
+    Keyed sul **goal** e non su un lunedi': la card sta nella pagina Result,
+    una per goal, e un blocco e' lungo quanto il goal che lo dichiara.
+
+    `None` quando il goal non c'e' piu' o quando nessuna settimana scritta lo
+    dichiara: senza settimane non c'e' un blocco da disegnare, e non e' un
+    errore — un goal appena scritto sta li'.
+
+    **La settimana in corso e' segnata `partial` e non va nella linea dei
+    chilometri fatti**: i suoi sono quelli di fin qui, non quelli della
+    settimana, e messi sul grafico leggono come un crollo ogni volta che si
+    apre la pagina. I suoi campioni di velocita' invece valgono: l'andatura di
+    tre corse e' gia' andatura."""
+    goal = goal_of(plan_dir, slug)
+    if goal is None:
+        return None
+    weeks = weeks_of_slug(summary_dir, slug)
+    if not weeks:
+        return None
+    today = today or date.today()
+    this_monday = today - timedelta(days=today.weekday())
+    declared = [w["block_weeks"] for w in weeks.values() if w.get("block_weeks")]
+    block_weeks = int(max(declared)) if declared else max(weeks)
+    rows = []
+    for number in range(1, block_weeks + 1):
+        week = weeks.get(number)
+        monday = week["monday"] if week else None
+        measured = (
+            _week_shape(activities, monday, samples)
+            if monday is not None and monday <= this_monday
+            else {"done_km": None, "sessions": 0, "minutes": None, "speed": None}
+        )
+        rows.append(
+            {
+                "block_week": number,
+                "monday": monday,
+                "phase": week["phase"] if week else None,
+                "plan_km": round(week["planned_km"], 1) if week and week["planned_km"] else None,
+                "done_km": round(measured["done_km"], 1) if measured["done_km"] else None,
+                "partial": monday == this_monday,
+                "sessions": measured["sessions"],
+                "minutes": measured["minutes"],
+                **(measured["speed"] or dict.fromkeys(SPEED_KEYS, None)),
+            }
+        )
+    here = next((r["block_week"] for r in rows if r["monday"] == this_monday), None)
+    return {
+        "plan": slug,
+        "title": goal.get("title"),
+        "race": goal.get("race"),
+        "target_time": goal.get("target_time"),
+        "target_speed_kmh": goal.get("target_speed_kmh"),
+        "block_week": here,
+        "block_weeks": block_weeks,
+        "weeks": rows,
     }
 
 

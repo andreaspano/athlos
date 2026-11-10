@@ -171,6 +171,46 @@ di uno solo. Goal dice quello che la pagina mostra, la gara a cui si va e
 quanto manca. **L'indirizzo resta `?period=plan`**, cosi' i link scritti
 prima continuano ad aprirla.
 
+Dopo Goal c'e' **Result**, che ne e' la coppia: il Goal dice dove si vuole
+arrivare, la Result come sta andando il blocco che ci porta. Non e' una vista
+della Week per una ragione di orizzonte: una vista della Week risponde su
+sette giorni, un blocco ne dura diciotto. Nemmeno lei e' un periodo, quindi di
+viste non ne ha e apre la barra a una riga sola; l'indirizzo e'
+`?period=result`.
+
+**Una card per goal, e dentro il suo blocco in un grafico solo**: i
+chilometri previsti e fatti settimana per settimana sull'asse di sinistra, e
+come si distribuisce la velocita' di ogni settimana — mediana, quartili e
+baffi al 5 e al 95 percentile — sull'asse di destra, con la riga del ritmo
+gara. Due assi e non due riquadri impilati perche' le due letture si fanno
+insieme: la settimana da 44 km e' anche quella corsa a una certa andatura.
+Un goal che non ha un blocco — nessuna settimana scritta lo dichiara — tiene
+la sua card e lo dice in una riga: e' lo stato di un'alternativa che non si
+sta seguendo, non un guasto.
+
+**La velocita' si pesa sul tempo, non sui campioni**: l'orologio registra piu'
+fitto quando il polso accelera, e a campioni contati una ripetuta di tre
+minuti peserebbe quanto venti di corsa lenta. La velocita' e' quella
+equivalente in piano, lisciata a 30 s per tratto, coi campioni sotto 3 km/h
+buttati via — sotto quella soglia c'e' il semaforo, non l'andatura. Per questo
+il minimo vero non si disegna: e' una scelta nostra e non un dato.
+
+**La settimana in corso non ha il punto dei chilometri fatti.** I suoi sono
+quelli di fin qui, non quelli della settimana, e sul grafico leggerebbero come
+un crollo ogni volta che si apre la pagina; l'API la marca `partial: true`. I
+suoi campioni di velocita' invece valgono: l'andatura di tre corse e' gia'
+andatura.
+
+La rotta e' `GET /api/plans/<slug>/block` (e `.../block/chart/vega` per la
+specifica Vega-Lite), **keyed sul goal** e non su un lunedi', perche' un
+blocco e' lungo quanto il goal che lo dichiara. E' una lettura diversa dai tre
+pannelli del todo 96 (`/api/weekly/<lunedi>/block`), che restano: quelli
+dicono a che punto sei di quello che la gara chiede, in percentuale del
+bersaglio; questa dice come si e' mossa la settimana, nelle sue unita'. I
+campioni di ogni seduta si tengono in memoria come il ritmo gara
+(`api/cache.py`): a blocco pieno sono un quarto di milione di righe, e il
+grafico si ridisegna a ogni apertura della pagina.
+
 **Nella barra non ci sono voci grigie.** Month, Year e Activities si
 aggiungeranno quando esisteranno, non prima: Activities e' stata per mesi una
 pillola disattivata e non portava in nessun posto.

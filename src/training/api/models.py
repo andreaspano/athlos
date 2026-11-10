@@ -990,6 +990,40 @@ class BlockProgress(BaseModel):
     )
 
 
+class BlockShapeWeek(BaseModel):
+    """One week of the block: what it asked, what was run, and how fast."""
+
+    block_week: int
+    monday: Date | None = Field(description="Null for a week of the block with no file written yet.")
+    phase: str | None = Field(description="base, build, specific, taper or race.")
+    plan_km: float | None = Field(description="Running kilometres the week's plan asks for.")
+    done_km: float | None = Field(description="Kilometres actually run. Null for a week with no runs.")
+    partial: bool = Field(
+        description="True for the week in progress: its kilometres are those so far, not the "
+        "week's, so the chart leaves its point out of the line."
+    )
+    sessions: int = Field(description="How many runs the week carries.")
+    minutes: float | None = Field(description="Moving minutes, pauses collapsed, of those runs.")
+    p5: float | None = Field(description="5th percentile of the equivalent speed, km/h.")
+    q1: float | None = Field(description="First quartile.")
+    median: float | None = Field(description="Median: half the moving time was run slower.")
+    q3: float | None = Field(description="Third quartile.")
+    p95: float | None = Field(description="95th percentile.")
+
+
+class BlockShape(BaseModel):
+    """The block of a goal, week by week: kilometres and the spread of speed."""
+
+    plan: str = Field(description="Slug of the goal in `plan/` these weeks declare.")
+    title: str | None = Field(description="The goal's title.")
+    race: Date | None
+    target_time: str | None = Field(description='As written ("2:20:00").')
+    target_speed_kmh: float | None = Field(description="Race speed: the dotted line on the speed axis.")
+    block_week: int | None = Field(description="Which week of the block today falls in, if any.")
+    block_weeks: int = Field(description="How many weeks the block lasts.")
+    weeks: list[BlockShapeWeek] = Field(description="One per week of the block, in order.")
+
+
 class AdherenceSession(BaseModel):
     """One planned session, and what was run in its place."""
 

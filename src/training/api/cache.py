@@ -14,9 +14,10 @@ import threading
 import time
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
-from training.interface.block_data import race_pace_km
+from training.interface.block_data import race_pace_km, speed_samples
 from training.interface.db import list_activities, load_activity_records
 from training.interface.health_db import load_health_db
 
@@ -72,6 +73,19 @@ _HEALTH = _Cached(load_health_db)
 _RACE_PACE: dict[tuple[Path, int, float], float] = {}
 _RACE_PACE_LOCK = threading.Lock()
 
+# I campioni di velocita' di una seduta (la forma del blocco, nella pagina
+# Result), **senza scadenza** e per la stessa ragione del ritmo gara: una
+# seduta gia' letta non cambia piu'. Qui la chiave e' la sola seduta, che il
+# liscio e la soglia sono costanti del modulo e non dipendono dal goal.
+#
+# Si tengono i due vettori e non i cinque numeri: i quantili di una settimana
+# si fanno sui campioni di tutte le sue corse impilati, e cinque numeri per
+# seduta non si rimettono insieme. Sono `float32`, un paio di migliaia di
+# campioni per seduta: un blocco intero sta in qualche megabyte, contro il
+# quarto di milione di righe da rileggere a ogni richiesta.
+_SPEEDS: dict[tuple[Path, int], tuple[np.ndarray, np.ndarray]] = {}
+_SPEEDS_LOCK = threading.Lock()
+
 
 def load_activities(data_dir: Path) -> pd.DataFrame:
     """Le attivita' come `list_activities()`, dalla cache."""
@@ -105,6 +119,22 @@ def race_pace_of(data_dir: Path, activity_id: int, target_kmh: float) -> float:
     return value
 
 
+def speed_samples_of(data_dir: Path, activity_id: int) -> tuple[np.ndarray, np.ndarray]:
+    """La velocita' equivalente di una seduta e i secondi di ogni campione,
+    dalla cache. Lo stesso lucchetto corto di `race_pace_of`: il conto si fa
+    fuori dal lock."""
+    key = (Path(data_dir), int(activity_id))
+    with _SPEEDS_LOCK:
+        found = _SPEEDS.get(key)
+    if found is not None:
+        return found
+    records = load_activity_records(activity_id, data_dir, columns=("equiv_speed_kmh",))
+    value = speed_samples(records)
+    with _SPEEDS_LOCK:
+        _SPEEDS[key] = value
+    return value
+
+
 def invalidate(data_dir: Path) -> None:
     """Dimentica attivita' e salute di una cartella dati: la prossima richiesta le
     rilegge. Dopo una scrittura (il terreno, todo 35; il tipo di corsa, todo
@@ -120,3 +150,6 @@ def invalidate(data_dir: Path) -> None:
     with _RACE_PACE_LOCK:
         for key in [k for k in _RACE_PACE if k[0] == root]:
             del _RACE_PACE[key]
+    with _SPEEDS_LOCK:
+        for key in [k for k in _SPEEDS if k[0] == root]:
+            del _SPEEDS[key]
