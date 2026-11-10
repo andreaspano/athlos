@@ -30,8 +30,6 @@ export type WeekTrendPanel = Schemas["WeekTrendPanel"];
 export type WeekMeasure = Schemas["WeekMeasure"];
 export type WeekPlan = Schemas["WeekPlan"];
 export type PlannedWeeks = Schemas["PlannedWeeks"];
-export type BlockProgress = Schemas["BlockProgress"];
-export type BlockPanel = Schemas["BlockPanel"];
 export type Adherence = Schemas["Adherence"];
 export type AdherenceSession = Schemas["AdherenceSession"];
 // La faccia di una card (todo 92): una delle cinque parole della scala, o
@@ -229,24 +227,15 @@ export const api = {
   weekPlan: (monday: string, signal?: AbortSignal) =>
     getOrNull<WeekPlan>(`/api/weekly/${monday}/plan`, signal),
 
-  // Il blocco a cui appartiene la settimana (todo 96): la **risposta**, cioe'
-  // quanto il piano sta funzionando. `null` fuori da un blocco — le settimane
-  // prima che cominciasse, e quelle che non dichiarano un piano.
-  block: (monday: string, signal?: AbortSignal) =>
-    getOrNull<BlockProgress>(`/api/weekly/${monday}/block`, signal),
-
-  // Le tre specifiche Vega-Lite del blocco, una per KPI. Una richiesta sola:
-  // i tre pannelli condividono il dominio della y, e si disegnano insieme o
-  // non si confrontano.
-  blockCharts: (monday: string, theme: "light" | "dark", signal?: AbortSignal) =>
-    getOrNull<TrendChart[]>(
-      `/api/weekly/${monday}/block/charts/vega?theme=${theme}`,
-      signal,
-    ),
-
   // L'**aderenza** della settimana (todo 96), che e' l'altra misura: quanto
   // stai seguendo il piano, non quanto il piano funziona. `null` per una
   // settimana senza file di piano, come `weekPlan`.
+  //
+  // L'altra meta' — la **risposta**, cioe' i tre pannelli del blocco — la
+  // pagina non la chiede piu': la card e' stata tolta. Le rotte restano
+  // (`/api/weekly/<lunedi>/block` e `.../block/charts/vega`) e si vedono su
+  // `/docs`; qui non c'e' il loro involucro perche' un involucro che nessuno
+  // chiama e' codice morto.
   adherence: (monday: string, signal?: AbortSignal) =>
     getOrNull<Adherence>(`/api/weekly/${monday}/adherence`, signal),
 

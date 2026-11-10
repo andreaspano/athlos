@@ -1492,18 +1492,6 @@ h2 {
   margin-top: 22px;
 }
 
-/* La card Block (todo 96): i tre pannelli del blocco, uno per KPI. Tre
-   colonne uguali, come le due di `.week-work`, e sotto i 900 px in colonna —
-   tre grafici a barre affiancati su un telefono sarebbero tre strisce. */
-.block-panels {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 16px;
-  row-gap: 8px;
-}
-.block-week-note {
-  margin: -4px 0 10px;
-}
 /* Il punteggio di una seduta nella riga del piano: in fondo a destra, dove
    la riga ha gia' detto cosa chiedeva quel giorno. */
 .plan-score {
@@ -1532,9 +1520,4 @@ h2 {
 .plan-adherence .muted {
   margin-left: 6px;
   font-size: 0.85em;
-}
-@media (max-width: 900px) {
-  .block-panels {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
