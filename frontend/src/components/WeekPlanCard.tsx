@@ -21,13 +21,7 @@
 //
 // Una settimana senza file non e' un errore — prima dell'inizio del blocco
 // non ce n'e' nessuno — e la vista lo dice invece di restare muta.
-import {
-  iconUrl,
-  type Adherence,
-  type AdherenceSession,
-  type PlannedSession,
-  type WeekPlan,
-} from "../api/client";
+import { iconUrl, type PlannedSession, type WeekPlan } from "../api/client";
 import { addDays, shortDayLabel, weekdayShort } from "../format";
 import { inline } from "../markdown";
 import { sessionIcon, sessionLabel, type Sport } from "./PlanSession";
@@ -68,16 +62,11 @@ function PlanDayRow({
   session,
   sport,
   restIcon,
-  score,
 }: {
   day: string;
   session: PlannedSession | null;
   sport: Sport;
   restIcon: string | null;
-  /** Come e' stata eseguita quella seduta (todo 96), se il piano ne chiedeva
-   * una. Sta sulla riga del giorno perche' li' c'e' gia' scritto cosa
-   * chiedeva: previsto, fatto e punteggio si leggono in una riga sola. */
-  score?: AdherenceSession | null;
 }) {
   const icon = session ? sessionIcon(session, sport, restIcon) : null;
   return (
@@ -92,38 +81,10 @@ function PlanDayRow({
         <span>{session ? sessionLabel(session, sport) : ""}</span>
         {session?.text && <span className="plan-detail">{inline(session.text)}</span>}
       </span>
-      {score && <PlanDayScore score={score} />}
     </div>
   );
 }
 
-
-/** Il punteggio di una seduta: quanto e' stata eseguita come chiedeva.
- *
- * Il numero e' `s_vol`, da zero a cento, e accanto ci sono i chilometri da
- * cui viene — una percentuale senza il numero che la produce non si verifica
- * a occhio. Una seduta non fatta vale zero ed e' il caso in cui serve di
- * piu'; una fatta ma senza una distanza confrontabile non ha punteggio e qui
- * non compare. */
-function PlanDayScore({ score }: { score: AdherenceSession }) {
-  if (score.score == null) return null;
-  const done = score.done_km;
-  return (
-    <span
-      className="plan-score"
-      title={
-        done == null
-          ? "Not done: this session scores zero."
-          : `${done} km done against ${score.planned_km} asked` +
-            (score.moved_to ? `, run on ${score.moved_to}` : "") +
-            (score.key ? " · counts double" : "")
-      }
-    >
-      {Math.round(score.score * 100)}
-      <span className="muted">{done == null ? "not done" : `${done} km`}</span>
-    </span>
-  );
-}
 
 /** Il piano della settimana **giorno per giorno**: la card Plan della vista
  * Training (todo 71).
@@ -164,21 +125,17 @@ export function WeekPlanBrief({
   loading,
   sport,
   restIcon,
-  adherence,
 }: {
   plan: WeekPlan | null;
   monday: string;
   loading: boolean;
   sport: Sport;
   restIcon: string | null;
-  /** L'aderenza della settimana (todo 96), o `null` se non c'e'. */
-  adherence?: Adherence | null;
 }) {
   // Lunedi' -> domenica. `daysBetween` li rende al contrario, dal piu'
   // recente, e qui l'ordine e' quello della settimana.
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const byDay = new Map((plan?.sessions ?? []).map((s) => [s.day, s]));
-  const scoreOf = new Map((adherence?.sessions ?? []).map((s) => [s.day, s]));
   return (
     <section className="card plan-card week-days" aria-label="Plan">
       {/* Dove sta questa settimana nel blocco, accanto al titolo.
@@ -199,38 +156,10 @@ export function WeekPlanBrief({
               session={byDay.get(day) ?? null}
               sport={sport}
               restIcon={restIcon}
-              score={scoreOf.get(day) ?? null}
             />
           ))}
       {plan && (
         <div className="week-days-foot">
-          {/* L'aderenza **in fondo e non in cima** (todo 96). In cima sarebbe
-              una riga in piu' davanti al lunedi', e spingerebbe le sette
-              righe in basso disallineandole dalle sedute della colonna
-              accanto: e' esattamente quello che il todo 75 aveva tolto da
-              qui, e il 77 ha messo in riga. In fondo c'e' gia' una riga sua,
-              e un verdetto sull'esecuzione si legge dopo i sette giorni.
-              Due numeri e non uno: l'aderenza dice **come** hai eseguito, il
-              rapporto se sei stato sopra o sotto. 82 con 1.21 e 82 con 0.83
-              sono settimane opposte. */}
-          {adherence?.volume_adherence != null && (
-            <p className="plan-adherence">
-              <span>
-                Volume adherence <strong>{Math.round(adherence.volume_adherence)}</strong>
-              </span>
-              {adherence.ratio != null && (
-                <span>
-                  Done / planned <strong>{adherence.ratio.toFixed(2)}</strong>
-                  <span className="muted">
-                    {adherence.done_km} of {adherence.planned_km} km
-                  </span>
-                </span>
-              )}
-              <span className="muted">
-                Volume only: the plan does not carry the intensity half yet.
-              </span>
-            </p>
-          )}
           <WrittenAt when={plan.written_at} day={monday} />
         </div>
       )}
