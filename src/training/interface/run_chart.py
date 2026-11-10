@@ -1271,3 +1271,238 @@ def block_panel_charts(data: dict, theme: str = "light") -> list[dict]:
         }
         for i, panel in enumerate(data["panels"])
     ]
+
+
+# --- La forma del blocco (la card della pagina Result) ---
+
+# Piu' alto dei 190 di un pannello del blocco: qui il grafico e' uno solo e
+# porta due assi, e le scatole della velocita' vogliono aria per farsi
+# leggere una accanto all'altra.
+BLOCK_SHAPE_HEIGHT = 300
+
+# Le tre voci della legenda, nell'ordine in cui si leggono, con le tinte di
+# `BLOCK_COLORS`: il turchese del carico per il previsto, l'indaco delle zone
+# per il fatto, l'arancio della velocita' equivalente per le scatole. Sono le
+# stesse tre dei pannelli, usate per dire tre cose diverse ma dello stesso
+# blocco.
+SHAPE_SERIES = ("planned km", "run km", "speed")
+SHAPE_KEYS = ("volume", "long_run", "race_pace")
+
+# Il fondo delle fasi alterne, lo stesso grigio con cui i pannelli segnano la
+# settimana che si sta guardando.
+SHAPE_BAND_FILL = BLOCK_VIEWED_FILL
+
+
+def _pace_text(kmh: float | None) -> str:
+    """Il passo accanto alla velocita': 9.04 km/h si legge 6'38"/km, ed e' il
+    numero in cui un piano e' scritto."""
+    if kmh is None or not np.isfinite(kmh) or kmh <= 0:
+        return "-"
+    seconds = round(3600 / kmh)
+    return f"{seconds // 60}'{seconds % 60:02d}\"/km"
+
+
+def _shape_colors(theme: str) -> list[str]:
+    tema = theme if theme in ("light", "dark") else "light"
+    return [BLOCK_COLORS[key][tema] for key in SHAPE_KEYS]
+
+
+def _shape_phases(weeks: list[dict]) -> list[dict]:
+    """Le fasi come tratti di settimane: nome, prima e ultima, e il numero di
+    mezzo, che e' dove si scrive l'etichetta.
+
+    Le settimane senza fase (un buco nei file) non aprono un tratto: spezzano
+    quello in corso e basta."""
+    spans: list[dict] = []
+    for week in weeks:
+        phase = week.get("phase")
+        if phase and spans and spans[-1]["phase"] == phase:
+            spans[-1]["to"] = week["block_week"]
+        elif phase:
+            spans.append({"phase": phase, "from": week["block_week"], "to": week["block_week"]})
+    for i, span in enumerate(spans):
+        span["middle"] = (span["from"] + span["to"]) // 2
+        span["shaded"] = bool(i % 2)
+    return spans
+
+
+def block_shape_chart(data: dict, theme: str = "light") -> alt.Chart:
+    """Il blocco in un grafico solo: i chilometri a sinistra, la distribuzione
+    della velocita' a destra, una settimana per posizione.
+
+    **Due assi e non due pannelli impilati** perche' le due letture si fanno
+    insieme: la settimana da 44 km e' anche quella corsa piu' piano, e con due
+    riquadri uno sotto l'altro quel confronto lo deve fare l'occhio saltando.
+    Il prezzo e' il solito dei due assi — le altezze non si confrontano fra
+    serie diverse — e qui si paga poco, che le unita' sono dichiarate sui due
+    assi e nessuno legge «i km hanno superato la velocita'».
+
+    Le scatole stanno **dietro** alle linee: sono il fondo su cui le due linee
+    corrono, non l'oggetto da leggere per primo.
+
+    La settimana in corso non ha il punto dei chilometri fatti (`partial` in
+    `block_shape_payload`): i suoi sono quelli di fin qui."""
+    palette = _PALETTES.get(theme, _PALETTES["light"])
+    muted = palette_muted(theme)
+    teal, indaco, arancio = _shape_colors(theme)
+    weeks = data["weeks"]
+    rows = pd.DataFrame(weeks)
+    colore = alt.Scale(domain=list(SHAPE_SERIES), range=[teal, indaco, arancio])
+    legenda = alt.Legend(
+        title=None, orient="top", direction="horizontal", offset=4, symbolStrokeWidth=2
+    )
+    axis_x = alt.Axis(
+        title="block week", labelAngle=0, grid=False, titleFontSize=10, labelFontSize=10,
+        titleColor=muted, labelColor=muted,
+    )
+    x = alt.X("block_week:O", axis=axis_x)
+
+    # Le due scale, dichiarate e non dedotte: i chilometri partono da zero —
+    # ci sono dei punti su una linea, ma l'asse e' un volume e meta' altezza
+    # deve valere meta' lavoro — la velocita' no, che partire da zero
+    # schiaccerebbe tutte le scatole in una striscia.
+    km_max = max(
+        [v for w in weeks for v in (w["plan_km"], w["done_km"]) if v is not None], default=10.0
+    )
+    speeds = [v for w in weeks for v in (w["p5"], w["p95"]) if v is not None]
+    target = data.get("target_speed_kmh")
+    if target:
+        speeds.append(target)
+    y_km = alt.Y(
+        "km:Q",
+        scale=alt.Scale(domain=[0, math.ceil(km_max * 1.12 / 5) * 5]),
+        axis=alt.Axis(
+            title="kilometres a week", titleFontSize=10, labelFontSize=10,
+            titleColor=teal, labelColor=teal, domain=False,
+        ),
+    )
+    speed_domain = (
+        [math.floor(min(speeds) * 2) / 2 - 0.2, math.ceil(max(speeds) * 2) / 2 + 0.2]
+        if speeds
+        else [0, 1]
+    )
+
+    def y_speed(field: str, title: str | None = None) -> alt.Y:
+        return alt.Y(
+            f"{field}:Q",
+            scale=alt.Scale(domain=speed_domain, nice=False),
+            axis=alt.Axis(
+                orient="right", title=title, titleFontSize=10, labelFontSize=10,
+                titleColor=arancio, labelColor=arancio, domain=False, grid=False,
+            ),
+        )
+
+    strati = []
+    # Le fasi: il fondo alterno, e il nome in cima. Il nome sta sopra e non
+    # sotto perche' sotto cadeva in mezzo alle scatole.
+    fasi = _shape_phases(weeks)
+    shaded = pd.DataFrame(
+        [w for w in weeks if any(s["shaded"] and s["from"] <= w["block_week"] <= s["to"] for s in fasi)]
+    )
+    if not shaded.empty:
+        strati.append(
+            alt.Chart(shaded)
+            .mark_rect(fill=SHAPE_BAND_FILL.get(theme, SHAPE_BAND_FILL["light"]))
+            .encode(x=x)
+        )
+    if fasi:
+        strati.append(
+            alt.Chart(pd.DataFrame(fasi))
+            .mark_text(y=6, baseline="top", fontSize=10, color=muted)
+            .encode(x=alt.X("middle:O", axis=axis_x), text="phase:N")
+        )
+
+    # Le scatole della velocita': i baffi, la scatola, la mediana. Tre strati
+    # e non un `mark_boxplot`, che quello vuole i campioni — qui ne
+    # arriverebbero quattordicimila a settimana, e i cinque numeri li ha gia'
+    # calcolati l'API (todo 52).
+    box = rows[rows["median"].notna()] if "median" in rows else rows.iloc[0:0]
+    if not box.empty:
+        strati.append(
+            alt.Chart(box).mark_rule(stroke=arancio, strokeWidth=1).encode(
+                x=x, y=y_speed("p5"), y2="p95:Q"
+            )
+        )
+        strati.append(
+            alt.Chart(box.assign(series="speed"))
+            .mark_bar(size=22, fillOpacity=0.18, stroke=arancio, strokeWidth=1)
+            .encode(
+                x=x,
+                y=y_speed("q1", "equivalent speed (km/h)"),
+                y2="q3:Q",
+                color=alt.Color("series:N", scale=colore, legend=legenda),
+            )
+        )
+        strati.append(
+            alt.Chart(box).mark_tick(color=arancio, size=22, thickness=2).encode(
+                x=x, y=y_speed("median")
+            )
+        )
+    # Il ritmo gara: una riga sola, che e' il bersaglio contro cui si legge
+    # tutta la colonna arancione. Senza etichetta: l'asse di destra porta gia'
+    # i km/h, e il passo sta nel tooltip.
+    if target:
+        strati.append(
+            alt.Chart(pd.DataFrame([{"target": target}]))
+            .mark_rule(stroke=arancio, strokeDash=[2, 3], strokeWidth=1.2)
+            .encode(y=y_speed("target"))
+        )
+
+    # I chilometri: il previsto per tutte le settimane, il fatto solo per
+    # quelle chiuse.
+    lunghe = []
+    for serie, campo, filtro in (
+        ("planned km", "plan_km", lambda w: w["plan_km"] is not None),
+        ("run km", "done_km", lambda w: w["done_km"] is not None and not w["partial"]),
+    ):
+        lunghe += [
+            {"block_week": w["block_week"], "km": w[campo], "series": serie}
+            for w in weeks
+            if filtro(w)
+        ]
+    if lunghe:
+        strati.append(
+            alt.Chart(pd.DataFrame(lunghe))
+            .mark_line(strokeWidth=1.6, point=alt.OverlayMarkDef(size=28, filled=True))
+            .encode(x=x, y=y_km, color=alt.Color("series:N", scale=colore, legend=legenda))
+        )
+
+    # La barra del passaggio col tooltip, come nei pannelli: i numeri veri di
+    # quella settimana, che un grafico a due assi da solo non li fa leggere.
+    vicino = alt.selection_point(
+        name="hover", nearest=True, on="pointerover", clear="pointerout", encodings=["x"], empty=False
+    )
+    tooltip_rows = rows.assign(
+        week_text=rows["monday"].astype(str),
+        pace_text=[_pace_text(v) for v in rows["median"]] if "median" in rows else "-",
+    )
+    strati.append(
+        alt.Chart(tooltip_rows)
+        .mark_rule(color=muted, strokeWidth=1)
+        .encode(
+            x=x,
+            opacity=alt.condition(vicino, alt.value(0.8), alt.value(0)),
+            tooltip=[
+                alt.Tooltip("block_week:O", title="Block week"),
+                alt.Tooltip("week_text:N", title="Monday"),
+                alt.Tooltip("phase:N", title="Phase"),
+                alt.Tooltip("plan_km:Q", title="Planned (km)"),
+                alt.Tooltip("done_km:Q", title="Run (km)"),
+                alt.Tooltip("sessions:Q", title="Runs"),
+                alt.Tooltip("median:Q", title="Median speed (km/h)", format=".2f"),
+                alt.Tooltip("pace_text:N", title="Median pace"),
+            ],
+        )
+        .add_params(vicino)
+    )
+    return (
+        alt.layer(*strati)
+        .resolve_scale(y="independent", color="shared")
+        .properties(height=BLOCK_SHAPE_HEIGHT, width="container")
+    )
+
+
+def block_shape_spec(data: dict, theme: str = "light") -> dict:
+    """La specifica Vega-Lite della card del blocco. `validate=False` come nel
+    Trend, e per lo stesso motivo."""
+    return block_shape_chart(data, theme).to_dict(validate=False)

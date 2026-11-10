@@ -1,6 +1,6 @@
 // La barra in alto (todo 34), su due righe dal todo 55.
 //
-// Prima riga la **pagina** (Day, Week, Goal), seconda riga **cosa se ne
+// Prima riga la **pagina** (Day, Week, Goal, Result), seconda riga **cosa se ne
 // guarda**: due assi veri, mentre prima Day, Week e Activities stavano in
 // fila come se fossero la stessa cosa.
 //
@@ -15,9 +15,14 @@
 // **Goal** sta in quella prima riga, dopo Week. Un obiettivo non e' un
 // periodo — non guarda indietro a un giorno o a una settimana, guarda avanti
 // a una gara, e dura quanto dura il blocco — e per questo stava a destra,
-// staccato. Ma staccato si trovava male: e' una delle tre pagine, e le tre
-// pagine si leggono in fila. Di viste non ne ha, quindi aprendola la barra
-// resta a una riga sola.
+// staccato. Ma staccato si trovava male: e' una delle pagine, e le pagine si
+// leggono in fila. Di viste non ne ha, quindi aprendola la barra resta a una
+// riga sola.
+//
+// **Result** le sta dopo, ed e' la coppia del Goal: quello dice dove si vuole
+// arrivare, questa come sta andando il blocco che ci porta. Nemmeno lei e' un
+// periodo — un blocco sono diciotto settimane, non sette giorni — e nemmeno
+// lei ha delle viste.
 //
 // Si chiamava Plan, come la pagina e come `?period=plan`, che restano. Nella
 // barra erano **due Plan**: questo e la vista della Week, che e' un'altra
@@ -28,8 +33,8 @@
 // All'estremo destro, dove stava il Goal, adesso c'e' il **logo**:
 // `icons/athlos.png`, servito da `/icons` come tutte le altre icone — in
 // sviluppo il proxy di Vite, in produzione il mount di `app.py`. Non e' un
-// collegamento, e' il nome della casa: le tre pagine stanno tutte a
-// sinistra, e una quarta cosa da premere qui confonderebbe.
+// collegamento, e' il nome della casa: le pagine stanno tutte a sinistra, e
+// un'altra cosa da premere qui confonderebbe.
 //
 // **Niente voci grigie, da nessuna parte.** Month, Year e Activities si
 // aggiungono quando esistono, non prima: Activities e' stata per mesi una
@@ -38,13 +43,18 @@
 import { iconUrl } from "../api/client";
 import { ETICHETTE, VIEWS, defaultView, hrefFor, type Page, type View } from "../navigation";
 
-/** Le voci della prima riga, nell'ordine in cui si leggono. Il Goal non e'
- * un periodo ma e' una pagina, ed e' come pagina che sta in fila con le
- * altre due; `VIEWS` resta il posto che dice chi ha delle viste e chi no. */
+/** Le voci della prima riga, nell'ordine in cui si leggono. Il Goal e la
+ * Result non sono periodi ma sono pagine, ed e' come pagine che stanno in
+ * fila con le altre due; `VIEWS` resta il posto che dice chi ha delle viste
+ * e chi no.
+ *
+ * L'ordine e' quello del tempo: il giorno, la settimana, la gara a cui si va
+ * e come sta andando il blocco che ci porta. */
 const PAGINE: { page: Page; label: string }[] = [
   { page: "day", label: "Day" },
   { page: "week", label: "Week" },
   { page: "plan", label: "Goal" },
+  { page: "result", label: "Result" },
 ];
 
 export function TopBar({

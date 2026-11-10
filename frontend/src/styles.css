@@ -1382,13 +1382,19 @@ h2 {
 
 /* --- L'elenco dei goal (todo 84) --- */
 
-/* Righe separate da una linea, senza bordo sopra la prima e sotto l'ultima:
-   dentro la card le fa leggere come un elenco e non come tre schede. */
-.goal-list > .goal + .goal {
-  border-top: 1px solid var(--border);
+/* Una card per goal, impilate con lo stesso stacco delle altre pagine. Erano
+   righe dentro un riquadro solo, separate da una linea: due bordi, quello
+   della card e quello della riga, per dire una cosa sola. */
+.goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
+/* Il `<details>` **e'** la card: `.card` porta fondo, bordo e angoli, qui
+   restano i margini, con i fianchi del riquadro e poco sopra e sotto, che la
+   testa e il corpo hanno gia' i loro. */
 .goal {
-  padding: 4px 0;
+  padding: 4px 22px;
 }
 /* L'intestazione: il bersaglio grande a sinistra, il titolo e la gara al
    centro, la pillola a destra. La freccia la mette il browser; `list-item`
@@ -1472,11 +1478,12 @@ h2 {
 .goal-body {
   padding: 4px 0 18px;
 }
-/* Aperta, la riga attuale si stacca da sinistra: si trova con l'occhio anche
-   scorrendo, senza rileggere le pillole. */
-.goal.current[open] > .goal-body {
-  border-left: 2px solid var(--accent-soft);
-  padding-left: 14px;
+/* Il goal attuale si stacca da sinistra: si trova con l'occhio scorrendo,
+   senza rileggere le pillole. Prima era il bordo del corpo aperto; adesso che
+   ogni goal e' una card e' il fianco della card, e si vede anche chiusa. */
+.goal.current {
+  border-left: 3px solid var(--accent);
+  padding-left: 20px;
 }
 
 /* --- Il piano di un giorno (todo 63) --- */

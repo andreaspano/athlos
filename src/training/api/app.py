@@ -21,7 +21,13 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 
 from training.api import refresh
-from training.api.cache import invalidate, load_activities, load_health, race_pace_of
+from training.api.cache import (
+    invalidate,
+    load_activities,
+    load_health,
+    race_pace_of,
+    speed_samples_of,
+)
 from training.api.context import DIST_DIR, ICONS_DIR, REPO_ROOT, UserContext, get_user_context
 from training.api.daily import daily_payload
 from training.api.plans import (
@@ -36,12 +42,13 @@ from training.api.plans import (
 from training.api.sections import DAILY, SECTIONS, WEEKLY
 from training.api.sections import Report as Report_
 from training.api.weekly import weekly_payload
-from training.interface.block_data import adherence_payload, block_payload
+from training.interface.block_data import adherence_payload, block_payload, block_shape_payload
 from training.api.models import (
     Activity,
     ActivityDetail,
     Adherence,
     BlockProgress,
+    BlockShape,
     ChartBin,
     ChartData,
     DailyData,
@@ -93,6 +100,7 @@ from training.interface.run_chart import (
     pauses,
     run_analysis_chart,
     block_panel_charts,
+    block_shape_spec,
     trend_panel_charts,
     week_trend_panel_charts,
     zone_bands,
@@ -946,6 +954,54 @@ def get_plan(slug: str, ctx: Context) -> Plan:
         if plan["slug"] == slug:
             return Plan(**{name: plan[name] for name in Plan.model_fields})
     raise HTTPException(status_code=404, detail=f"No plan named {slug!r}.")
+
+
+def _block_shape(slug: str, ctx: UserContext) -> dict[str, Any]:
+    """Il blocco di un goal settimana per settimana, o 404."""
+    data = block_shape_payload(
+        ctx.summary_dir,
+        ctx.plan_dir,
+        load_activities(ctx.data_dir),
+        slug,
+        lambda activity_id: speed_samples_of(ctx.data_dir, activity_id),
+    )
+    if data is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No block for {slug!r}: either the goal is gone or no written week declares it.",
+        )
+    return data
+
+
+@app.get("/api/plans/{slug}/block", response_model=BlockShape, summary="The block of a goal")
+def get_plan_block(slug: str, ctx: Context) -> BlockShape:
+    """A goal's block, week by week: the kilometres the plan asked for, the kilometres run, and
+    how the equivalent speed of each week is spread (five numbers: 5th, quartiles, 95th).
+
+    This is **not** `/api/weekly/<monday>/block`, which answers in percentages of what the race
+    asks over three KPIs. This one answers in kilometres and km/h — how the block actually
+    moved, week by week — and is keyed by the goal, because a block lasts as long as the goal
+    that declares it, not as long as a week.
+
+    The week in progress comes back with `partial: true`: its kilometres are those run so far,
+    so the chart leaves its point out of the line while still using its speed samples.
+
+    404 when the goal is gone or no written week declares it — a goal just written has no block
+    yet, and that is a state, not an error."""
+    data = _block_shape(slug, ctx)
+    return BlockShape(**{name: data[name] for name in BlockShape.model_fields})
+
+
+@app.get("/api/plans/{slug}/block/chart/vega", summary="The block of a goal, Vega-Lite")
+def get_plan_block_chart(
+    slug: str, ctx: Context, theme: Literal["light", "dark"] = "light"
+) -> dict[str, Any]:
+    """One Vega-Lite spec: the kilometres on the left axis, the spread of speed on the right.
+
+    Singular, unlike the three panels of `/api/weekly/<monday>/block/charts/vega`: here the two
+    readings are drawn **together on purpose**, because the week that ran the most kilometres is
+    also a week run at some pace, and two stacked panels would make the eye jump."""
+    return block_shape_spec(_block_shape(slug, ctx), theme)
 
 
 @app.get("/api/refresh", response_model=RefreshStatus, summary="Refresh job status")
