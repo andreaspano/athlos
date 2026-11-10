@@ -30,7 +30,6 @@ import {
   type Verdict,
   type WeekMeasure,
   type WeekPlan,
-  type Adherence,
 } from "../api/client";
 import {
   addDays,
@@ -213,10 +212,6 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
   const [report, setReport] = useState<Report | null>(null);
   const [plan, setPlan] = useState<WeekPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
-  // L'aderenza della settimana (todo 96): l'altra meta' di `docs/aderenza.md`,
-  // e sta nella card del piano perche' e' il confronto con quello che il
-  // piano chiedeva. `null` per una settimana senza file, come il piano.
-  const [adherence, setAdherence] = useState<Adherence | null>(null);
   // I lunedi' che hanno un piano (todo 88): il confine fin dove si puo'
   // andare avanti. Vuoto finche' non arriva, e allora avanti non si va —
   // che e' la pagina di prima.
@@ -390,20 +385,6 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
     return () => controller.abort();
   }, [monday, view]);
 
-
-  // L'aderenza va insieme al piano: stessa vista, stessa settimana, stesso
-  // 404 che vuol dire "non c'e'". Una chiamata sua e non un campo dentro
-  // `/plan`, che il piano e' il piano e l'aderenza e' un confronto.
-  useEffect(() => {
-    if (view !== "training") return;
-    const controller = new AbortController();
-    setAdherence(null);
-    api
-      .adherence(monday, controller.signal)
-      .then(setAdherence)
-      .catch((e) => !isAbort(e) && setError(API_DOWN));
-    return () => controller.abort();
-  }, [monday, view]);
 
   // Lo stato del lavoro, solo se e' di questo tipo: giorno e settimana
   // condividono un lavoro alla volta, e le chiavi delle sezioni sono
@@ -678,7 +659,6 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               loading={planLoading}
               sport={{ label: sportLabel, icon: (key) => sportIcons.get(key ?? "") ?? null }}
               restIcon={sportList?.rest_icon ?? null}
-              adherence={adherence}
             />
             <section className="card week-days" aria-label="Sessions">
               <CardHead icon={sectionIconFile("training")} title="Sessions" />

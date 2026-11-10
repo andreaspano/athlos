@@ -325,31 +325,19 @@ resta vuota e senza il `Week n of N` accanto al titolo: le sedute a macchina
 non ci sono, e ricavarle dalla prosa e' la strada che il todo 14 aveva
 scartato.
 
-Accanto a ogni riga, **com'e' andata quella seduta** (todo 96): un punteggio
-da zero a cento con sotto i chilometri da cui viene. E' `s_vol` di
-`docs/aderenza.md`, `max(0, 1 - |ln r| / ln 2)` sul rapporto fra fatto e
-previsto: uno se fai esattamente quello che chiedeva, zero se fai il doppio o
-la meta', e **simmetrico in scala logaritmica** — strafare pesa quanto fare
-meno. In fondo alla colonna i due numeri della settimana, l'**aderenza di
-volume** (la media pesata sui chilometri previsti, con lunga e qualita' a peso
-doppio) e il rapporto fra chilometri corsi e chiesti. Due numeri e non uno:
-l'aderenza dice *come* hai eseguito, il rapporto se sei stato sopra o sotto —
-82 con 1.21 e 82 con 0.83 sono settimane opposte. Si chiama aderenza di
-**volume** perche' e' meta' della misura del documento: l'altra meta' vuole il
-tempo per zona previsto, e il front matter di una seduta non ce l'ha.
+**Il confronto fra previsto e fatto la pagina non lo fa a numeri.** Il todo 96
+ci aveva messo le due misure di `docs/aderenza.md` — l'**aderenza**, quanto
+stai seguendo il piano, come punteggio su ogni riga e due numeri in fondo alla
+colonna; e la **risposta**, se il piano sta funzionando, in una card `Block`
+con tre pannelli. Sono state tolte tutte e due dalla pagina il 10 novembre
+2026, guardandola: prima il grafico, poi i numeri.
 
-L'aderenza e' meta' di quello che il todo 96 aveva messo in questa vista.
-L'altra meta' era la **risposta** — se il piano sta funzionando, invece di se
-lo stai seguendo — disegnata in una card `Block` con tre pannelli: i
-chilometri della settimana, la corsa piu' lunga e il tratto a ritmo gara,
-ognuno in percentuale di quello che la gara chiede. **La card non c'e' piu'**:
-e' stata tolta dalla pagina il 10 novembre 2026, guardandola. Quello che la
-produceva resta tutto — `block_data.block_payload`, i tre pannelli di
-`run_chart.block_chart`, e le rotte `GET /api/weekly/<lunedi>/block` e
-`.../block/charts/vega`, che si provano da `/docs` — perche' la misura non era
-sbagliata, era il posto. Rimetterla in pagina e' un componente di settanta
-righe: il todo 96 dice com'era fatta, e `todo/assets/96_block_mockup.png` come
-si vedeva.
+Quello che le produceva resta, e si prova da `/docs`: `block_data.py` con
+`s_vol`, i cricchetti e il ritmo gara letto dai `records`, i tre pannelli di
+`run_chart.block_chart`, e le tre rotte `GET /api/weekly/<lunedi>/block`,
+`.../block/charts/vega` e `.../adherence`. La misura non era sbagliata, era il
+posto; rimetterla in pagina e' un componente e una chiamata. Il todo 96 dice
+com'era fatta e `todo/assets/96_block_mockup.png` come si vedeva.
 
 **La Week va anche avanti** (todo 88), fin dove arriva il piano: la freccia
 `›`, la fila dei riquadri e il calendario arrivano all'**ultima settimana che

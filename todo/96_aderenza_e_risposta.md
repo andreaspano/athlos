@@ -825,10 +825,24 @@ involucri in `client.ts` — un involucro che nessuno chiama e' codice morto.
 rimetterla in pagina, qui o altrove, e' un componente di settanta righe.
 `todo/assets/96_block_mockup.png` tiene il disegno di com'era.
 
-**L'aderenza resta dov'e'**, nella card del piano: non e' un grafico, e la
-richiesta parlava del grafico. Ed era anche la meta' che si leggeva meglio —
-i punteggi 48, 96, 95 sulle righe della settimana 45 dicono in tre numeri
-quello che i tre pannelli dicevano in diciotto settimane.
+**L'aderenza era rimasta dov'era**, nella card del piano: non e' un grafico,
+e la richiesta parlava del grafico.
+
+### E poi via anche l'aderenza
+
+Chiesto subito dopo, lo stesso giorno. Via anche quella: i punteggi sulle
+righe, i due numeri in fondo, la chiamata, i tipi, le due regole CSS e la
+quarta colonna di `.plan-day-row`, che torna a tre. La card del piano e'
+tornata esattamente com'era prima del todo 96.
+
+Quindi **di questo todo la pagina non mostra piu' niente**, e vale la pena
+scriverlo chiaro invece di lasciarlo capire: restano `block_data.py`, i tre
+pannelli di `run_chart.py` e le tre rotte, che si provano da `/docs` e non le
+chiama nessuno. Non e' uno stato stabile — o la misura torna in pagina, in un
+posto che convince, o tanto vale il revert, che e' una riga qui sotto e
+riporta via anche il codice. La differenza fra le due strade e' se
+`s_vol`, il cricchetto e il ritmo gara valgono la pena: il codice c'e' e
+funziona, ma del codice che nessuno guarda si paga comunque la manutenzione.
 
 ## Revert
 

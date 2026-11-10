@@ -30,8 +30,6 @@ export type WeekTrendPanel = Schemas["WeekTrendPanel"];
 export type WeekMeasure = Schemas["WeekMeasure"];
 export type WeekPlan = Schemas["WeekPlan"];
 export type PlannedWeeks = Schemas["PlannedWeeks"];
-export type Adherence = Schemas["Adherence"];
-export type AdherenceSession = Schemas["AdherenceSession"];
 // La faccia di una card (todo 92): una delle cinque parole della scala, o
 // `null` quando non c'e' niente da misurare.
 export type Scores = Schemas["Scores"];
@@ -227,17 +225,11 @@ export const api = {
   weekPlan: (monday: string, signal?: AbortSignal) =>
     getOrNull<WeekPlan>(`/api/weekly/${monday}/plan`, signal),
 
-  // L'**aderenza** della settimana (todo 96), che e' l'altra misura: quanto
-  // stai seguendo il piano, non quanto il piano funziona. `null` per una
-  // settimana senza file di piano, come `weekPlan`.
-  //
-  // L'altra meta' — la **risposta**, cioe' i tre pannelli del blocco — la
-  // pagina non la chiede piu': la card e' stata tolta. Le rotte restano
-  // (`/api/weekly/<lunedi>/block` e `.../block/charts/vega`) e si vedono su
-  // `/docs`; qui non c'e' il loro involucro perche' un involucro che nessuno
-  // chiama e' codice morto.
-  adherence: (monday: string, signal?: AbortSignal) =>
-    getOrNull<Adherence>(`/api/weekly/${monday}/adherence`, signal),
+  // Del todo 96 la pagina non chiede piu' niente: ne' i tre pannelli del
+  // blocco ne' l'aderenza della settimana. Le tre rotte restano e si provano
+  // da `/docs` — `/api/weekly/<lunedi>/block`, `.../block/charts/vega` e
+  // `.../adherence` — ma qui non c'e' il loro involucro, che un involucro
+  // senza chiamante e' codice morto.
 
   // I lunedi' che hanno un piano (todo 88): il confine fin dove la pagina
   // Week lascia andare avanti. Una volta sola all'apertura — i file cambiano
