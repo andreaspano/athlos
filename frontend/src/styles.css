@@ -120,47 +120,75 @@ h2 {
   color: var(--info-text);
 }
 
-/* Barra in alto */
-.topbar {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+/* La barra a sinistra: una colonna fissa nella sua corsia, e il corpo della
+   pagina che le lascia il posto con un `padding-left`. Fissa e non in flusso
+   perche' i tre `main` non sono dentro un contenitore comune: ogni pagina
+   rende la barra e il suo `main` di fila, e una colonna in flusso avrebbe
+   voluto un involucro in quattro file. */
+:root {
+  --rail: 196px;
+  --rail-closed: 50px;
 }
-.topbar-inner {
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 0 16px;
-  display: flex;
+body {
+  padding-left: var(--rail);
+}
+/* Chiusa, la colonna scivola fuori e il corpo si riprende la larghezza: resta
+   la corsia stretta del tasto, cosi' le tre linee non finiscono mai sopra il
+   titolo della pagina. */
+body.rail-closed {
+  padding-left: var(--rail-closed);
+}
+/* Il tasto a tre linee, in alto a sinistra e fermo li' in tutte e due gli
+   stati: un comando che si sposta quando lo premi si perde. Sta sopra la
+   colonna, che da aperta gli passa sotto. */
+.rail-toggle {
+  position: fixed;
+  top: 14px;
+  left: 12px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
   align-items: center;
-  gap: 28px;
-  overflow-x: auto;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
 }
-/* I due menu incolonnati: il periodo sopra, la vista sotto (todo 55). */
-.topbar-menus {
+.rail-toggle:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--rail);
+  transition: transform 0.18s ease;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px 0;
-  min-width: 0;
+  gap: 20px;
+  padding: 18px 12px;
+  overflow-y: auto;
 }
-.topbar-menus nav {
-  display: flex;
-  gap: 4px;
+/* Il logo in cima alla colonna, con la proporzione 640x200 del file. Piu'
+   piccolo dei 44 della barra in alto: li' l'altezza della barra la decidevano
+   i menu e il logo doveva starci dentro, qui lo spazio e' tutto suo e un
+   marchio alto quanto tre voci di menu peserebbe piu' della navigazione. */
+.sidebar.closed {
+  transform: translateX(-100%);
 }
-/* Il logo, all'estremo destro: `margin-left: auto` lo spinge li' qualunque
-   cosa ci sia a sinistra, e non si stringe quando la barra va stretta e
-   comincia a scorrere. La larghezza viene da sola, con la proporzione
-   640x200 del file.
-
-   **Quarantaquattro e non di piu'.** L'altezza della barra la decidono i
-   menu: due righe di pillole sulla Day e sulla Week fanno 71, una riga
-   sola sul Goal ne fa 45. Fin qui il logo ci sta dentro tutte e due, e la
-   barra resta quella che era; passato il 45 sarebbe il logo a tirare in
-   basso la barra del Goal, e quella pagina diventerebbe piu' alta delle
-   altre senza avere niente in piu' da mostrare. */
-.topbar-logo {
-  margin-left: auto;
-  height: 44px;
+/* Il logo lascia il posto al tasto, che gli sta accanto nella stessa riga. */
+.sidebar-logo {
+  height: 34px;
   width: auto;
+  align-self: flex-start;
+  margin-left: 50px;
   flex-shrink: 0;
 }
 /* Il file e' nero su trasparente, e sul fondo scuro sparirebbe. `invert`
@@ -170,13 +198,80 @@ h2 {
    il logo esiste anche in bianco, questo filtro va via e al suo posto ci
    vanno due file. */
 @media (prefers-color-scheme: dark) {
-  .topbar-logo {
+  .sidebar-logo {
     filter: invert(1) hue-rotate(180deg);
   }
 }
-.topbar nav {
+.sidebar-menu {
   display: flex;
-  gap: 4px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* Le viste rientrate sotto la loro pagina, con la stanghetta che le lega a
+   lei: in colonna il legame si disegna, non si indovina. */
+.sidebar-views {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 6px 16px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+/* In colonna le voci sono righe larghe quanto la corsia, non pillole: una
+   pillola in mezzo a tanto bianco si legge come un tasto staccato. */
+.sidebar .tab {
+  display: block;
+  border-radius: 8px;
+  padding: 7px 12px;
+}
+.sidebar .tab.sub {
+  padding: 4px 12px;
+}
+/* Sotto i 900 px la colonna torna una barra in alto: su un telefono si
+   mangerebbe un terzo della larghezza, e quella larghezza la vogliono le
+   card. Le viste tornano in fila dopo la loro pagina, che in orizzontale la
+   stanghetta non ha piu' niente da legare. */
+@media (max-width: 900px) {
+  body,
+  body.rail-closed {
+    padding-left: 0;
+  }
+  /* Niente da chiudere: la barra e' gia' in alto e alta una riga. */
+  .rail-toggle {
+    display: none;
+  }
+  .sidebar,
+  .sidebar.closed {
+    transform: none;
+    position: static;
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .sidebar-logo {
+    order: 2;
+    margin-left: auto;
+  }
+  .sidebar-menu {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+  .sidebar-views {
+    flex-direction: row;
+    margin: 0 0 0 4px;
+    padding-left: 8px;
+  }
+  .sidebar .tab {
+    border-radius: 999px;
+  }
 }
 /* Le voci sono pillole: la pagina attiva sta in quella viola chiara. */
 .tab {

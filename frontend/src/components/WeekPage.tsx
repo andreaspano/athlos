@@ -52,7 +52,7 @@ import { WeekCalendar } from "./WeekCalendar";
 import { CardHead, EmptyBar, RangeBar, Stat, WrittenAt, num } from "./Stat";
 import { SectionRefresh } from "./SectionRefresh";
 import { SummaryCard } from "./SummaryCard";
-import { TopBar } from "./TopBar";
+import { SideBar } from "./SideBar";
 import { WeekPicker } from "./WeekPicker";
 import { WeekTrendPanels } from "./WeekTrendPanels";
 import { WeekPlanBrief } from "./WeekPlanCard";
@@ -485,7 +485,7 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
 
   return (
     <>
-      <TopBar current="week" view={view} />
+      <SideBar current="week" view={view} />
       <main className="page">
         <div className="day-header">
           <div className="day-title">
