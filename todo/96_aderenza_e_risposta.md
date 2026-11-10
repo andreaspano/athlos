@@ -809,6 +809,27 @@ Non si vedeva in nessuno dei numeri della verifica, perche' tutti e due i
 casi provati erano settimane chiuse. Si vedeva solo aprendo la pagina su
 oggi.
 
+### Il grafico tolto dalla pagina, dopo il merge
+
+Chiesto da Andrea il 10 novembre 2026, guardando la pagina vera: «rimuovi il
+grafico block nella pagina week:training». Tolto.
+
+Via dal frontend e basta: `WeekBlockCard.tsx` cancellato, il montaggio in
+`WeekPage`, le due regole CSS che erano solo sue, l'icona `block` e i due
+involucri in `client.ts` — un involucro che nessuno chiama e' codice morto.
+
+**Quello che produceva il grafico resta tutto**: `block_data.block_payload`,
+`block_chart` e `block_panel_charts` in `run_chart.py`, e le rotte
+`GET /api/weekly/<lunedi>/block` e `.../block/charts/vega`, che si provano da
+`/docs`. Non e' pigrizia: la misura non era sbagliata, lo era il posto — e
+rimetterla in pagina, qui o altrove, e' un componente di settanta righe.
+`todo/assets/96_block_mockup.png` tiene il disegno di com'era.
+
+**L'aderenza resta dov'e'**, nella card del piano: non e' un grafico, e la
+richiesta parlava del grafico. Ed era anche la meta' che si leggeva meglio —
+i punteggi 48, 96, 95 sulle righe della settimana 45 dicono in tre numeri
+quello che i tre pannelli dicevano in diciotto settimane.
+
 ## Revert
 
 ```bash

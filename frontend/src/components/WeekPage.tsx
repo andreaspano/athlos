@@ -57,7 +57,6 @@ import { TopBar } from "./TopBar";
 import { WeekPicker } from "./WeekPicker";
 import { WeekTrendPanels } from "./WeekTrendPanels";
 import { WeekPlanBrief } from "./WeekPlanCard";
-import { WeekBlockCard } from "./WeekBlockCard";
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
@@ -164,9 +163,6 @@ const CARD_ICONS: Record<string, string> = {
   // ha sotto, e due riquadri di fila con lo stesso segno si leggevano come
   // uno solo.
   comment: "comment.png",
-  // Il blocco (todo 96): la freccia del trend, che e' la stessa domanda su un
-  // periodo piu' lungo — dove sta andando questo.
-  block: "trend.png",
 };
 const sectionIconFile = (card: string) => CARD_ICONS[card] ?? null;
 
@@ -740,16 +736,6 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               )}
             </section>
             </div>
-            {/* Il blocco, in fondo (todo 96): e' la cornice larga, e si
-                guarda per ultima. Sopra c'e' il verdetto della settimana (il
-                commento, todo 74), poi i sette giorni; questo dice dove ti
-                sta portando il blocco, che e' un'altra domanda e un altro
-                periodo. Fuori da un blocco la card non si disegna. */}
-            <WeekBlockCard
-              monday={monday}
-              theme={theme}
-              icon={sectionIconFile("block")}
-            />
           </>
         )}
         {/* Lo Snap e' il corpo, come quello del giorno (todo 68): il

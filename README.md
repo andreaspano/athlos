@@ -338,44 +338,18 @@ l'aderenza dice *come* hai eseguito, il rapporto se sei stato sopra o sotto —
 **volume** perche' e' meta' della misura del documento: l'altra meta' vuole il
 tempo per zona previsto, e il front matter di una seduta non ce l'ha.
 
-In fondo alla vista, la card **Block** (todo 96): tre pannelli, uno per KPI —
-i chilometri della settimana, la corsa piu' lunga, e il tratto continuo piu'
-lungo a ritmo gara — sull'asse di quello che la gara chiede, da zero a cento.
-E' l'altra misura, la **risposta**: non se stai seguendo il piano, ma se il
-piano sta funzionando, e `docs/aderenza.md` dice di non fonderle in un numero
-unico, perche' alta aderenza senza risposta vuol dire cambiare il piano
-mentre bassa aderenza vuol dire che il piano non e' stato messo alla prova.
-
-Ogni settimana porta due barre — a contorno quello che il piano chiedeva,
-piena quello che e' stato fatto — e sopra corrono la linea del **migliore
-finora** e il tratteggio del **tempo trascorso**, dalla riga di partenza alla
-gara. La linea e' un cricchetto, cioe' sale su un record e non scende mai, e
-non e' un abbellimento: i chilometri previsti da un blocco sono una sega — 26,
-30, 33, **26**, 35, 38, 41, **31**, 38, 42, 44, **34**, 42, 46, 43, 38, **29**,
-33 — con quattro discese volute, e una linea coi valori della settimana
-scenderebbe quattro volte su diciotto facendo sembrare un crollo quello che e'
-il piano che funziona. Le barre tengono il ritmo, la linea tiene il progresso.
-
-**La diagonale non e' il giudice**, e va saputo: il piano non sale come il
-tempo. Alle prime sei settimane il volume previsto fa 57, 65, 72, 57, 76, 83%
-contro 59, 61, 64, 66, 69, 71% della diagonale, e il blocco finisce di salire
-alla **settimana 14** — il volume esattamente al 100%, la lunga al 99.5%,
-perche' i 21 km della gara non si corrono mai prima della gara. Chi leggesse
-solo la diagonale si direbbe in anticipo per tutto l'autunno e in ritardo da
-febbraio senza aver cambiato niente.
-
-Il pannello del **ritmo gara** non ha le barre del previsto: il front matter
-delle sedute non porta i chilometri a ritmo gara, quel lavoro vive solo nella
-prosa del blocco. E non e' la velocita': la velocita' migliore della settimana
-era gia' sopra il bersaglio prima che il blocco cominciasse, quindi come KPI
-sarebbe inchiodata al 100% dalla prima settimana. Quello che si misura e' il
-divario che il blocco dichiara di suo — «You have never run at 6'38" for more
-than 8 km» — cioe' il tratto continuo piu' lungo a velocita' equivalente sopra
-il ritmo gara, letto dai `records`.
-
-Fuori da un blocco la card non c'e': una settimana prima che cominciasse non
-ha niente da mostrare. Le tre rotte sono `GET /api/weekly/<lunedi>/block`,
-`.../block/charts/vega` e `.../adherence`.
+L'aderenza e' meta' di quello che il todo 96 aveva messo in questa vista.
+L'altra meta' era la **risposta** — se il piano sta funzionando, invece di se
+lo stai seguendo — disegnata in una card `Block` con tre pannelli: i
+chilometri della settimana, la corsa piu' lunga e il tratto a ritmo gara,
+ognuno in percentuale di quello che la gara chiede. **La card non c'e' piu'**:
+e' stata tolta dalla pagina il 10 novembre 2026, guardandola. Quello che la
+produceva resta tutto — `block_data.block_payload`, i tre pannelli di
+`run_chart.block_chart`, e le rotte `GET /api/weekly/<lunedi>/block` e
+`.../block/charts/vega`, che si provano da `/docs` — perche' la misura non era
+sbagliata, era il posto. Rimetterla in pagina e' un componente di settanta
+righe: il todo 96 dice com'era fatta, e `todo/assets/96_block_mockup.png` come
+si vedeva.
 
 **La Week va anche avanti** (todo 88), fin dove arriva il piano: la freccia
 `›`, la fila dei riquadri e il calendario arrivano all'**ultima settimana che
