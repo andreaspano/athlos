@@ -520,8 +520,11 @@ nel codice — un file nuovo nella cartella si vede ricaricando la pagina — e
 nessun agente: questi li scrive una persona, mentre `summary/` lo riscrivono
 gli agenti.
 
-**L'elenco si apre e si chiude** (todo 84): una riga per goal, e aperte
-quante se ne vuole. I tre piani di una mezza sono tre bersagli della stessa
+**L'elenco si apre e si chiude** (todo 84): una card per goal, e aperte
+quante se ne vuole. Erano righe dentro un riquadro solo, separate da una
+linea: due bordi per dire una cosa sola, e i goal sono la pagina intera, non
+una scheda dentro una pagina. Quello attuale porta il fianco dell'accento,
+che si vede anche a card chiusa. I tre piani di una mezza sono tre bersagli della stessa
 gara, e la domanda che si fa guardandoli e' *quale di questi*: una pagina che
 ne mostrava uno per volta la rendeva un andare avanti e indietro.
 

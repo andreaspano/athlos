@@ -10,6 +10,13 @@
 // toccare niente qui — e' il motivo per cui i numeri in cima stanno nel front
 // matter del file e non nel codice.
 //
+// **Una card per goal.** Erano righe dentro un riquadro solo, separate da una
+// linea; adesso ognuna e' una scheda come quelle della Day e della Week. I
+// goal sono pochi — una gara, le sue alternative — e sono la pagina intera:
+// un riquadro che contiene tutto e' un bordo in piu' intorno a niente, e fra
+// schede staccate si confronta meglio, che e' quello per cui si aprono
+// insieme.
+//
 // **Un elenco, non un piano per volta** (todo 84). Prima c'era un selettore e
 // sotto il piano scelto: uno alla volta, e per confrontare i tre bersagli
 // della stessa mezza si andava avanti e indietro. Adesso sono righe che si
@@ -40,7 +47,7 @@ import {
 import { dayDiff, raceLabel, shortDayLabel, targetLabel, today } from "../format";
 import { markdown } from "../markdown";
 import { paramFromUrl } from "../navigation";
-import { CardHead, Stat, WrittenAt, num } from "./Stat";
+import { Stat, WrittenAt, num } from "./Stat";
 import { TopBar } from "./TopBar";
 
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
@@ -61,9 +68,6 @@ function BinIcon() {
     </svg>
   );
 }
-// L'icona di Next: il riquadro che dice cosa fare dopo. Un goal e' la stessa
-// domanda, solo su quattro mesi invece che su domani.
-const PLAN_ICON = "next.png";
 
 /** I goal aperti quando la pagina si apre: quello chiesto dall'URL, se c'e'
  * ancora fra i file, se no quello attuale.
@@ -151,7 +155,7 @@ function Goal({
   };
   return (
     <details
-      className={plan.current ? "goal current" : "goal"}
+      className={plan.current ? "card goal current" : "card goal"}
       open={open}
       onToggle={(event) => onToggle(event.currentTarget.open)}
     >
@@ -357,12 +361,12 @@ export function PlanPage() {
             following with <code>current: true</code>.
           </p>
         )}
-        {plans !== null && plans.length > 0 && (
-        <section className="card plan-card" aria-label="Goals">
-          <CardHead icon={PLAN_ICON} title="Goals" />
-          {/* Le settimane che seguono un altro goal. Non e' un errore della
-              pagina: e' lo stato in cui i file sono, e nessuno li riscrive. */}
-          {staleWeeks(plans, ahead).map((entry) => (
+        {/* Le settimane che seguono un altro goal. Non e' un errore della
+            pagina: e' lo stato in cui i file sono, e nessuno li riscrive.
+            Stanno **sopra le card** e non dentro una di esse: parlano dei
+            file di `summary/05.plan/`, non del goal che nominano. */}
+        {plans !== null &&
+          staleWeeks(plans, ahead).map((entry) => (
             <p className="warning" key={entry.slug}>
               {entry.weeks} weekly {entry.weeks === 1 ? "plan" : "plans"} from this Monday on
               still {entry.weeks === 1 ? "follows" : "follow"} <code>{entry.slug}</code>.
@@ -371,7 +375,8 @@ export function PlanPage() {
               goal you are following.
             </p>
           ))}
-          <div className="goal-list">
+        {plans !== null && plans.length > 0 && (
+          <section className="goal-list" aria-label="Goals">
             {plans.map((plan) => (
               <Goal
                 key={plan.slug}
@@ -385,8 +390,7 @@ export function PlanPage() {
                 now={now}
               />
             ))}
-          </div>
-        </section>
+          </section>
         )}
       </main>
     </>
