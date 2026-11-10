@@ -48,7 +48,7 @@ import { dayDiff, raceLabel, shortDayLabel, targetLabel, today } from "../format
 import { markdown } from "../markdown";
 import { paramFromUrl } from "../navigation";
 import { Stat, WrittenAt, num } from "./Stat";
-import { TopBar } from "./TopBar";
+import { SideBar } from "./SideBar";
 
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
 
@@ -346,7 +346,7 @@ export function PlanPage() {
 
   return (
     <>
-      <TopBar current="plan" />
+      <SideBar current="plan" />
       <main className="page">
         <div className="day-header">
           <div className="day-title">

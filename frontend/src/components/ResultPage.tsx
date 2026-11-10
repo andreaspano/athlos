@@ -28,7 +28,7 @@ import { api, isAbort, type PlanSummary, type VegaSpec } from "../api/client";
 import { raceLabel } from "../format";
 import { useColorScheme, type ColorScheme } from "../useColorScheme";
 import { CardHead } from "./Stat";
-import { TopBar } from "./TopBar";
+import { SideBar } from "./SideBar";
 import { OneChart } from "./TrendPanels";
 
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
@@ -104,7 +104,7 @@ export function ResultPage() {
 
   return (
     <>
-      <TopBar current="result" />
+      <SideBar current="result" />
       <main className="page">
         <div className="day-header">
           <div className="day-title">

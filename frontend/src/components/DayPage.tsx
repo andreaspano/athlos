@@ -36,7 +36,7 @@ import { LoadCard } from "./LoadCard";
 import { RecoveryCard } from "./RecoveryCard";
 import { SectionRefresh } from "./SectionRefresh";
 import { SummaryCard } from "./SummaryCard";
-import { TopBar } from "./TopBar";
+import { SideBar } from "./SideBar";
 import { TrainingCard } from "./TrainingCard";
 import { TrainingCommentCard } from "./TrainingCommentCard";
 import { TrendPanels } from "./TrendPanels";
@@ -275,7 +275,7 @@ export function DayPage({ view = "snap" }: { view?: View }) {
 
   return (
     <>
-      <TopBar view={view} />
+      <SideBar view={view} />
       <main className="page">
         <DayHeader
           day={day}

@@ -160,13 +160,34 @@ report giornaliero non legge nessuna delle tre.
 ### La pagina Day in React
 
 `frontend/` e' l'interfaccia (React, TypeScript, Vite), l'unica dal todo 40.
-La barra in alto ha **due menu su due righe** (todo 55): sopra il periodo —
-la **Day** e la **Week** — sotto che cosa se ne guarda. Sono due assi, non
-una fila sola. A destra, staccato, c'e' **Goal**, che un periodo non e': un
-obiettivo guarda avanti a una gara, non indietro a un giorno.
+Il menu e' una **colonna a sinistra**, e gli assi sono sempre due (todo 55) —
+la **pagina** e **cosa se ne guarda** — ma in verticale non sono due righe:
+sono un albero. Le viste stanno rientrate **sotto la pagina a cui
+appartengono**, con una stanghetta che le lega, e si vedono solo per quella
+aperta; su due righe in alto quel legame lo doveva indovinare l'occhio.
 
-Si chiamava **Plan** come la sua pagina, e nella barra erano due: questo e la
-vista Plan della Week — che dal todo 90 non c'e' piu', e il nome adesso e'
+**La colonna si chiude**, col tasto a tre linee in alto a sinistra: chiusa
+scivola fuori e la pagina si riprende tutta la larghezza, che e' quella che
+vogliono i grafici e le due colonne della Week. Il tasto resta dov'e' in tutti
+e due gli stati — un comando che si sposta quando lo premi si perde — e la
+corsia stretta che gli resta serve a quello: senza, le tre linee finirebbero
+sopra il titolo della pagina. La scelta sta in `localStorage` e non in uno
+stato di React, e non e' un vezzo: le voci sono **collegamenti veri**, quindi
+ogni clic ricarica la pagina e uno stato morirebbe — la colonna si
+riaprirebbe a ogni passo. Chiusa e' `inert`, o i suoi collegamenti si
+raggiungerebbero col tabulatore in un menu che non si vede.
+
+**Sotto i 900 px la colonna torna una barra in alto** e il tasto sparisce: su
+un telefono una colonna fissa si mangia un terzo della larghezza, e quella
+larghezza la vogliono le card; e una barra alta una riga non ha niente da
+chiudere.
+
+Le pagine sono quattro, nell'ordine del tempo: la **Day**, la **Week**, il
+**Goal** — che un periodo non e': un obiettivo guarda avanti a una gara, non
+indietro a un giorno — e la **Result**.
+
+Il Goal si chiamava **Plan** come la sua pagina, e nel menu erano due: questo
+e la vista Plan della Week — che dal todo 90 non c'e' piu', e il nome adesso e'
 di uno solo. Goal dice quello che la pagina mostra, la gara a cui si va e
 quanto manca. **L'indirizzo resta `?period=plan`**, cosi' i link scritti
 prima continuano ad aprirla.
@@ -174,9 +195,9 @@ prima continuano ad aprirla.
 Dopo Goal c'e' **Result**, che ne e' la coppia: il Goal dice dove si vuole
 arrivare, la Result come sta andando il blocco che ci porta. Non e' una vista
 della Week per una ragione di orizzonte: una vista della Week risponde su
-sette giorni, un blocco ne dura diciotto. Nemmeno lei e' un periodo, quindi di
-viste non ne ha e apre la barra a una riga sola; l'indirizzo e'
-`?period=result`.
+sette giorni, un blocco ne dura diciotto. Nemmeno lei e' un periodo e di
+viste non ne ha, quindi sotto di lei nella colonna non si apre niente;
+l'indirizzo e' `?period=result`.
 
 **Una card per goal, e dentro il suo blocco in un grafico solo**: i
 chilometri previsti e fatti settimana per settimana sull'asse di sinistra, e
@@ -217,7 +238,8 @@ pillola disattivata e non portava in nessun posto.
 
 **Le viste sono di ogni periodo** (todo 59): **Snap**, **Training** e
 **Trend** sotto Day, **Snap**, **Trend** e **Plan** sotto Week; la Goal, che
-un periodo non e', non ne ha e apre la barra con una riga sola. Stanno in `VIEWS`
+un periodo non e', non ne ha: sotto di lei nella colonna non si apre
+niente. Stanno in `VIEWS`
 (`src/navigation.ts`) nell'ordine in cui si leggono, e **la prima e' quella
 che il periodo apre da solo** — lo Snap, per tutti e due.
 
