@@ -1,7 +1,7 @@
 // La barra di navigazione, **a sinistra** (todo 34, su due righe in alto dal
 // todo 55, in colonna da qui).
 //
-// Gli assi sono sempre due — la **pagina** (Day, Week, Goal, Result) e **cosa
+// Gli assi sono sempre due — la **pagina** (Day, Week, Goal) e **cosa
 // se ne guarda** (Snap, Training, Trend) — ma in verticale non sono due righe:
 // sono un albero. Le viste stanno **sotto la pagina a cui appartengono**,
 // rientrate, e si vedono solo per quella aperta; in orizzontale quel legame lo
@@ -13,10 +13,11 @@
 // cosi'). I nomi con cui si scrivono stanno li' accanto (`ETICHETTE`), che
 // servono anche al titolo della pagina.
 //
-// **Goal** e **Result** non sono periodi ma sono pagine, e come pagine stanno
-// in fila con le altre due: il Goal dice dove si vuole arrivare, la Result
-// come sta andando il blocco che ci porta. Di viste non ne hanno, quindi sotto
-// di loro non si apre niente.
+// Il **Goal** non e' un periodo ma e' una pagina, e come pagina sta in fila
+// con le altre due: dice dove si vuole arrivare. Di viste non ne ha, quindi
+// sotto di lui non si apre niente. La **Result**, che diceva come sta andando
+// il blocco, e' durata due giorni: quel grafico e' tornato nella Training
+// della Week, dove la domanda si fa.
 //
 // Il **logo** sta in cima alla colonna: `icons/athlos.png`, servito da
 // `/icons` come tutte le altre icone — in sviluppo il proxy di Vite, in
@@ -46,18 +47,16 @@ import { Fragment, useLayoutEffect, useState } from "react";
 import { iconUrl } from "../api/client";
 import { ETICHETTE, VIEWS, defaultView, hrefFor, type Page, type View } from "../navigation";
 
-/** Le voci della prima riga, nell'ordine in cui si leggono. Il Goal e la
- * Result non sono periodi ma sono pagine, ed e' come pagine che stanno in
- * fila con le altre due; `VIEWS` resta il posto che dice chi ha delle viste
- * e chi no.
+/** Le voci della prima riga, nell'ordine in cui si leggono. Il Goal non e' un
+ * periodo ma e' una pagina, ed e' come pagina che sta in fila con le altre
+ * due; `VIEWS` resta il posto che dice chi ha delle viste e chi no.
  *
- * L'ordine e' quello del tempo: il giorno, la settimana, la gara a cui si va
- * e come sta andando il blocco che ci porta. */
+ * L'ordine e' quello del tempo: il giorno, la settimana, e la gara a cui si
+ * va. */
 const PAGINE: { page: Page; label: string }[] = [
   { page: "day", label: "Day" },
   { page: "week", label: "Week" },
   { page: "plan", label: "Goal" },
-  { page: "result", label: "Result" },
 ];
 
 /** Il tasto a tre linee: disegnato qui come il cestino della Goal, che

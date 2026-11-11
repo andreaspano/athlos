@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 
 import { DayPage } from "./components/DayPage";
 import { PlanPage } from "./components/PlanPage";
-import { ResultPage } from "./components/ResultPage";
 import { WeekPage } from "./components/WeekPage";
 import { pageFromUrl, viewFromUrl, type Page, type View } from "./navigation";
 
@@ -26,9 +25,8 @@ export function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // La Plan e la Result di viste non ne hanno: `view` si ignora.
+  // La Plan di viste non ne ha: `view` si ignora.
   if (page === "week") return <WeekPage view={view} />;
   if (page === "plan") return <PlanPage />;
-  if (page === "result") return <ResultPage />;
   return <DayPage view={view} />;
 }

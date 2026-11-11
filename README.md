@@ -182,9 +182,9 @@ un telefono una colonna fissa si mangia un terzo della larghezza, e quella
 larghezza la vogliono le card; e una barra alta una riga non ha niente da
 chiudere.
 
-Le pagine sono quattro, nell'ordine del tempo: la **Day**, la **Week**, il
+Le pagine sono tre, nell'ordine del tempo: la **Day**, la **Week** e il
 **Goal** — che un periodo non e': un obiettivo guarda avanti a una gara, non
-indietro a un giorno — e la **Result**.
+indietro a un giorno.
 
 Il Goal si chiamava **Plan** come la sua pagina, e nel menu erano due: questo
 e la vista Plan della Week — che dal todo 90 non c'e' piu', e il nome adesso e'
@@ -192,22 +192,47 @@ di uno solo. Goal dice quello che la pagina mostra, la gara a cui si va e
 quanto manca. **L'indirizzo resta `?period=plan`**, cosi' i link scritti
 prima continuano ad aprirla.
 
-Dopo Goal c'e' **Result**, che ne e' la coppia: il Goal dice dove si vuole
-arrivare, la Result come sta andando il blocco che ci porta. Non e' una vista
-della Week per una ragione di orizzonte: una vista della Week risponde su
-sette giorni, un blocco ne dura diciotto. Nemmeno lei e' un periodo e di
-viste non ne ha, quindi sotto di lei nella colonna non si apre niente;
-l'indirizzo e' `?period=result`.
+Dopo Goal c'e' stata per due giorni una **Result**, su `?period=result`: come
+sta andando il blocco, una card per goal. Il grafico che mostrava e' tornato
+**in fondo alla Training della Week**, che e' il posto dove quella domanda si
+fa — si guarda la settimana appena chiusa e si chiede se si sta arrivando
+dove il blocco voleva portare. `?period=result` adesso ricade sulla Day, come
+qualunque indirizzo che non si capisce.
 
-**Una card per goal, e dentro il suo blocco in un grafico solo**: i
-chilometri previsti e fatti settimana per settimana sull'asse di sinistra, e
-come si distribuisce la velocita' di ogni settimana — mediana, quartili e
-baffi al 5 e al 95 percentile — sull'asse di destra, con la riga del ritmo
-gara. Due assi e non due riquadri impilati perche' le due letture si fanno
-insieme: la settimana da 44 km e' anche quella corsa a una certa andatura.
-Un goal che non ha un blocco — nessuna settimana scritta lo dichiara — tiene
-la sua card e lo dice in una riga: e' lo stato di un'alternativa che non si
-sta seguendo, non un guasto.
+### Il blocco, in fondo alla Training della Week
+
+**Il blocco in un grafico solo**: i chilometri previsti e fatti settimana per
+settimana sull'asse di sinistra, e come si distribuisce la velocita' di ogni
+settimana — mediana, quartili e baffi al 5 e al 95 percentile — sull'asse di
+destra, con la riga del ritmo gara. Due assi e non due riquadri impilati
+perche' le due letture si fanno insieme: la settimana da 44 km e' anche quella
+corsa a una certa andatura.
+
+**C'e' solo se quella settimana sta in un blocco**, e il blocco e' quello che
+il suo file dichiara (`plan:` in `summary/05.plan/<lunedi>.md`): le settimane
+prima che il blocco cominciasse non hanno niente contro cui misurarsi, e
+allora la card non compare affatto — non e' un guasto, e una cornice vuota in
+fondo alla vista direbbe che manca qualcosa.
+
+**E solo se quella settimana e' chiusa: il grafico arriva col commento.** Il
+giro della domenica alle 21 scrive il report della settimana, e il suo
+Training e' il commento che sta sopra il grafico in questa vista; finche' quel
+testo non c'e', il grafico non c'e'. La settimana in corso quindi non lo
+mostra: il suo punto sarebbe quello di tre giorni, e cambierebbe a ogni
+apertura della pagina — che e' quello che `partial` evita per il punto dei
+chilometri.
+
+Il confine e' **il commento e non l'orologio**. Se la domenica sera il giro
+non gira, la settimana non e' chiusa e il grafico aspetta; e appena quel testo
+viene scritto — dal timer o dal tasto della card — la card appare da se',
+senza ricaricare la pagina, perche' la pagina passa al grafico l'ora del
+commento e la segue.
+
+**Il disegno batte una volta a settimana, come il report**: e' il blocco
+com'era alla **fine della settimana aperta**. I chilometri fatti si fermano
+li' e le settimane dopo tengono le sole barre del piano. Il taglio lo fa l'API
+(`until`), non la pagina: cosi' guardando indietro si rilegge quello che si
+sapeva allora, invece di riscrivere la storia a ogni apertura.
 
 **La velocita' si pesa sul tempo, non sui campioni**: l'orologio registra piu'
 fitto quando il polso accelera, e a campioni contati una ripetuta di tre
@@ -222,15 +247,22 @@ un crollo ogni volta che si apre la pagina; l'API la marca `partial: true`. I
 suoi campioni di velocita' invece valgono: l'andatura di tre corse e' gia'
 andatura.
 
-La rotta e' `GET /api/plans/<slug>/block` (e `.../block/chart/vega` per la
-specifica Vega-Lite), **keyed sul goal** e non su un lunedi', perche' un
-blocco e' lungo quanto il goal che lo dichiara. E' una lettura diversa dai tre
-pannelli del todo 96 (`/api/weekly/<lunedi>/block`), che restano: quelli
-dicono a che punto sei di quello che la gara chiede, in percentuale del
-bersaglio; questa dice come si e' mossa la settimana, nelle sue unita'. I
-campioni di ogni seduta si tengono in memoria come il ritmo gara
-(`api/cache.py`): a blocco pieno sono un quarto di milione di righe, e il
-grafico si ridisegna a ogni apertura della pagina.
+La rotta e' `GET /api/weekly/<lunedi>/shape` (e `.../shape/chart/vega` per la
+specifica Vega-Lite), **keyed sul lunedi' e tagliata a quel lunedi'**: il goal
+e' quello che il file della settimana dichiara, e oltre quella settimana non
+si misura. 404 quando la settimana non sta in un blocco, quando il goal che
+dichiarava non e' piu' in `plan/` e quando la settimana non e' ancora
+commentata, che sono stati e non errori. La stessa
+lettura keyed sul **goal** resta a `GET /api/plans/<slug>/block` (e
+`.../block/chart/vega`), che un blocco e' lungo quanto il goal che lo
+dichiara: la pagina non la chiede piu', si prova da `/docs`.
+
+E' una lettura diversa dai tre pannelli del todo 96
+(`/api/weekly/<lunedi>/block`), che restano: quelli dicono a che punto sei di
+quello che la gara chiede, in percentuale del bersaglio; questa dice come si
+e' mossa la settimana, nelle sue unita'. I campioni di ogni seduta si tengono
+in memoria come il ritmo gara (`api/cache.py`): a blocco pieno sono un quarto
+di milione di righe, e il grafico si ridisegna a ogni cambio di settimana.
 
 **Nella barra non ci sono voci grigie.** Month, Year e Activities si
 aggiungeranno quando esisteranno, non prima: Activities e' stata per mesi una
@@ -391,15 +423,21 @@ scartato.
 ci aveva messo le due misure di `docs/aderenza.md` — l'**aderenza**, quanto
 stai seguendo il piano, come punteggio su ogni riga e due numeri in fondo alla
 colonna; e la **risposta**, se il piano sta funzionando, in una card `Block`
-con tre pannelli. Sono state tolte tutte e due dalla pagina il 10 novembre
-2026, guardandola: prima il grafico, poi i numeri.
+con tre pannelli in percentuale del bersaglio. Sono state tolte tutte e due
+dalla pagina il 10 novembre 2026, guardandola: prima il grafico, poi i
+numeri.
 
 Quello che le produceva resta, e si prova da `/docs`: `block_data.py` con
 `s_vol`, i cricchetti e il ritmo gara letto dai `records`, i tre pannelli di
 `run_chart.block_chart`, e le tre rotte `GET /api/weekly/<lunedi>/block`,
 `.../block/charts/vega` e `.../adherence`. La misura non era sbagliata, era il
-posto; rimetterla in pagina e' un componente e una chiamata. Il todo 96 dice
-com'era fatta e `todo/assets/96_block_mockup.png` come si vedeva.
+posto. Il todo 96 dice com'era fatta e `todo/assets/96_block_mockup.png` come
+si vedeva.
+
+**La risposta e' tornata in pagina il giorno dopo**, in fondo a questa vista,
+ma e' l'altro grafico: non le tre percentuali del bersaglio, i chilometri e
+l'andatura di ogni settimana del blocco nelle loro unita' (qui sopra, «Il
+blocco, in fondo alla Training della Week»). L'aderenza no: resta fuori.
 
 **La Week va anche avanti** (todo 88), fin dove arriva il piano: la freccia
 `›`, la fila dei riquadri e il calendario arrivano all'**ultima settimana che

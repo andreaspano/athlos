@@ -56,6 +56,7 @@ import { SideBar } from "./SideBar";
 import { WeekPicker } from "./WeekPicker";
 import { WeekTrendPanels } from "./WeekTrendPanels";
 import { WeekPlanBrief } from "./WeekPlanCard";
+import { WeekShape } from "./WeekShapeCard";
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
@@ -716,6 +717,22 @@ export function WeekPage({ view = "snap" }: { view?: View }) {
               )}
             </section>
             </div>
+            {/* Il blocco, in fondo: le sette righe qui sopra dicono questa
+                settimana, il grafico dice dove quella settimana sta — i
+                chilometri previsti e fatti di tutte le settimane del blocco e
+                l'andatura di ognuna. Si legge per ultimo perche' e' l'altro
+                orizzonte, e **c'e' solo se la settimana sta in un blocco**:
+                senza un goal dichiarato dal suo file non c'e' niente contro
+                cui misurarla, e la card non compare. Il taglio e' alla fine
+                della settimana aperta, cosi' il disegno batte una volta a
+                settimana come il report.
+
+                E **non prima che la settimana sia chiusa**: il grafico arriva
+                col commento qui sopra, che il giro della domenica alle 21
+                scrive insieme al resto del report. Per questo gli si passa
+                l'ora di quel testo — finche' non c'e', la card non c'e', e
+                appena viene scritto il grafico si chiede da se'. */}
+            <WeekShape monday={monday} comment={when("Training")} theme={theme} />
           </>
         )}
         {/* Lo Snap e' il corpo, come quello del giorno (todo 68): il
