@@ -19,12 +19,13 @@
 // loro posto con un trattino, e una riga lo dice, perche' un corpo disegnato
 // di zeri sarebbe una bugia precisa.
 //
-// **Le barre qui non si leggono come nelle altre card, e la card lo scrive.**
-// Altrove la fascia e' dove quella misura sta di solito, e uscirne vuol dire
-// "oggi e' diverso dal solito"; qui e' l'intervallo di riferimento della
-// bilancia per altezza, eta' e sesso, e uscirne vuol dire un'altra cosa. Lo
-// stesso disegno con due significati e' il modo di leggere male un numero,
-// quindi sotto i riquadri c'e' una riga che dice quale dei due e'.
+// **Le barre sono quelle di sempre**: dove quella misura sta di solito, cioe'
+// la media delle pesate delle dodici settimane con il suo scarto tipo. Per un
+// momento sono state le fasce di riferimento della bilancia — dove il numero
+// *dovrebbe* stare per altezza, eta' e sesso — e arrivavano subito invece di
+// aspettare uno storico; sono tornate indietro perche' davano allo stesso
+// disegno un secondo significato, e una barra si impara a leggere una volta.
+// I riferimenti restano nei file, se un giorno vorranno un disegno loro.
 //
 // I segmenti (braccia, gambe, tronco) e le impedenze non sono qui: la
 // bilancia li misura e i file li tengono, ma vogliono un disegno loro — un
@@ -108,14 +109,14 @@ export function BodyCard({ body, icon }: { body: BodyComposition; icon: string |
           composition is not.
         </p>
       )}
-      {/* Cosa sono le barre, detto una volta: sono l'intervallo che la
-          bilancia considera normale per te, non la fascia delle altre card.
-          Le misure senza barra sono quelle per cui un intervallo non arriva,
-          o arriva in un'unita' che non e' quella del numero. */}
-      {body.measures.some((m) => m.band) && (
+      {/* Perche' le barre sono vuote, finche' lo sono: tre pesate e' il
+          pavimento sotto cui uno scarto tipo non dice niente, e dieci tracce
+          grigie senza una riga si leggono come un guasto. */}
+      {body.measures.every((m) => !m.band) && (
         <p className="caption">
-          The bands are the scale's reference range for your height, age and sex — not where
-          you usually are, as on the other cards.
+          {body.weighings === 1
+            ? "One weigh-in in the last twelve weeks: the bands arrive at three."
+            : `${body.weighings} weigh-ins in the last twelve weeks: the bands arrive at three.`}
         </p>
       )}
     </section>

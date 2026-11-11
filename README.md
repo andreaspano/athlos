@@ -193,30 +193,40 @@ giorno prima» — e, quando la pesata non e' di quel giorno, la data per intero
 anche sotto i numeri: su una card che mostra spesso una misura di qualche
 giorno prima, una data in breve si legge come "oggi".
 
-**La fascia di questa card e' l'intervallo di riferimento della bilancia**, e
-si legge al contrario di tutte le altre: altrove la fascia dice *dove quella
-misura sta di solito* — media e scarto tipo dello storico — e uscirne vuol
-dire "oggi e' diverso dal solito"; qui dice *dove dovrebbe stare* per la tua
-altezza, eta' e sesso. La card lo scrive in una riga, perche' lo stesso
-disegno con due significati e' il modo di leggere male un numero.
+**La fascia e' quella di sempre**: dove quella misura sta di solito, cioe' la
+media delle pesate delle dodici settimane piu' e meno uno scarto tipo, e piu'
+e meno due — la stessa di Health, Recovery, Load e Fitness, calcolata dallo
+stesso `_band`. Si legge quindi come le altre, e la barra prende l'ambra della
+card.
 
-La scelta viene dai dati. Una media col suo scarto su tre pesate non e' una
-fascia, e' rumore disegnato, e di pesate ce ne sono tre; il riferimento invece
-la bilancia lo manda **da subito**, ed e' una proprieta' della persona e non
-della pesata — verificato: le ventisei soglie sono identiche nelle pesate
-dell'8 e del 10 novembre, mentre peso e grasso erano cambiati. La barra prende
-l'ambra della card, e il valore fuori dall'intervallo si disegna comunque, che
-`RangeBar` allarga la scala fin dove serve (102.6 kg contro 67.5-91.3 sta
-fuori, a destra).
+Due differenze, e vengono dalla cadenza di una bilancia:
 
-Cinque misure su dieci hanno la fascia — peso, grasso, muscolo scheletrico,
-osso, metabolismo basale — e le altre cinque no, per tre motivi diversi che
-non si rimediano inventando: massa magra e grasso viscerale non hanno un
-riferimento; acqua e proteine lo hanno **in chili** e il numero e' in
-percento, e ricavare la percentuale dividendo per il peso vorrebbe dire
-inventare un dato; il **BMI** ne ha uno che vale 25.0-30.0 con ideale 22.0,
-cioe' la fascia del sovrappeso, che e' dove il valore casca adesso —
-disegnarla direbbe "il tuo BMI dovrebbe stare fra 25 e 30", che e' falso.
+- **la pesata fa parte della sua finestra.** Nella Day la fascia guarda i 28
+  giorni *prima* del giorno che giudica; qui non giudica la mattina, descrive
+  un periodo — l'intervallo in cui il peso si e' mosso in dodici settimane — e
+  un periodo contiene anche l'ultima mattina. In pratica la fascia si vede una
+  pesata prima, che all'inizio di uno storico non e' poco;
+- **basta la terza pesata** (`MIN_BAND_WEIGHINS`), contro i quattordici giorni
+  della Day e le sei settimane della Week. E' un pavimento, non un consiglio:
+  con tre valori lo scarto tipo e' sottile, e quella fascia e' l'intervallo di
+  tre mattine. Pretenderne sei avrebbe voluto dire niente fascia per mesi, che
+  su una bilancia ci si sale quando si vuole.
+
+Finche' le pesate non bastano le barre restano tracce vuote e la card scrive
+perche': *«2 weigh-ins in the last twelve weeks: the bands arrive at three»*.
+Una traccia grigia senza una riga si legge come un guasto.
+
+Una pesata **senza impedenza** entra nella fascia del peso e non in quelle
+della composizione: quel grasso nessuno l'ha misurato. Quindi il peso puo'
+avere la sua barra mentre il grasso no, ed e' la cosa giusta.
+
+Per un momento le fasce sono state le **soglie di riferimento della bilancia**
+— dove ogni numero *dovrebbe* stare per altezza, eta' e sesso — che arrivano
+dalla prima pesata invece di aspettare uno storico. Sono tornate indietro per
+una ragione di lettura: davano allo stesso disegno un secondo significato,
+"fuori da dove dovresti stare" invece di "diverso dal solito", e una barra si
+impara a leggere una volta. Restano in ogni pesata sotto `reference`, tutte e
+dieci, se un giorno vorranno un disegno loro.
 
 Tre regole, e sono quelle che rendono la card leggibile:
 

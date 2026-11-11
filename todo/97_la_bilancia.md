@@ -93,44 +93,47 @@ la sua massa grassa e muscolare) e le impedenze a 20 e 100 kHz. Meritano un
 disegno loro — un corpo con cinque valori, non una fila di riquadri — e non un
 angolo di card. I dati ci sono e si scaricano comunque.
 
-### Le fasce: il riferimento della bilancia, non lo storico
+### Le fasce: lo storico, e il giro che hanno fatto
 
-Questa decisione e' cambiata **guardando la card**, il giorno stesso. La prima
-stesura disegnava la fascia di sempre — media e scarto tipo delle pesate delle
-dodici settimane prima, con un minimo di otto — e teneva fuori le fasce di
-riferimento che la bilancia manda, per non dare due significati alla stessa
-barra. A schermo erano dieci tracce grigie: con tre pesate in archivio una
-media col suo scarto non e' una fascia, e' rumore disegnato, e non ce ne
+Sono cambiate due volte in un pomeriggio, e il giro vale scritto.
+
+La prima stesura disegnava la fascia di sempre — media e scarto tipo delle
+pesate delle dodici settimane, minimo otto — e teneva fuori le soglie di
+riferimento della bilancia per non dare due significati alla stessa barra. A
+schermo erano **dieci tracce grigie**: con tre pesate in archivio non ce ne
 sarebbe stata una per mesi.
 
-Allora le barre sono **l'intervallo di riferimento**: dove quella misura
-dovrebbe stare per altezza, eta' e sesso. La bilancia lo manda da subito, ed
-e' una proprieta' della persona e non della pesata — verificato, le ventisei
-soglie sono identiche nelle pesate dell'8 e del 10 novembre mentre peso e
-grasso erano cambiati.
+Allora sono diventate le soglie di riferimento, che la bilancia manda dalla
+prima pesata e sono una proprieta' della persona (verificato: le ventisei
+soglie sono identiche nelle pesate dell'8 e del 10 novembre, mentre peso e
+grasso erano cambiati). Il prezzo era dichiarato in una riga sotto i riquadri:
+in quella card fuori dalla fascia voleva dire "fuori da dove dovresti stare" e
+non "diverso dal solito".
 
-Il prezzo e' reale e si paga scrivendolo: **in questa card la barra si legge
-al contrario delle altre**. Altrove fuori dalla fascia vuol dire "diverso dal
-solito", qui vuol dire "fuori da dove dovrebbe stare". Una riga sotto i
-riquadri lo dice, ed e' la sola via onesta a disegnare una barra che il
-lettore ha gia' imparato a leggere in un altro modo. Dove il peso **sta
-andando** resta una domanda del Trend, dove avra' le pesate di mesi.
+**Sono tornate allo storico**, su richiesta, e la ragione e' buona: una barra
+si impara a leggere una volta, e cinque card che dicono una cosa e la sesta
+che ne dice un'altra sono un errore di lettura che aspetta di succedere.
+Quindi `daily_data._band`, come tutti, con due aggiustamenti di cadenza:
 
-Cinque misure su dieci hanno la fascia: peso, grasso, muscolo scheletrico,
-osso, metabolismo basale. Le altre cinque no, e nessuno dei tre motivi si
-rimedia inventando:
+- **la pesata fa parte della sua finestra.** La Day guarda i 28 giorni prima
+  del giorno che giudica; qui la fascia non giudica la mattina, descrive un
+  periodo, e un periodo contiene l'ultima mattina. Cosi' la fascia arriva una
+  pesata prima;
+- **il pavimento e' tre pesate**, contro i quattordici giorni della Day e le
+  sei settimane della Week: su una bilancia ci si sale quando si vuole, e
+  pretenderne sei vorrebbe dire niente fascia per mesi. Tre e' il minimo sotto
+  cui uno scarto tipo non dice niente, e va letto per quello che e' —
+  l'intervallo di tre mattine.
 
-- massa magra e grasso viscerale: la bilancia non manda un riferimento;
-- acqua e proteine: lo manda **in chili** e il numero e' in percento.
-  Dividere la massa per il peso per farne una percentuale sarebbe un dato
-  inventato;
-- BMI: ne manda uno che vale 25.0-30.0 con ideale 22.0, cioe' la fascia del
-  sovrappeso — dove il valore casca adesso, non dove dovrebbe stare.
-  Disegnarla direbbe una cosa falsa.
+Finche' non bastano, la card scrive quante pesate ha: una traccia vuota senza
+spiegazione si legge come un guasto. E una pesata senza impedenza entra nella
+fascia del peso ma non in quelle della composizione, che quel grasso nessuno
+l'ha misurato.
 
-I riferimenti stanno nel file, tutti e dieci, anche quelli che la card non usa
-(`reference` in ogni pesata): sono dati che la bilancia manda, e il file e' il
-registro.
+Le soglie di riferimento restano **nei file** (`reference`, tutte e dieci,
+anche quelle che nessuno disegna): sono dati che la bilancia manda, e il file
+e' il registro. Se un giorno vorranno un disegno, ce l'avranno — loro, non la
+barra di questa card.
 
 ## 4. E a Garmin
 

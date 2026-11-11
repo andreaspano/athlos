@@ -164,42 +164,44 @@ class TestBodyOn:
         assert body["measured_at"] == at(1794145334)
         assert all(m["value"] is not None for m in body["measures"])
 
-    def test_the_bands_are_the_reference_range(self, data_dir):
-        """La fascia e' l'intervallo che la bilancia considera normale per
-        questa persona, non la media dello storico: con tre pesate una media
-        col suo scarto sarebbe rumore disegnato, e il riferimento invece
-        arriva dalla prima pesata.
-
-        `outer` ripete `low` e `high`: un intervallo ha due estremi, non
-        quattro, e la fascia larga di `RangeBar` resta sotto quella piena."""
+    def test_under_three_weigh_ins_there_is_no_band(self, data_dir):
+        """Due pesate non fanno uno scarto tipo che dica qualcosa: la barra
+        resta vuota e la card scrive quante ne ha, che una traccia grigia
+        senza spiegazione si legge come un guasto."""
         body = body_on(data_dir, date(2026, 11, 10))
-        bands = {m["key"]: m["band"] for m in body["measures"]}
-        assert bands["weight_kg"] == {
-            "low": 67.5,
-            "high": 91.3,
-            "outer_low": 67.5,
-            "outer_high": 91.3,
-        }
-        assert bands["body_fat_pct"]["high"] == 20.0
-        assert bands["bmr_kcal"] == {
-            "low": 1645,
-            "high": 2010,
-            "outer_low": 1645,
-            "outer_high": 2010,
-        }
+        assert body["weighings"] == 2  # l'8 novembre e il 10
+        assert all(m["band"] is None for m in body["measures"])
 
-    def test_the_measures_without_a_usable_range_have_no_band(self, data_dir):
-        """Tre motivi diversi, e nessuno dei tre si rimedia inventando: l'acqua
-        la bilancia la manda in chili e il numero e' in percento; la massa
-        magra non ha riferimento; il BMI ne ha uno che vale 25-30, cioe' la
-        fascia del sovrappeso dove il valore casca adesso — disegnarla direbbe
-        che il BMI dovrebbe stare fra 25 e 30."""
-        body = body_on(data_dir, date(2026, 11, 10))
+    def test_the_third_weigh_in_brings_the_band(self, data_dir):
+        """La fascia e' quella delle altre card — media piu' e meno uno scarto
+        tipo, e piu' e meno due — e la pesata mostrata **fa parte** della sua
+        finestra: la fascia descrive un periodo, non giudica la mattina."""
+        third = {**FULL, "id": 2, "timeStamp": 1794560791, "weight": 101.0}  # 13 novembre
+        write_days([measurement(third)], data_dir)
+
+        body = body_on(data_dir, date(2026, 11, 13))
+
+        assert body["weighings"] == 3
+        band = next(m["band"] for m in body["measures"] if m["key"] == "weight_kg")
+        assert band is not None
+        # Media di 103.7, 102.6 e 101.0 = 102.4, scarto tipo 1.4 circa.
+        assert band["low"] < 102.4 < band["high"]
+        assert band["outer_low"] < band["low"] and band["high"] < band["outer_high"]
+
+    def test_an_incomplete_weigh_in_feeds_only_the_weight_band(self, data_dir):
+        """Una pesata coi calzini porta peso e BMI e basta: nella finestra il
+        peso ha un valore in piu' e la composizione no. Quindi il peso arriva
+        a tre e prende la fascia, il grasso resta a due e non ce l'ha — che e'
+        la cosa giusta, perche' quel grasso nessuno l'ha misurato."""
+        socks = {**NO_IMPEDANCE, "id": 3, "timeStamp": 1794560791, "weight": 101.0}  # 13 nov
+        write_days([measurement(socks)], data_dir)
+
+        body = body_on(data_dir, date(2026, 11, 13))
         bands = {m["key"]: m["band"] for m in body["measures"]}
-        assert bands["water_pct"] is None
-        assert bands["fat_free_kg"] is None
-        assert bands["visceral_fat"] is None
-        assert bands["bmi"] is None
+
+        assert body["weighings"] == 3
+        assert bands["weight_kg"] is not None
+        assert bands["body_fat_pct"] is None
 
     def test_a_weigh_in_without_impedance_keeps_its_weight_band(self, data_dir):
         """La fascia del peso non viene dagli elettrodi: il peso ideale per la
