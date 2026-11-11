@@ -92,7 +92,7 @@ def _semicircles_to_degrees(value: int | None) -> float | None:
 
 
 def list_activity_files(data_dir: Path = DATA_DIR) -> list[Path]:
-    """Tutti i FIT della cartella dati.
+    """Tutti i FIT della cartella dati, **anche nelle sottocartelle**.
 
     I FIT stanno in `fit/` dal todo 65; prima erano piatti nella radice,
     mischiati al database e ai JSON.
@@ -102,8 +102,21 @@ def list_activity_files(data_dir: Path = DATA_DIR) -> list[Path]:
     rullo — e' un allenamento come gli altri, e restava fuori dall'archivio
     solo per il nome che porta. Un file che non si legge lo scarta
     `db._parse_and_store_or_warn`, come ha sempre fatto per i FIT rovinati.
+
+    **E anche in una cartella sua**: `fit/mywhoosh/` e' l'11 novembre 2026 e
+    non e' un disordine, e' il solo modo di distinguerli a occhio — i file di
+    MyWhoosh si chiamano come il gettone con cui li hai scaricati
+    (`HrnAYPiyUCixCFtArgblQVxFNFFaZFkFgetcl71x.fit`), e in mezzo a
+    novecentottanta `<id>_ACTIVITY.fit` non si riconoscono. Garmin continua a
+    scaricare piatto in `fit/`, e le due cose convivono.
+
+    Lo scandaglio e' ricorsivo, quindi la chiave di chi non ha l'id nel nome
+    (`db._paths_to_parse` usa il percorso) cambia se il file si **sposta**: il
+    file viene riletto una volta e la riga si aggiorna da se', che
+    l'`ON CONFLICT(activity_id)` scrive il percorso nuovo. Un id che nasce
+    dall'istante di partenza non cambia perche' il file ha cambiato cartella.
     """
-    return sorted((Path(data_dir) / "fit").glob("*.fit"))
+    return sorted((Path(data_dir) / "fit").rglob("*.fit"))
 
 
 def activity_id_from_path(path: Path) -> int | None:

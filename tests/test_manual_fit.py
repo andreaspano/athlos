@@ -92,6 +92,50 @@ class TestAFitWithoutAnIdInTheName:
         assert len(list_activities(data_dir)) == 1
 
 
+class TestAFitInAFolderOfItsOwn:
+    """`fit/mywhoosh/`, apparsa l'11 novembre 2026.
+
+    I file di MyWhoosh si chiamano come il gettone con cui li hai scaricati, e
+    in mezzo a novecentottanta `<id>_ACTIVITY.fit` non si riconoscono: una
+    cartella per sorgente e' il solo modo di distinguerli a occhio. Lo
+    scandaglio e' ricorsivo da allora, e queste due cose vanno provate — che il
+    file entri, e che spostarlo non lasci due righe per la stessa seduta."""
+
+    def test_a_fit_in_a_subfolder_gets_in(self, data_dir, a_real_fit):
+        folder = data_dir / "fit" / "mywhoosh"
+        folder.mkdir()
+        shutil.copy(a_real_fit, folder / "HrnAYPiyUCixCFtArgblQVxFNFFaZFkFgetcl71x.fit")
+
+        rebuild(data_dir, say=lambda _: None)
+
+        activities = list_activities(data_dir)
+        assert len(activities) == 1
+        assert activities.iloc[0].activity_id > MANUAL_ID_BASE
+
+    def test_moving_a_file_updates_its_row_instead_of_adding_one(self, data_dir, a_real_fit):
+        """La chiave di chi non ha l'id nel nome e' il percorso, quindi
+        spostando il file la cache non lo riconosce e lo rilegge: l'id nasce
+        dall'istante di partenza, non dalla cartella, e la riga si aggiorna da
+        se'. Senza questo, mettere i file in ordine avrebbe raddoppiato una
+        pedalata."""
+        flat = data_dir / "fit" / "gettone.fit"
+        shutil.copy(a_real_fit, flat)
+        rebuild(data_dir, say=lambda _: None)
+        before = list_activities(data_dir).iloc[0]
+
+        folder = data_dir / "fit" / "mywhoosh"
+        folder.mkdir()
+        moved = folder / flat.name
+        flat.rename(moved)
+
+        assert sync(data_dir) == 1, "il percorso e' cambiato: lo rilegge una volta"
+        activities = list_activities(data_dir)
+        assert len(activities) == 1, "una seduta, una riga"
+        assert activities.iloc[0].activity_id == before.activity_id
+        assert activities.iloc[0].path == str(moved)
+        assert sync(data_dir) == 0, "e dal giro dopo lo riconosce"
+
+
 class TestTheNameOfTheActivity:
     """`activity_names.json` ha solo le attivita' di Garmin Connect. Di una
     pedalata esportata da MyWhoosh il nome del percorso sta in un campo dello
