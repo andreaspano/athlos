@@ -16,8 +16,9 @@ FIT, JSON, salute e database tutti piatti nella stessa cartella.
 
 ```
 ~/adrive/data/training/
-  fit/       i FIT delle attivita' (da Garmin, o esportati altrove)
+  fit/       i FIT delle attivita' (da Garmin, piatti; mywhoosh/ a parte)
   health/    le metriche giornaliere, una cartella per endpoint
+             piu' body_composition/, le pesate della bilancia
   json/      le correzioni (terreno, tipo di corsa) e le cache di nomi e tipi
   db/        activities.db, la cache ricostruibile dai FIT
   user/      config.yaml, profile.yaml, avatar.jpg

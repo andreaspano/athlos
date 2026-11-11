@@ -26,7 +26,7 @@ todo 65.
 
 | Cartella | Cos'e' | Quanto | In questo documento |
 |---|---|---|---|
-| `fit/` | i file originali delle attivita', scaricati da Garmin | 126 MB, 985 file | si' |
+| `fit/` | i file originali delle attivita', scaricati da Garmin, piu' quelli esportati altrove (`fit/mywhoosh/`) | 126 MB, 987 file | si' |
 | `health/` | le metriche giornaliere, una cartella per endpoint, piu' le pesate della bilancia | 260 MB, ~56.700 file | si' |
 | `json/` | le cache di nomi e tipi, e le correzioni fatte a mano | 20 KB, 4 file | si' |
 | `db/` | `activities.db`, la cache ricostruibile | 197 MB | si' |
@@ -63,14 +63,28 @@ manda Garmin. 985 file, in media 128 KB, il piu' grande 957 KB. Vanno dal
 
 **Non tutti vengono da Garmin.** Un FIT esportato altrove — MyWhoosh chiama il
 file come il gettone con cui lo scarichi,
-`9xhBLisD1yrpjp0BGOC2JAOajk6OiLqYCkI717pw.fit` — si copia in questa cartella e
-basta: l'archivio legge tutti i `.fit`, non solo quelli col nome di Garmin.
+`9xhBLisD1yrpjp0BGOC2JAOajk6OiLqYCkI717pw.fit` — si copia qui e basta:
+l'archivio legge tutti i `.fit`, non solo quelli col nome di Garmin.
 L'id, che nel nome non c'e', viene dall'istante di partenza letto dentro il
 file: `10**12 + epoch`, tredici cifre che non si possono confondere con quelle
 di Garmin (progressive, nell'archivio da 634168011 a 24995834009). A
 riconoscere un file gia' in cache senza aprirlo — un secondo di parsing a
 testa — ci pensa `db._paths_to_parse`: per nome quando l'id c'e', per percorso
 quando manca.
+
+**E possono stare in una cartella loro.** Dall'11 novembre 2026 c'e'
+`fit/mywhoosh/`, e lo scandaglio e' ricorsivo: in mezzo a novecentottanta
+`<id>_ACTIVITY.fit` un nome come
+`HrnAYPiyUCixCFtArgblQVxFNFFaZFkFgetcl71x.fit` non si riconosce, e una
+cartella per sorgente e' il solo modo di distinguerli a occhio. Garmin
+continua a scaricare piatto in `fit/`, e le due cose convivono.
+
+Spostare un file che non ha l'id nel nome **non raddoppia la seduta**: la
+cache lo riconosce dal percorso, quindi cambiando cartella lo rilegge una
+volta, e l'id — che nasce dall'istante di partenza — e' lo stesso, cosi' la
+riga si aggiorna col percorso nuovo invece di aggiungersene un'altra. Le due
+pedalate di MyWhoosh sono passate da piatte a `fit/mywhoosh/` e l'archivio e'
+rimasto di una riga per pedalata.
 
 Due cose questi file non le hanno, perche' le scrive l'orologio e non il
 simulatore: le zone cardiache della seduta (il messaggio 216) e il nome di
