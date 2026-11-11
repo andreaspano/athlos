@@ -16,10 +16,25 @@
 // prima che il blocco cominciasse non ce l'hanno, e non e' un guasto. Un 404
 // qui vuol dire "niente card", non un avviso.
 //
+// **E solo se quella settimana e' chiusa**: il grafico arriva col **commento**
+// — il giro della domenica alle 21, che scrive il report della settimana — e
+// prima di allora non c'e'. Una settimana a meta' disegnata come una
+// settimana cambierebbe a ogni apertura della pagina, che e' quello che
+// `partial` evita per il punto dei chilometri; e il confine e' il commento e
+// non l'orologio, cosi' se la domenica sera il giro non gira il grafico
+// aspetta quel testo invece di inventarsi una settimana finita.
+//
+// Il commento arriva alla pagina come `comment`, cioe' quando e' stato
+// scritto: finche' non c'e' non si chiede niente — l'API risponderebbe 404
+// comunque, ma una richiesta che si sa come finisce non si fa — e quando
+// compare, il grafico si chiede da se'. E' per questo che la data sta fra le
+// dipendenze dell'effetto e non e' solo un `if`: premendo il tasto della
+// card del commento, il grafico appare appena quel testo e' scritto, senza
+// ricaricare la pagina.
+//
 // **Batte una volta a settimana**, come il report: il disegno e' il blocco
 // com'era alla **fine della settimana aperta** — i chilometri fatti si
-// fermano li', le settimane dopo tengono le sole barre del piano — e la
-// settimana in corso non porta il suo punto finche' non e' finita. Il taglio
+// fermano li', e le settimane dopo tengono le sole barre del piano. Il taglio
 // lo fa l'API (`until`), che e' la regola del todo 52: qui dentro non si
 // conta niente.
 import { useEffect, useState } from "react";
@@ -37,9 +52,13 @@ const BLOCK_ICON = "trend.png";
 
 export function WeekShape({
   monday,
+  comment,
   theme,
 }: {
   monday: string;
+  /** Quando il commento della settimana e' stato scritto, `null` se non c'e'
+   * ancora: e' il segno che la settimana e' chiusa. */
+  comment: string | null;
   theme: ColorScheme;
 }) {
   // `undefined` e' "non ancora arrivato", `null` e' "questa settimana non sta
@@ -48,9 +67,15 @@ export function WeekShape({
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    const controller = new AbortController();
     setSpec(undefined);
     setFailed(false);
+    // Senza commento la settimana non e' chiusa: `null` e' "niente card", lo
+    // stesso che l'API dice col suo 404.
+    if (!comment) {
+      setSpec(null);
+      return;
+    }
+    const controller = new AbortController();
     api
       .weekShapeChart(monday, theme, controller.signal)
       .then(setSpec)
@@ -58,13 +83,14 @@ export function WeekShape({
         if (!isAbort(error)) setFailed(true);
       });
     return () => controller.abort();
-  }, [monday, theme]);
+  }, [monday, comment, theme]);
 
-  // Niente blocco, niente card: una cornice vuota in fondo alla vista
-  // direbbe che manca qualcosa, e non manca niente — quella settimana sta
-  // fuori da ogni blocco. E' la stessa scelta della colonna del piano, che
-  // una settimana senza file la dice in una riga invece di disegnarla a
-  // trattini, con la differenza che qui non c'e' nemmeno niente da dire.
+  // Niente blocco o settimana non ancora chiusa, niente card: una cornice
+  // vuota in fondo alla vista direbbe che manca qualcosa, e non manca niente
+  // — quella settimana sta fuori da ogni blocco, o non e' ancora finita. E'
+  // la stessa scelta della colonna del piano, che una settimana senza file la
+  // dice in una riga invece di disegnarla a trattini, con la differenza che
+  // qui non c'e' nemmeno niente da dire.
   if (spec === null) return null;
 
   return (

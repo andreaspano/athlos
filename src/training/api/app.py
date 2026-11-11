@@ -629,6 +629,20 @@ def get_block_charts(
     return block_panel_charts(data, theme)
 
 
+def _week_comment_written(monday: date, ctx: UserContext) -> bool:
+    """Se il commento della settimana c'e', cioe' se la settimana e' stata
+    **chiusa**: il frammento `training` del report settimanale, scritto dal
+    giro della domenica alle 21.
+
+    E' quello che decide se il grafico del blocco si vede (vedi
+    `_week_shape`), e si guarda questa sezione e non la cartella perche' il
+    commento e' quella: e' il riquadro che sta sopra il grafico nella pagina,
+    e il grafico arriva con lui."""
+    folder = ctx.summary_dir / WEEKLY.folder / monday.isoformat()
+    path = _fragment_path(folder, "training", WEEKLY)
+    return path.exists() and path.stat().st_size > 0
+
+
 def _week_shape(monday: date, ctx: UserContext) -> dict[str, Any]:
     """La forma del blocco a cui la settimana appartiene, tagliata a quella
     settimana, o 404."""
@@ -637,6 +651,23 @@ def _week_shape(monday: date, ctx: UserContext) -> dict[str, Any]:
     if block is None:
         raise HTTPException(
             status_code=404, detail=f"The week of {monday} is not part of a block."
+        )
+    # **Niente grafico prima che la settimana sia chiusa.** Il punto di una
+    # settimana e' quello di sette giorni, e fino a domenica sera non c'e':
+    # arriva col report, cioe' col commento, che il giro della domenica alle
+    # 21 scrive. Prima di allora il disegno direbbe una settimana a meta' e
+    # cambierebbe a ogni apertura della pagina, che e' esattamente quello che
+    # `partial` evita per il punto dei chilometri.
+    #
+    # Il confine e' il commento e non l'orologio: se la domenica sera il giro
+    # non gira, la settimana non e' chiusa e il grafico non c'e' — e appare
+    # da se' appena quel testo viene scritto, anche a mano dal tasto della
+    # card.
+    if not _week_comment_written(monday, ctx):
+        raise HTTPException(
+            status_code=404,
+            detail=f"The week of {monday} has no comment yet: the block arrives with the "
+            "weekly report, on Sunday evening.",
         )
     data = block_shape_payload(
         ctx.summary_dir,
@@ -663,13 +694,19 @@ def get_week_shape(monday: date, ctx: Context) -> BlockShape:
     The same reading as `/api/plans/<slug>/block`, **keyed by the week and cut at it**: the
     goal is the one the week's file declares (`plan:` in `summary/05.plan/<monday>.md`), and
     nothing after this Monday is measured. So the answer for a past week is the block as it
-    stood at the end of that week, and the answer for the week in progress carries its own
-    kilometres as `partial` — out of the line until the week is over. That is the beat of the
-    weekly report, and it is on purpose: a block is read once a week, not live.
+    stood at the end of that week.
 
-    404 when the week has no plan file, when its plan declares no goal, or when that goal is
-    gone from `plan/` — none of the three is an error, they are states. A Monday in the future
-    is allowed, as for `/plan`: the block is written in advance."""
+    **Only a closed week has one.** The answer arrives with the week's comment — the
+    `training` section of its report, written by the Sunday 21:00 run — and before that it is
+    a 404: a block is read once a week, not live, and half a week drawn as a week is the thing
+    `partial` already refuses to do for the kilometres. The gate is the comment and not the
+    clock, so a week whose Sunday run did not run has no chart until that text exists, by
+    timer or by the card's own button.
+
+    404, then, when the week has no plan file, when its plan declares no goal, when that goal
+    is gone from `plan/`, or when the week has not been commented yet — none of the four is an
+    error, they are states. A Monday in the future is allowed, as for `/plan`, and answers 404
+    for the same reason as this week: nobody has commented it."""
     data = _week_shape(monday, ctx)
     return BlockShape(**{name: data[name] for name in BlockShape.model_fields})
 
@@ -679,7 +716,8 @@ def get_week_shape_chart(
     monday: date, ctx: Context, theme: Literal["light", "dark"] = "light"
 ) -> dict[str, Any]:
     """One Vega-Lite spec of `/shape`: the kilometres on the left axis, the spread of speed on
-    the right. This is what the Training view of the Week draws, under the week's work.
+    the right. This is what the Training view of the Week draws, under the week's work — and
+    only for a week that has been closed and commented, like `/shape` itself.
 
     Singular, unlike the three panels of `/api/weekly/<monday>/block/charts/vega`: here the
     two readings are drawn **together on purpose**, because the week that ran the most

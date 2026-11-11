@@ -214,10 +214,23 @@ prima che il blocco cominciasse non hanno niente contro cui misurarsi, e
 allora la card non compare affatto — non e' un guasto, e una cornice vuota in
 fondo alla vista direbbe che manca qualcosa.
 
+**E solo se quella settimana e' chiusa: il grafico arriva col commento.** Il
+giro della domenica alle 21 scrive il report della settimana, e il suo
+Training e' il commento che sta sopra il grafico in questa vista; finche' quel
+testo non c'e', il grafico non c'e'. La settimana in corso quindi non lo
+mostra: il suo punto sarebbe quello di tre giorni, e cambierebbe a ogni
+apertura della pagina — che e' quello che `partial` evita per il punto dei
+chilometri.
+
+Il confine e' **il commento e non l'orologio**. Se la domenica sera il giro
+non gira, la settimana non e' chiusa e il grafico aspetta; e appena quel testo
+viene scritto — dal timer o dal tasto della card — la card appare da se',
+senza ricaricare la pagina, perche' la pagina passa al grafico l'ora del
+commento e la segue.
+
 **Il disegno batte una volta a settimana, come il report**: e' il blocco
 com'era alla **fine della settimana aperta**. I chilometri fatti si fermano
-li', le settimane dopo tengono le sole barre del piano, e la settimana in
-corso non porta il suo punto finche' non e' finita. Il taglio lo fa l'API
+li' e le settimane dopo tengono le sole barre del piano. Il taglio lo fa l'API
 (`until`), non la pagina: cosi' guardando indietro si rilegge quello che si
 sapeva allora, invece di riscrivere la storia a ogni apertura.
 
@@ -237,8 +250,9 @@ andatura.
 La rotta e' `GET /api/weekly/<lunedi>/shape` (e `.../shape/chart/vega` per la
 specifica Vega-Lite), **keyed sul lunedi' e tagliata a quel lunedi'**: il goal
 e' quello che il file della settimana dichiara, e oltre quella settimana non
-si misura. 404 quando la settimana non sta in un blocco o quando il goal che
-dichiarava non e' piu' in `plan/`, che sono stati e non errori. La stessa
+si misura. 404 quando la settimana non sta in un blocco, quando il goal che
+dichiarava non e' piu' in `plan/` e quando la settimana non e' ancora
+commentata, che sono stati e non errori. La stessa
 lettura keyed sul **goal** resta a `GET /api/plans/<slug>/block` (e
 `.../block/chart/vega`), che un blocco e' lungo quanto il goal che lo
 dichiara: la pagina non la chiede piu', si prova da `/docs`.
