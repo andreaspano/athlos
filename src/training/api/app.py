@@ -42,6 +42,7 @@ from training.api.plans import (
 from training.api.sections import DAILY, SECTIONS, WEEKLY
 from training.api.sections import Report as Report_
 from training.api.weekly import weekly_payload
+from training.interface.body_data import body_on
 from training.interface.block_data import (
     adherence_payload,
     block_of,
@@ -53,6 +54,7 @@ from training.api.models import (
     ActivityDetail,
     Adherence,
     BlockProgress,
+    BodyComposition,
     BlockShape,
     ChartBin,
     ChartData,
@@ -438,6 +440,32 @@ def get_daily(day: date, ctx: Context) -> DailyData:
     # agenti: una strada sola, cosi' la pagina e chi scrive il testo vedono
     # le stesse cose.
     return DailyData(**daily_payload(day, ctx.data_dir))
+
+
+@app.get("/api/daily/{day}/body", response_model=BodyComposition, summary="Body composition")
+def get_day_body(day: date, ctx: Context) -> BodyComposition:
+    """The body on one day, from the scale (todo 97): ten measures, and when they were taken.
+
+    **The day's weigh-in if there is one, otherwise the most recent one up to that day** —
+    never a later one, or a past day would be answered with today's weight. `days_ago` says
+    how far back it went, zero for the day's own, and there is no cutoff past which the card
+    gives up: a weight from six days ago is still your weight, as long as you know when it is
+    from. With a scale bought last week that fallback is the normal case, not the exception.
+
+    One weigh-in and not a best-of: of a day with several, the last **complete** one — the
+    electrodes read it — or the last one if none is complete. A weigh-in with no impedance
+    carries the weight and the BMI, and null for the rest; `impedance: false` says so, and
+    null is not zero.
+
+    404 when no weigh-in exists up to that day, which is a state and not an error: `health/
+    body_composition/` is written by `make update_weight`, and whoever has no scale has no
+    folder. A day in the future is a 422, like `/api/daily/{day}`."""
+    if day > date.today():
+        raise HTTPException(status_code=422, detail=f"{day} is in the future.")
+    data = body_on(ctx.data_dir, day)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"No weigh-in up to {day}.")
+    return BodyComposition(**{name: data[name] for name in BodyComposition.model_fields})
 
 
 @app.get("/api/daily/{day}/plan", response_model=DayPlan, summary="Daily plan")

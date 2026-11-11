@@ -35,6 +35,8 @@ export type PlannedWeeks = Schemas["PlannedWeeks"];
 export type Scores = Schemas["Scores"];
 export type Verdict = NonNullable<Scores["health"]>;
 export type DayPlan = Schemas["DayPlan"];
+export type BodyComposition = Schemas["BodyComposition"];
+export type BodyMeasure = Schemas["BodyMeasure"];
 export type PlannedSession = Schemas["PlannedSession"];
 export type Terrain = NonNullable<Activity["terrain"]>;
 export type RunType = NonNullable<Activity["run_type"]>;
@@ -258,6 +260,15 @@ export const api = {
   // le settimane il cui file e' piu' vecchio del front matter.
   dayPlan: (day: string, signal?: AbortSignal) =>
     getOrNull<DayPlan>(`/api/daily/${day}/plan`, signal),
+
+  // Il corpo di un giorno, dalla bilancia (todo 97): le dieci misure e quando
+  // sono state prese. **Il giorno, o l'ultima pesata fino a quel giorno** —
+  // il ripiego lo fa l'API, e `days_ago` dice di quanto e' andata indietro.
+  //
+  // `null` quando fino a quel giorno non c'e' nessuna pesata: nessuna
+  // bilancia, o una comprata la settimana scorsa. Allora la card non c'e'.
+  dayBody: (day: string, signal?: AbortSignal) =>
+    getOrNull<BodyComposition>(`/api/daily/${day}/body`, signal),
 
   // I piani di `plan/`, la gara piu' vicina per prima, senza il testo.
   plans: (signal?: AbortSignal) => getJson<PlanList>("/api/plans", signal),

@@ -157,6 +157,70 @@ nuova, quindi `make update_activity` tiene l'ultima in un file unico,
 in cui e' stata rilevata; prima, la frequenza di soglia salvata nei FIT. Il
 report giornaliero non legge nessuna delle tre.
 
+### La bilancia, e la card Body
+
+Dal todo 97 il peso c'e'. Lo misura una bilancia **Renpho** a otto elettrodi,
+e `make update_weight` lo porta dentro: scarica le pesate dal cloud di Renpho
+Health (la libreria `renpho-py`, che parla con `cloud.renpho.com` come l'app),
+le scrive in `health/body_composition/<giorno>.json` e le rimanda a Garmin
+Connect. Il comando gira anche dentro `make update_activity`, cioe' nel giro
+del mattino e sotto il tasto Refresh della Day — preceduto da un `-` nel
+Makefile, perche' se il cloud di Renpho e' giu' il report del mattino non
+deve diventare rosso per il peso.
+
+Le credenziali stanno in `user/config.yaml`, `renpho_usr` e `renpho_pwd`, e
+sono le prime chiavi **facoltative** di quel file (`_OPTIONAL` in
+`garmin/config.py`): chi non ha una bilancia non le scrive e tutto parte
+come prima. Scritte quando il file non le conosceva, fermavano ogni comando
+all'import con "chiavi sconosciute" — e l'API in piedi rispondeva ancora,
+perche' la configurazione ce l'aveva in memoria, quindi il guasto si sarebbe
+visto al primo timer della notte. Le due stanno **in coppia**: una sola e'
+un refuso, e viene detto subito.
+
+**L'account creato con Google non ha una password**, e la API ne vuole una:
+il login risponde `code=104, wrong user name or password` a qualunque valore,
+perche' non ha niente con cui confrontarlo. Si rimedia dall'app, *Forgot
+password* sulla schermata di accesso, e si continua a entrare con Google —
+quella password serve solo a noi. Deve stare in **6-16 caratteri**: l'app le
+taglia a 16, e una piu' lunga funziona nell'app e non qui.
+
+La card **Body** sta nella griglia dello Snap della Day, accanto alle quattro
+di sempre, e porta dieci numeri: peso, BMI, grasso, acqua, muscolo
+scheletrico, massa magra, osso, proteine, grasso viscerale e metabolismo
+basale, piu' l'eta' corporea contro quella vera. Sotto ogni numero la barra
+della sua fascia, ambra come le altre hanno la loro tinta — e qui nessuna
+barra e' un voto: il peso dentro la fascia vuol dire "come sempre", non
+"bene". La fascia arriva **all'ottava pesata** nelle dodici settimane, che
+sotto quel numero lo scarto tipo e' rumore, e finche' manca la card lo dice
+invece di mostrare dieci tracce grigie.
+
+Tre regole, e sono quelle che rendono la card leggibile:
+
+- **le misure del giorno, o le ultime fino a quel giorno.** Su una bilancia ci
+  si sale quando si vuole: un giorno senza pesata e' il caso normale, non un
+  buco. La card mostra la piu' recente e dice di quando e' — «10 Nov, 10:06,
+  un giorno prima». Mai una pesata successiva, o un giorno passato
+  racconterebbe il futuro. Nessuna scadenza oltre la quale smette: un peso di
+  sei giorni fa e' ancora il tuo peso, basta sapere di quando e';
+- **una pesata sola, non il meglio di tante.** Di un giorno con piu' pesate si
+  prende l'ultima completa; il peso di stasera e il grasso di stamattina sono
+  due momenti, e cuciti insieme darebbero un corpo mai esistito;
+- **zero non e' un valore.** Una pesata che gli elettrodi non hanno letto
+  (`impedance: false`) ha il peso e il BMI, e il resto `null`: i riquadri
+  restano con un trattino e una riga spiega perche'.
+
+Fuori dalla card, per ora, i **segmenti** — braccia, gambe e tronco, ognuno
+con la sua massa grassa e muscolare — e le impedenze a 20 e 100 kHz: si
+scaricano e stanno nei file, ma vogliono un disegno loro, un corpo con cinque
+valori e non una fila di riquadri.
+
+Le rotte sono `GET /api/daily/<giorno>/body`, che rende la pesata vestita di
+etichette e fasce (404 quando fino a quel giorno non ce n'e' nessuna, 422 per
+un giorno futuro). Verso Garmin si passa da `add_body_composition`, e per non
+mandare due volte la stessa pesata si guarda prima `get_weigh_ins` — che le
+rende **tutte**, mentre `get_body_composition` ne rende una al giorno e
+lasciava ripartire ogni mattina quella delle 14:39.
+
 ### La pagina Day in React
 
 `frontend/` e' l'interfaccia (React, TypeScript, Vite), l'unica dal todo 40.

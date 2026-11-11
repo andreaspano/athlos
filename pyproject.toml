@@ -14,6 +14,7 @@ dependencies = [
     "garminconnect",
     "pandas>=3.0.5",
     "pyyaml>=6.0",
+    "renpho-py>=1.3.1",
     "uvicorn>=0.52.4",
 ]
 
@@ -25,6 +26,7 @@ training-daily-data = "training.interface.daily_data:main"
 training-daily-report = "training.api.refresh:main"
 training-weekly-report = "training.api.refresh:week_main"
 training-week-plans = "training.api.weekplans:main"
+training-update-weight = "training.renpho.sync:main"
 
 [build-system]
 requires = ["uv_build>=0.12.6,<0.13.0"]

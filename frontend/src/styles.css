@@ -1132,6 +1132,23 @@ body.rail-closed {
   }
 }
 
+/* Le barre di Body prendono un ambra che nessun'altra card usa (indaco a
+   Health, cremisi a Recovery, blu a Fitness, turchese a Load): dieci riquadri
+   nella stessa griglia si distinguono dal colore prima che dal titolo.
+
+   Nessuna di queste barre si legge come un voto: il peso dentro la sua fascia
+   vuol dire "come sempre", non "bene". */
+.body-card {
+  --range-fill: rgb(230, 190, 130);
+  --range-wide-fill: rgba(178, 106, 0, 0.16);
+}
+@media (prefers-color-scheme: dark) {
+  .body-card {
+    --range-fill: rgb(150, 110, 50);
+    --range-wide-fill: rgba(230, 180, 110, 0.22);
+  }
+}
+
 /* Load */
 /* I tre effetti, negli stessi colori del grafico */
 .swatch {

@@ -913,6 +913,49 @@ class DayPlan(PlannedSession):
     written_at: datetime | None = Field(description="When the file was last written.")
 
 
+# --- Il corpo, dalla bilancia (todo 97) ---
+
+
+class BodyMeasure(BaseModel):
+    """One measure of the body, as the card draws it."""
+
+    key: str = Field(description="Field name in `health/body_composition/<day>.json`.")
+    label: str
+    unit: str = Field(description='Empty for the ones that have none (BMI, visceral fat).')
+    digits: int = Field(description="Decimals the measure carries: 1 for kilos, 0 for kcal.")
+    value: float | None = Field(
+        description="Null when the scale did not measure it — a weigh-in with no impedance "
+        "has the weight and the BMI and nothing else. Null is not zero: nobody is 0% water."
+    )
+    band: "Band | None" = Field(
+        description="Where the measure usually sits, from the weigh-ins of the twelve weeks "
+        "before this one. Null under eight of them, where the standard deviation is noise."
+    )
+
+
+class BodyComposition(BaseModel):
+    """The body on one day: one weigh-in, with when it was taken.
+
+    **One weigh-in, never a best-of**: the weight of tonight and the fat of this morning are
+    two moments, and stitched together they would describe a body that never existed."""
+
+    day: Date = Field(description="The day asked for.")
+    measured_at: str = Field(description="Local time of the weigh-in, to the second.")
+    measured_day: Date = Field(description="The day the weigh-in belongs to.")
+    days_ago: int = Field(
+        description="How far back the weigh-in is from the day asked: zero when it is that "
+        "day's own. Never negative — a past day is never answered with a later weigh-in."
+    )
+    impedance: bool = Field(
+        description="False for a weigh-in the electrodes did not read (socks, dry feet): the "
+        "weight and the BMI are there, the composition is null."
+    )
+    measures: list[BodyMeasure] = Field(description="The ten numbers, in reading order.")
+    body_age: float | None = Field(description="What the scale makes of your age.")
+    age: float | None = Field(description="The real one, as the scale knows it.")
+    weighings: int = Field(description="How many weigh-ins the twelve-week window carries.")
+
+
 # --- Il blocco: la risposta e l'aderenza, separate (todo 96) ---
 #
 # Due modelli e due rotte, non uno con dentro tutto. E' la decisione di
