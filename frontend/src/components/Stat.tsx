@@ -89,22 +89,50 @@ export function CardHead({
  * chiara). La scala va un po' oltre la fascia, per vedere anche un valore
  * fuori. `tick` scrive gli estremi quando il numero crudo non basta: il
  * sonno li vuole in ore e minuti, come il valore grande sopra. */
+/** Quanto vicine possono stare due etichette sotto la barra prima di
+ * sovrapporsi, in frazione della larghezza. Sotto i 200 px di una colonna
+ * della card Body due numeri a meno di un sesto l'uno dall'altro si toccano. */
+const TICK_GAP = 0.17;
+
 export function RangeBar({
   value,
   band,
+  target,
   tick = (v: number) => String(v),
 }: {
   value: number | null;
-  band: Band;
+  /** La fascia, se c'e': senza di lei la barra si disegna comunque, purche'
+   * abbia qualcosa da mostrare (un valore, un bersaglio). */
+  band?: Band | null;
+  /** Il bersaglio, la linea verde (la card Body, todo 97): dove quella misura
+   * **dovrebbe** arrivare. Le altre card non ne hanno uno e non la disegnano. */
+  target?: number | null;
   tick?: (value: number) => string;
 }) {
-  const { low, high, outer_low: outerLow, outer_high: outerHigh } = band;
-  const pad = (outerHigh - outerLow) * 0.12;
+  // I punti che la barra deve contenere: la fascia se c'e', il valore, il
+  // bersaglio. Senza nessuno non c'e' niente da disegnare.
+  const points = [
+    band?.outer_low,
+    band?.outer_high,
+    value,
+    target,
+  ].filter((n): n is number => n != null);
+  if (points.length === 0) return <EmptyBar />;
+  const lowest = Math.min(...points);
+  const highest = Math.max(...points);
+  // Il margine resta quello di sempre **quando la fascia c'e'**: cambiarlo
+  // avrebbe spostato di un pelo le barre di Health, Recovery, Load e
+  // Fitness, che di questo codice sono le prime inquiline. Senza fascia lo
+  // si prende dalla distanza fra i punti, e se cadono tutti nello stesso
+  // posto da un soffio attorno, che una barra larga zero non si disegna.
+  const pad = band
+    ? (band.outer_high - band.outer_low) * 0.12
+    : (highest - lowest || Math.abs(highest) * 0.1 || 1) * 0.12;
   // Lo stesso margine anche attorno a un valore fuori dalla fascia: senza,
   // la tacca finiva esattamente sul bordo della traccia e si vedeva a meta'
   // (il carico anaerobico, molto sotto la sua fascia).
-  const min = Math.min(outerLow, value ?? outerLow) - pad;
-  const max = Math.max(outerHigh, value ?? outerHigh) + pad;
+  const min = lowest - pad;
+  const max = highest + pad;
   // Una misura ferma sullo stesso valore per tutta la finestra ha scarto
   // tipo zero: fascia e valore cadono tutti nello stesso punto e la scala
   // sarebbe larga zero (una divisione per zero, e il CSS con "NaN%" dentro
@@ -116,18 +144,39 @@ export function RangeBar({
     left: at(a),
     width: `calc(${at(b)} - ${at(a)})`,
   });
+  // Dove cade un valore, in frazione della barra: serve a decidere se due
+  // etichette si pestano i piedi.
+  const frac = (v: number) => (max === min ? 0.5 : (v - min) / (max - min));
+  // L'etichetta del bersaglio si scrive se non finisce addosso a quelle della
+  // fascia: il numero verde e' un'aggiunta, e un'aggiunta non deve coprire
+  // quello che c'era.
+  const targetTick =
+    target != null &&
+    (!band ||
+      (Math.abs(frac(target) - frac(band.low)) > TICK_GAP &&
+        Math.abs(frac(target) - frac(band.high)) > TICK_GAP));
   return (
     <div className="range-bar" aria-hidden="true">
       <div className="range-track">
-        <div className="range-wide" style={span(outerLow, outerHigh)} />
-        <div className="range-band" style={span(low, high)} />
+        {band && <div className="range-wide" style={span(band.outer_low, band.outer_high)} />}
+        {band && <div className="range-band" style={span(band.low, band.high)} />}
+        {/* Il bersaglio sotto la tacca del valore: quando i due coincidono —
+            cioe' quando ci sei arrivato — e' il valore che si vede. */}
+        {target != null && (
+          <div className="range-target" style={{ left: at(target) }} />
+        )}
         {value != null && (
           <div className="range-marker" style={{ left: at(value) }} />
         )}
       </div>
       <div className="range-ticks">
-        <span style={{ left: at(low) }}>{tick(low)}</span>
-        <span style={{ left: at(high) }}>{tick(high)}</span>
+        {band && <span style={{ left: at(band.low) }}>{tick(band.low)}</span>}
+        {band && <span style={{ left: at(band.high) }}>{tick(band.high)}</span>}
+        {targetTick && (
+          <span className="tick-target" style={{ left: at(target) }}>
+            {tick(target)}
+          </span>
+        )}
       </div>
     </div>
   );

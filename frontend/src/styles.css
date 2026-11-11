@@ -1066,6 +1066,37 @@ body.rail-closed {
   background: var(--text);
   border-radius: 1px;
 }
+/* Il bersaglio: una linea **verde** dentro la traccia, piu' bassa e piu'
+   sottile della tacca del valore, che le sta sopra. Due righe verticali sulla
+   stessa barra si distinguono dal colore e dall'altezza: quella scura e' dove
+   sei, quella verde dove quella misura dovrebbe arrivare (todo 97).
+
+   Il verde non viene dalla tinta della card — qui non e' un'altra sfumatura
+   della stessa cosa, e' un'altra cosa — ed e' lo stesso nei due temi, solo
+   piu' chiaro al buio per staccare dal fondo. */
+.range-target {
+  position: absolute;
+  top: -1px;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: rgb(47, 158, 68);
+  border-radius: 1px;
+}
+.tick-target,
+.target-word {
+  color: rgb(47, 158, 68);
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .range-target {
+    background: rgb(81, 207, 102);
+  }
+  .tick-target,
+  .target-word {
+    color: rgb(81, 207, 102);
+  }
+}
 .range-ticks {
   position: relative;
   height: 14px;
@@ -1141,6 +1172,15 @@ body.rail-closed {
 .body-card {
   --range-fill: rgb(230, 190, 130);
   --range-wide-fill: rgba(178, 106, 0, 0.16);
+}
+/* La Body prende **tutte e due le colonne** della griglia: dieci misure in
+   mezza pagina diventano cinque righe, cioe' una card alta il doppio di
+   quelle che le stanno accanto, e la riga di card si legge sfaldata. A tutta
+   larghezza stanno in due righe da cinque, che e' la forma di dieci numeri
+   della stessa cosa. Sta ultima nella griglia, quindi la fila delle quattro
+   sopra resta intera. */
+.body-card {
+  grid-column: 1 / -1;
 }
 @media (prefers-color-scheme: dark) {
   .body-card {

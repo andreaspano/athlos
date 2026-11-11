@@ -184,10 +184,15 @@ password* sulla schermata di accesso, e si continua a entrare con Google —
 quella password serve solo a noi. Deve stare in **6-16 caratteri**: l'app le
 taglia a 16, e una piu' lunga funziona nell'app e non qui.
 
-La card **Body** sta nella griglia dello Snap della Day, accanto alle quattro
-di sempre, e porta dieci numeri: peso, BMI, grasso, acqua, muscolo
-scheletrico, massa magra, osso, proteine, grasso viscerale e metabolismo
-basale, piu' l'eta' corporea contro quella vera. In testa, il giorno della
+La card **Body** sta in fondo alla griglia dello Snap della Day e prende
+**tutte e due le colonne**, cioe' la larghezza di due card: porta dieci
+numeri — peso, BMI, grasso, acqua, muscolo scheletrico, massa magra, osso,
+proteine, grasso viscerale e metabolismo basale — in **due righe da cinque**,
+piu' l'eta' corporea contro quella vera. A mezza pagina quei dieci riquadri
+diventavano cinque righe, cioe' una card alta il doppio delle quattro che le
+stavano accanto, e la fila si leggeva sfaldata; dieci misure della stessa cosa
+vogliono una fila, non una colonna. Sotto i 900 px vanno a tre per riga, come
+gli altri gruppi da quattro e cinque. In testa, il giorno della
 pesata col nome del giorno della settimana e l'ora — «Tue 10 Nov, 10:06, un
 giorno prima» — e, quando la pesata non e' di quel giorno, la data per intero
 anche sotto i numeri: su una card che mostra spesso una misura di qualche
@@ -212,9 +217,23 @@ Due differenze, e vengono dalla cadenza di una bilancia:
   tre mattine. Pretenderne sei avrebbe voluto dire niente fascia per mesi, che
   su una bilancia ci si sale quando si vuole.
 
-Finche' le pesate non bastano le barre restano tracce vuote e la card scrive
-perche': *«2 weigh-ins in the last twelve weeks: the bands arrive at three»*.
-Una traccia grigia senza una riga si legge come un guasto.
+**Su ogni barra due linee verticali.** Quella **scura** e' il valore di adesso
+— la tacca di sempre, che in tutte le card dice "oggi sei qui" — e quella
+**verde** il bersaglio che la bilancia propone per altezza, eta' e sesso:
+peso 79.4 kg, BMI 22, grasso 15%, muscolo scheletrico 38.1 kg, metabolismo
+1828 kcal. Fra le due si legge la distanza da coprire, e il numero del
+bersaglio si scrive sotto la sua linea quando non finisce addosso alle
+etichette della fascia. Cinque misure su dieci hanno un bersaglio; per acqua,
+proteine, massa magra, grasso viscerale e osso la bilancia non ne propone uno,
+e una linea verde inventata sarebbe un obiettivo inventato.
+
+E' anche quello che rende la barra utile **adesso**: la fascia dello storico
+arriva alla terza pesata, il bersaglio c'e' dalla prima. Dove la fascia non
+c'e' ancora la barra si disegna comunque, con le sue due linee, e la card
+scrive perche' manca: *«2 weigh-ins in the last twelve weeks: the bands of
+where you usually are arrive at three»*. Una traccia grigia senza una riga si
+legge come un guasto; dove non c'e' ne' fascia ne' bersaglio resta la traccia
+vuota, allineata con le altre righe.
 
 Una pesata **senza impedenza** entra nella fascia del peso e non in quelle
 della composizione: quel grasso nessuno l'ha misurato. Quindi il peso puo'

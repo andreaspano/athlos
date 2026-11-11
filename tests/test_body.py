@@ -57,6 +57,7 @@ FULL = {
     "bmrMax": 2010,
     "bmiMin": 25.0,
     "bmiMax": 30.0,
+    "bmiStd": 22.0,
     "waterMassMin": 42.5,
     "waterMassMax": 53.0,
 }
@@ -187,6 +188,32 @@ class TestBodyOn:
         # Media di 103.7, 102.6 e 101.0 = 102.4, scarto tipo 1.4 circa.
         assert band["low"] < 102.4 < band["high"]
         assert band["outer_low"] < band["low"] and band["high"] < band["outer_high"]
+
+    def test_the_target_is_the_scale_ideal(self, data_dir):
+        """La linea verde della barra: il bersaglio che la bilancia propone,
+        cioe' `ideal` del suo riferimento, preso per chiave.
+
+        Nel campione il peso, il BMI e il grasso hanno lo `Std` e quindi un
+        bersaglio; muscolo scheletrico e metabolismo hanno solo gli estremi, e
+        allora il bersaglio non c'e' — non si inventa a meta' fra i due."""
+        body = body_on(data_dir, date(2026, 11, 10))
+        targets = {m["key"]: m["target"] for m in body["measures"]}
+        assert targets["weight_kg"] == 79.4
+        assert targets["bmi"] == 22.0
+        assert targets["body_fat_pct"] == 15.0
+        assert targets["skeletal_muscle_kg"] is None
+        assert targets["bmr_kcal"] is None
+
+    def test_the_measures_the_scale_proposes_nothing_for_have_no_target(self, data_dir):
+        """Acqua, proteine, massa magra, grasso viscerale: la bilancia non dice
+        dove dovrebbero arrivare, e una linea verde inventata sarebbe un
+        obiettivo inventato."""
+        body = body_on(data_dir, date(2026, 11, 10))
+        targets = {m["key"]: m["target"] for m in body["measures"]}
+        assert targets["water_pct"] is None
+        assert targets["protein_pct"] is None
+        assert targets["fat_free_kg"] is None
+        assert targets["visceral_fat"] is None
 
     def test_an_incomplete_weigh_in_feeds_only_the_weight_band(self, data_dir):
         """Una pesata coi calzini porta peso e BMI e basta: nella finestra il

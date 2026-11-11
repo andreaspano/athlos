@@ -81,6 +81,12 @@ Una in piu' nella griglia delle quattro, e dieci numeri: peso, BMI, grasso %,
 acqua %, muscolo scheletrico, massa magra, osso, proteine %, grasso viscerale,
 metabolismo basale. Sotto, l'eta' corporea contro quella vera.
 
+**Prende tutte e due le colonne, e i dieci numeri stanno in due righe da
+cinque.** La prima versione la metteva a mezza pagina come le altre: dieci
+riquadri in due colonne sono cinque righe, cioe' una card alta il doppio delle
+quattro accanto, e la griglia dello Snap si leggeva sfaldata. Dieci misure
+della stessa cosa vogliono una fila, non una colonna.
+
 **Se il giorno non ha una pesata, si mostrano le ultime fino a quel giorno**,
 con scritto quando sono state prese. Non l'ultima in assoluto: aprendo il 15
 ottobre non si deve vedere la pesata di stamattina, o un giorno passato
@@ -129,6 +135,32 @@ Finche' non bastano, la card scrive quante pesate ha: una traccia vuota senza
 spiegazione si legge come un guasto. E una pesata senza impedenza entra nella
 fascia del peso ma non in quelle della composizione, che quel grasso nessuno
 l'ha misurato.
+
+### Le due linee sulla barra
+
+**Scura dove sei, verde dove la bilancia dice che dovresti arrivare.** La
+prima e' la tacca di sempre (`range-marker`, `var(--text)`), quella che in
+tutte le card dice "oggi sei qui"; la seconda e' `ideal` del riferimento, cioe'
+l'unico pezzo delle soglie della bilancia che e' rimasto a schermo — ed e'
+rimasto perche' un bersaglio non e' una fascia: non c'e' nessun altro disegno
+con cui confonderlo.
+
+Ce l'hanno cinque misure su dieci: peso 79.4 kg, BMI 22.0, grasso 15%, muscolo
+scheletrico 38.1 kg, metabolismo 1828 kcal. Per acqua, proteine, massa magra,
+grasso viscerale e osso la bilancia non propone niente, e una linea verde
+inventata sarebbe un obiettivo inventato. Il BMI, che una fascia usabile non
+ce l'ha, un bersaglio ce l'ha: 22.0 e' un BMI a cui mirare, 25-30 non e' un
+intervallo in cui stare.
+
+Due conseguenze pratiche:
+
+- **la barra si disegna anche senza fascia**, purche' abbia un bersaglio: e'
+  quello che la rende utile adesso, che la fascia arriva alla terza pesata e
+  il bersaglio c'e' dalla prima. Un valore da solo invece non basta — una
+  tacca in mezzo a una traccia vuota non dice niente;
+- l'etichetta verde si scrive **solo se non finisce addosso** a quelle della
+  fascia (`TICK_GAP`, un sesto della barra): in una colonna da 200 px tre
+  numeri si toccano, e un'aggiunta non deve coprire quello che c'era.
 
 Le soglie di riferimento restano **nei file** (`reference`, tutte e dieci,
 anche quelle che nessuno disegna): sono dati che la bilancia manda, e il file
