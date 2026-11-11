@@ -93,10 +93,44 @@ la sua massa grassa e muscolare) e le impedenze a 20 e 100 kHz. Meritano un
 disegno loro — un corpo con cinque valori, non una fila di riquadri — e non un
 angolo di card. I dati ci sono e si scaricano comunque.
 
-Fuori anche le **fasce di riferimento** che la bilancia manda (peso ideale
-67.5-91.3, e lo stesso per grasso, acqua, muscolo): sono un'altra cosa dalla
-fascia «dove sta di solito» che le barre del progetto disegnano, e mescolarle
-sulla stessa barra vorrebbe dire due significati per lo stesso disegno.
+### Le fasce: il riferimento della bilancia, non lo storico
+
+Questa decisione e' cambiata **guardando la card**, il giorno stesso. La prima
+stesura disegnava la fascia di sempre — media e scarto tipo delle pesate delle
+dodici settimane prima, con un minimo di otto — e teneva fuori le fasce di
+riferimento che la bilancia manda, per non dare due significati alla stessa
+barra. A schermo erano dieci tracce grigie: con tre pesate in archivio una
+media col suo scarto non e' una fascia, e' rumore disegnato, e non ce ne
+sarebbe stata una per mesi.
+
+Allora le barre sono **l'intervallo di riferimento**: dove quella misura
+dovrebbe stare per altezza, eta' e sesso. La bilancia lo manda da subito, ed
+e' una proprieta' della persona e non della pesata — verificato, le ventisei
+soglie sono identiche nelle pesate dell'8 e del 10 novembre mentre peso e
+grasso erano cambiati.
+
+Il prezzo e' reale e si paga scrivendolo: **in questa card la barra si legge
+al contrario delle altre**. Altrove fuori dalla fascia vuol dire "diverso dal
+solito", qui vuol dire "fuori da dove dovrebbe stare". Una riga sotto i
+riquadri lo dice, ed e' la sola via onesta a disegnare una barra che il
+lettore ha gia' imparato a leggere in un altro modo. Dove il peso **sta
+andando** resta una domanda del Trend, dove avra' le pesate di mesi.
+
+Cinque misure su dieci hanno la fascia: peso, grasso, muscolo scheletrico,
+osso, metabolismo basale. Le altre cinque no, e nessuno dei tre motivi si
+rimedia inventando:
+
+- massa magra e grasso viscerale: la bilancia non manda un riferimento;
+- acqua e proteine: lo manda **in chili** e il numero e' in percento.
+  Dividere la massa per il peso per farne una percentuale sarebbe un dato
+  inventato;
+- BMI: ne manda uno che vale 25.0-30.0 con ideale 22.0, cioe' la fascia del
+  sovrappeso — dove il valore casca adesso, non dove dovrebbe stare.
+  Disegnarla direbbe una cosa falsa.
+
+I riferimenti stanno nel file, tutti e dieci, anche quelli che la card non usa
+(`reference` in ogni pesata): sono dati che la bilancia manda, e il file e' il
+registro.
 
 ## 4. E a Garmin
 

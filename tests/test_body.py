@@ -41,6 +41,24 @@ FULL = {
     "trunkBodyFatMass": 0,
     "tBodyFatMass": 15.33,
     "tMuscleMass": 32.14,
+    # Le fasce di riferimento della bilancia: quelle vere di questo account,
+    # identiche in tutte le pesate perche' vengono da altezza, eta' e sesso.
+    "weightMin": 67.5,
+    "weightMax": 91.3,
+    "weightStd": 79.4,
+    "bfpMin": 10.0,
+    "bfpMax": 20.0,
+    "bfpStd": 15.0,
+    "smmMin": 34.3,
+    "smmMax": 41.9,
+    "boneMin": 3.9,
+    "boneMax": 4.8,
+    "bmrMin": 1645,
+    "bmrMax": 2010,
+    "bmiMin": 25.0,
+    "bmiMax": 30.0,
+    "waterMassMin": 42.5,
+    "waterMassMax": 53.0,
 }
 
 # La pesata coi calzini: la cella di carico ha pesato, gli elettrodi no.
@@ -57,6 +75,9 @@ NO_IMPEDANCE = {
     "bodyage": 0,
     "measureAge": 58,
     "height": 189.5,
+    "weightMin": 67.5,
+    "weightMax": 91.3,
+    "weightStd": 79.4,
 }
 
 
@@ -143,12 +164,56 @@ class TestBodyOn:
         assert body["measured_at"] == at(1794145334)
         assert all(m["value"] is not None for m in body["measures"])
 
-    def test_the_bands_wait_for_eight_weigh_ins(self, data_dir):
-        """Tre pesate non fanno una fascia: lo scarto tipo sarebbe rumore, e la
-        barra prometterebbe un "di solito" che non esiste."""
+    def test_the_bands_are_the_reference_range(self, data_dir):
+        """La fascia e' l'intervallo che la bilancia considera normale per
+        questa persona, non la media dello storico: con tre pesate una media
+        col suo scarto sarebbe rumore disegnato, e il riferimento invece
+        arriva dalla prima pesata.
+
+        `outer` ripete `low` e `high`: un intervallo ha due estremi, non
+        quattro, e la fascia larga di `RangeBar` resta sotto quella piena."""
         body = body_on(data_dir, date(2026, 11, 10))
-        assert all(m["band"] is None for m in body["measures"])
-        assert body["weighings"] == 2  # il 10 novembre piu' l'8
+        bands = {m["key"]: m["band"] for m in body["measures"]}
+        assert bands["weight_kg"] == {
+            "low": 67.5,
+            "high": 91.3,
+            "outer_low": 67.5,
+            "outer_high": 91.3,
+        }
+        assert bands["body_fat_pct"]["high"] == 20.0
+        assert bands["bmr_kcal"] == {
+            "low": 1645,
+            "high": 2010,
+            "outer_low": 1645,
+            "outer_high": 2010,
+        }
+
+    def test_the_measures_without_a_usable_range_have_no_band(self, data_dir):
+        """Tre motivi diversi, e nessuno dei tre si rimedia inventando: l'acqua
+        la bilancia la manda in chili e il numero e' in percento; la massa
+        magra non ha riferimento; il BMI ne ha uno che vale 25-30, cioe' la
+        fascia del sovrappeso dove il valore casca adesso — disegnarla direbbe
+        che il BMI dovrebbe stare fra 25 e 30."""
+        body = body_on(data_dir, date(2026, 11, 10))
+        bands = {m["key"]: m["band"] for m in body["measures"]}
+        assert bands["water_pct"] is None
+        assert bands["fat_free_kg"] is None
+        assert bands["visceral_fat"] is None
+        assert bands["bmi"] is None
+
+    def test_a_weigh_in_without_impedance_keeps_its_weight_band(self, data_dir):
+        """La fascia del peso non viene dagli elettrodi: il peso ideale per la
+        tua altezza vale anche per una pesata coi calzini."""
+        write_days([measurement(NO_IMPEDANCE)], data_dir)
+        only = body_on(data_dir, date(2026, 11, 8))
+        # Di quel giorno vince comunque la completa: questo controlla il
+        # riferimento scritto nel file della pesata senza impedenza.
+        found = json.loads(
+            (data_dir / "health" / "body_composition" / "2026-11-08.json").read_text()
+        )
+        incomplete = next(m for m in found if not m["impedance"])
+        assert incomplete["reference"]["weight_kg"]["low"] == 67.5
+        assert only["impedance"] is True
 
 
 class TestWriteDays:

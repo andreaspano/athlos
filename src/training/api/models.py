@@ -928,8 +928,13 @@ class BodyMeasure(BaseModel):
         "has the weight and the BMI and nothing else. Null is not zero: nobody is 0% water."
     )
     band: "Band | None" = Field(
-        description="Where the measure usually sits, from the weigh-ins of the twelve weeks "
-        "before this one. Null under eight of them, where the standard deviation is noise."
+        description="The scale's reference range for this measure — where it **should** sit "
+        "for your height, age and sex. Careful: this is not what a band means on the other "
+        "cards, where it is where the measure usually sits; here being outside it says "
+        "something else, and the card writes that in a line. `outer_*` repeat `low`/`high`: a "
+        "reference range has two ends, not four. Null for the measures the scale sends no "
+        "range for, sends it in mass where ours is a percentage, or sends the bracket the "
+        "current value falls in (the BMI)."
     )
 
 
@@ -953,7 +958,6 @@ class BodyComposition(BaseModel):
     measures: list[BodyMeasure] = Field(description="The ten numbers, in reading order.")
     body_age: float | None = Field(description="What the scale makes of your age.")
     age: float | None = Field(description="The real one, as the scale knows it.")
-    weighings: int = Field(description="How many weigh-ins the twelve-week window carries.")
 
 
 # --- Il blocco: la risposta e l'aderenza, separate (todo 96) ---

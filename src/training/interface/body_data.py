@@ -10,42 +10,40 @@ chiamano i campi di Renpho.
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
-from training.interface.daily_data import _band
 from training.renpho.sync import FOLDER
 
 # Le dieci misure della card, nell'ordine in cui si leggono: prima quanto
 # pesi, poi di cosa sei fatto, poi cosa consumi. L'unita' e i decimali
 # viaggiano col numero, come fa la settimana (`WeekMeasure`), cosi' la pagina
 # disegna quello che arriva.
-MEASURES: tuple[tuple[str, str, str, int], ...] = (
-    ("weight_kg", "Weight", "kg", 1),
-    ("bmi", "BMI", "", 1),
-    ("body_fat_pct", "Body fat", "%", 1),
-    ("water_pct", "Water", "%", 1),
-    ("skeletal_muscle_kg", "Skeletal muscle", "kg", 1),
-    ("fat_free_kg", "Fat-free mass", "kg", 1),
-    ("bone_kg", "Bone", "kg", 1),
-    ("protein_pct", "Protein", "%", 1),
-    ("visceral_fat", "Visceral fat", "", 0),
-    ("bmr_kcal", "Basal metabolism", "kcal", 0),
+#
+# L'ultima colonna e' **da quale riferimento della bilancia viene la fascia**,
+# `None` dove non ce n'e' uno da disegnare. Tre motivi per cui manca:
+#
+# - la bilancia non lo manda: massa magra e grasso viscerale;
+# - lo manda in **massa** dove la misura e' in percentuale (acqua, proteine):
+#   una fascia in chili sotto un numero in percento non si legge, e ricavare
+#   la percentuale dividendo per il peso vorrebbe dire inventare un dato;
+# - il **BMI**, che lo manda ma vale 25.0-30.0 con ideale 22.0: quello non e'
+#   un intervallo sano, e' la fascia del sovrappeso, cioe' dove il valore di
+#   adesso casca. Disegnarla direbbe "il tuo BMI dovrebbe stare fra 25 e 30",
+#   che e' falso.
+MEASURES: tuple[tuple[str, str, str, int, str | None], ...] = (
+    ("weight_kg", "Weight", "kg", 1, "weight_kg"),
+    ("bmi", "BMI", "", 1, None),
+    ("body_fat_pct", "Body fat", "%", 1, "body_fat_pct"),
+    ("water_pct", "Water", "%", 1, None),
+    ("skeletal_muscle_kg", "Skeletal muscle", "kg", 1, "skeletal_muscle_kg"),
+    ("fat_free_kg", "Fat-free mass", "kg", 1, None),
+    ("bone_kg", "Bone", "kg", 1, "bone_kg"),
+    ("protein_pct", "Protein", "%", 1, None),
+    ("visceral_fat", "Visceral fat", "", 0, None),
+    ("bmr_kcal", "Basal metabolism", "kcal", 0, "bmr_kcal"),
 )
-
-# Quante settimane guarda indietro la fascia: le stesse dodici delle card
-# della settimana, cosi' "dove sta di solito" vuol dire lo stesso in tutta
-# l'applicazione.
-BAND_WEEKS = 12
-
-# Quante pesate servono prima di disegnare una fascia. Meno dei quattordici
-# giorni della Day (`MIN_BAND_DAYS`) perche' una pesata non e' un giorno: su
-# una bilancia ci si sale quando si vuole, e pretendere quattordici misure
-# vorrebbe dire niente fascia per mesi. Sotto otto lo scarto tipo e' rumore.
-MIN_BAND_WEIGHINS = 8
 
 
 def _read(path: Path) -> list[dict[str, Any]]:
@@ -94,17 +92,32 @@ def _of_day(data_dir: Path, day: date) -> dict[str, Any] | None:
     return (complete or found)[-1]
 
 
-def _history(data_dir: Path, before: date, weeks: int = BAND_WEEKS) -> list[dict[str, Any]]:
-    """Le pesate delle settimane prima di `before`, una per giorno: sono i
-    valori su cui si misura la fascia."""
-    start = before - timedelta(weeks=weeks)
-    found = []
-    for day in _days(data_dir):
-        if start <= day < before:
-            measure = _of_day(data_dir, day)
-            if measure:
-                found.append(measure)
-    return found
+def _band(reference: dict[str, Any] | None, key: str | None, digits: int) -> dict[str, Any] | None:
+    """La fascia di una misura: l'intervallo di riferimento della bilancia.
+
+    **Non e' la fascia delle altre card, e va detto.** Altrove una fascia dice
+    *dove quella misura sta di solito* — media e scarto tipo dello storico — e
+    uscirne vuol dire "oggi e' diverso dal solito". Qui dice *dove quella
+    misura dovrebbe stare* per la tua altezza, eta' e sesso, e uscirne vuol
+    dire un'altra cosa. La card lo scrive in una riga, perche' lo stesso
+    disegno con due significati e' il modo di leggere male un numero.
+
+    La scelta viene dai dati: di pesate ce ne sono tre, e una media con il suo
+    scarto su tre valori non e' una fascia, e' rumore disegnato — mentre il
+    riferimento la bilancia lo manda da subito ed e' una proprieta' della
+    persona, identico in tutte le pesate.
+
+    `outer` coincide con `low`/`high` perche' un intervallo di riferimento ha
+    due estremi e non quattro: la fascia larga di `RangeBar` resta sotto
+    quella piena e non si vede. Il valore fuori dall'intervallo lo disegna
+    comunque, che `RangeBar` allarga la scala fin dove serve."""
+    if not reference or not key:
+        return None
+    found = reference.get(key)
+    if not found or found.get("low") is None or found.get("high") is None:
+        return None
+    low, high = round(float(found["low"]), digits), round(float(found["high"]), digits)
+    return {"low": low, "high": high, "outer_low": low, "outer_high": high}
 
 
 def body_on(data_dir: Path, day: date) -> dict[str, Any] | None:
@@ -130,20 +143,18 @@ def body_on(data_dir: Path, day: date) -> dict[str, Any] | None:
     if measure is None:
         return None
     measured_day = date.fromisoformat(measure["measured_at"][:10])
-    storia = _history(data_dir, measured_day)
-    measures = []
-    for key, label, unit, digits in MEASURES:
-        values = pd.Series([m.get(key) for m in storia], dtype="float64")
-        measures.append(
-            {
-                "key": key,
-                "label": label,
-                "unit": unit,
-                "digits": digits,
-                "value": measure.get(key),
-                "band": _band(values, digits=digits, min_values=MIN_BAND_WEIGHINS),
-            }
-        )
+    reference = measure.get("reference")
+    measures = [
+        {
+            "key": key,
+            "label": label,
+            "unit": unit,
+            "digits": digits,
+            "value": measure.get(key),
+            "band": _band(reference, band_from, digits),
+        }
+        for key, label, unit, digits, band_from in MEASURES
+    ]
     return {
         "day": day,
         "measured_at": measure["measured_at"],
@@ -155,5 +166,4 @@ def body_on(data_dir: Path, day: date) -> dict[str, Any] | None:
         "measures": measures,
         "body_age": measure.get("body_age"),
         "age": measure.get("age"),
-        "weighings": len(storia) + 1,
     }

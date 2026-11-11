@@ -74,6 +74,32 @@ SEGMENTS: tuple[tuple[str, str], ...] = (
 )
 
 
+# Le **fasce di riferimento** della bilancia: dove quella misura dovrebbe
+# stare per la tua altezza, eta' e sesso. `(nostro, min, max, ideale)`.
+#
+# Sono una proprieta' della persona e non della pesata — verificato: le
+# ventisei soglie sono identiche nelle due pesate dell'8 e del 10 novembre,
+# mentre peso e grasso erano cambiati — e per questo si possono disegnare
+# come fascia dietro il numero (todo 97: e' quello che la card fa).
+#
+# Quattro arrivano in **massa** anche dove la misura corrispondente e' in
+# percentuale (acqua, proteine): si tengono col nome della massa, che e' quello
+# che sono, e la card non le usa — non si disegna una fascia in kg sotto un
+# numero in percento.
+REFERENCES: tuple[tuple[str, str, str, str | None], ...] = (
+    ("weight_kg", "weightMin", "weightMax", "weightStd"),
+    ("bmi", "bmiMin", "bmiMax", "bmiStd"),
+    ("body_fat_pct", "bfpMin", "bfpMax", "bfpStd"),
+    ("fat_mass_kg", "bfmMin", "bfmMax", "bfmStd"),
+    ("water_mass_kg", "waterMassMin", "waterMassMax", None),
+    ("muscle_mass_kg", "muscleMassMin", "muscleMassMax", None),
+    ("skeletal_muscle_kg", "smmMin", "smmMax", "smmStd"),
+    ("bone_kg", "boneMin", "boneMax", None),
+    ("protein_mass_kg", "proteinMassMin", "proteinMassMax", None),
+    ("bmr_kcal", "bmrMin", "bmrMax", "bmrStd"),
+)
+
+
 class RenphoNotConfigured(RuntimeError):
     """Le credenziali non ci sono: non e' un guasto, e' una bilancia che non
     si usa."""
@@ -115,6 +141,17 @@ def measurement(row: dict[str, Any]) -> dict[str, Any]:
     for nostro, loro in MEASURES:
         value = _number(row.get(loro))
         out[nostro] = value if (impedance or nostro in WITHOUT_IMPEDANCE) else None
+    # Le fasce non vengono dagli elettrodi: il peso ideale per la tua altezza
+    # vale anche per una pesata coi calzini, quindi si tengono comunque.
+    out["reference"] = {
+        nostro: {
+            "low": _number(row.get(low)),
+            "high": _number(row.get(high)),
+            "ideal": _number(row.get(ideal)) if ideal else None,
+        }
+        for nostro, low, high, ideal in REFERENCES
+        if _number(row.get(low)) is not None and _number(row.get(high)) is not None
+    } or None
     out["segments"] = (
         {
             nome: {

@@ -187,12 +187,36 @@ taglia a 16, e una piu' lunga funziona nell'app e non qui.
 La card **Body** sta nella griglia dello Snap della Day, accanto alle quattro
 di sempre, e porta dieci numeri: peso, BMI, grasso, acqua, muscolo
 scheletrico, massa magra, osso, proteine, grasso viscerale e metabolismo
-basale, piu' l'eta' corporea contro quella vera. Sotto ogni numero la barra
-della sua fascia, ambra come le altre hanno la loro tinta — e qui nessuna
-barra e' un voto: il peso dentro la fascia vuol dire "come sempre", non
-"bene". La fascia arriva **all'ottava pesata** nelle dodici settimane, che
-sotto quel numero lo scarto tipo e' rumore, e finche' manca la card lo dice
-invece di mostrare dieci tracce grigie.
+basale, piu' l'eta' corporea contro quella vera. In testa, il giorno della
+pesata col nome del giorno della settimana e l'ora — «Tue 10 Nov, 10:06, un
+giorno prima» — e, quando la pesata non e' di quel giorno, la data per intero
+anche sotto i numeri: su una card che mostra spesso una misura di qualche
+giorno prima, una data in breve si legge come "oggi".
+
+**La fascia di questa card e' l'intervallo di riferimento della bilancia**, e
+si legge al contrario di tutte le altre: altrove la fascia dice *dove quella
+misura sta di solito* — media e scarto tipo dello storico — e uscirne vuol
+dire "oggi e' diverso dal solito"; qui dice *dove dovrebbe stare* per la tua
+altezza, eta' e sesso. La card lo scrive in una riga, perche' lo stesso
+disegno con due significati e' il modo di leggere male un numero.
+
+La scelta viene dai dati. Una media col suo scarto su tre pesate non e' una
+fascia, e' rumore disegnato, e di pesate ce ne sono tre; il riferimento invece
+la bilancia lo manda **da subito**, ed e' una proprieta' della persona e non
+della pesata — verificato: le ventisei soglie sono identiche nelle pesate
+dell'8 e del 10 novembre, mentre peso e grasso erano cambiati. La barra prende
+l'ambra della card, e il valore fuori dall'intervallo si disegna comunque, che
+`RangeBar` allarga la scala fin dove serve (102.6 kg contro 67.5-91.3 sta
+fuori, a destra).
+
+Cinque misure su dieci hanno la fascia — peso, grasso, muscolo scheletrico,
+osso, metabolismo basale — e le altre cinque no, per tre motivi diversi che
+non si rimediano inventando: massa magra e grasso viscerale non hanno un
+riferimento; acqua e proteine lo hanno **in chili** e il numero e' in
+percento, e ricavare la percentuale dividendo per il peso vorrebbe dire
+inventare un dato; il **BMI** ne ha uno che vale 25.0-30.0 con ideale 22.0,
+cioe' la fascia del sovrappeso, che e' dove il valore casca adesso —
+disegnarla direbbe "il tuo BMI dovrebbe stare fra 25 e 30", che e' falso.
 
 Tre regole, e sono quelle che rendono la card leggibile:
 
@@ -212,7 +236,9 @@ Tre regole, e sono quelle che rendono la card leggibile:
 Fuori dalla card, per ora, i **segmenti** — braccia, gambe e tronco, ognuno
 con la sua massa grassa e muscolare — e le impedenze a 20 e 100 kHz: si
 scaricano e stanno nei file, ma vogliono un disegno loro, un corpo con cinque
-valori e non una fila di riquadri.
+valori e non una fila di riquadri. Fuori anche la deriva nel tempo: dove il
+peso **sta andando** e' una domanda del Trend, non di una card del giorno, e
+le pesate si stanno accumulando da ora.
 
 Le rotte sono `GET /api/daily/<giorno>/body`, che rende la pesata vestita di
 etichette e fasce (404 quando fino a quel giorno non ce n'e' nessuna, 422 per
