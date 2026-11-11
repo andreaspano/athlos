@@ -42,7 +42,12 @@ from training.api.plans import (
 from training.api.sections import DAILY, SECTIONS, WEEKLY
 from training.api.sections import Report as Report_
 from training.api.weekly import weekly_payload
-from training.interface.block_data import adherence_payload, block_payload, block_shape_payload
+from training.interface.block_data import (
+    adherence_payload,
+    block_of,
+    block_payload,
+    block_shape_payload,
+)
 from training.api.models import (
     Activity,
     ActivityDetail,
@@ -622,6 +627,65 @@ def get_block_charts(
     **wrongly**."""
     data = _block(monday, ctx)
     return block_panel_charts(data, theme)
+
+
+def _week_shape(monday: date, ctx: UserContext) -> dict[str, Any]:
+    """La forma del blocco a cui la settimana appartiene, tagliata a quella
+    settimana, o 404."""
+    _plan_monday(monday)
+    block = block_of(ctx.summary_dir, monday)
+    if block is None:
+        raise HTTPException(
+            status_code=404, detail=f"The week of {monday} is not part of a block."
+        )
+    data = block_shape_payload(
+        ctx.summary_dir,
+        ctx.plan_dir,
+        load_activities(ctx.data_dir),
+        block["slug"],
+        lambda activity_id: speed_samples_of(ctx.data_dir, activity_id),
+        until=monday,
+    )
+    if data is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No block for the week of {monday}: the goal {block['slug']!r} is gone "
+            "from plan/, so there are no targets to read it against.",
+        )
+    return data
+
+
+@app.get("/api/weekly/{monday}/shape", response_model=BlockShape, summary="The block of a week")
+def get_week_shape(monday: date, ctx: Context) -> BlockShape:
+    """The block this week belongs to, week by week: the kilometres the plan asked for, the
+    kilometres run, and how the equivalent speed of each week is spread.
+
+    The same reading as `/api/plans/<slug>/block`, **keyed by the week and cut at it**: the
+    goal is the one the week's file declares (`plan:` in `summary/05.plan/<monday>.md`), and
+    nothing after this Monday is measured. So the answer for a past week is the block as it
+    stood at the end of that week, and the answer for the week in progress carries its own
+    kilometres as `partial` — out of the line until the week is over. That is the beat of the
+    weekly report, and it is on purpose: a block is read once a week, not live.
+
+    404 when the week has no plan file, when its plan declares no goal, or when that goal is
+    gone from `plan/` — none of the three is an error, they are states. A Monday in the future
+    is allowed, as for `/plan`: the block is written in advance."""
+    data = _week_shape(monday, ctx)
+    return BlockShape(**{name: data[name] for name in BlockShape.model_fields})
+
+
+@app.get("/api/weekly/{monday}/shape/chart/vega", summary="The block of a week, Vega-Lite")
+def get_week_shape_chart(
+    monday: date, ctx: Context, theme: Literal["light", "dark"] = "light"
+) -> dict[str, Any]:
+    """One Vega-Lite spec of `/shape`: the kilometres on the left axis, the spread of speed on
+    the right. This is what the Training view of the Week draws, under the week's work.
+
+    Singular, unlike the three panels of `/api/weekly/<monday>/block/charts/vega`: here the
+    two readings are drawn **together on purpose**, because the week that ran the most
+    kilometres is also a week run at some pace, and two stacked panels would make the eye
+    jump."""
+    return block_shape_spec(_week_shape(monday, ctx), theme)
 
 
 @app.get("/api/weekly/{monday}/adherence", response_model=Adherence, summary="Weekly adherence")

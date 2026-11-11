@@ -73,8 +73,8 @@ _HEALTH = _Cached(load_health_db)
 _RACE_PACE: dict[tuple[Path, int, float], float] = {}
 _RACE_PACE_LOCK = threading.Lock()
 
-# I campioni di velocita' di una seduta (la forma del blocco, nella pagina
-# Result), **senza scadenza** e per la stessa ragione del ritmo gara: una
+# I campioni di velocita' di una seduta (la forma del blocco, nella Training
+# della Week), **senza scadenza** e per la stessa ragione del ritmo gara: una
 # seduta gia' letta non cambia piu'. Qui la chiave e' la sola seduta, che il
 # liscio e la soglia sono costanti del modulo e non dipendono dal goal.
 #

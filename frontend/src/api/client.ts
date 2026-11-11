@@ -225,23 +225,26 @@ export const api = {
   weekPlan: (monday: string, signal?: AbortSignal) =>
     getOrNull<WeekPlan>(`/api/weekly/${monday}/plan`, signal),
 
-  // Il blocco di un goal, in un grafico solo: i chilometri previsti e fatti
-  // settimana per settimana e come si distribuisce la velocita' di ognuna.
-  // Lo chiede la pagina Result, una card per goal.
+  // Il blocco a cui la settimana appartiene, in un grafico solo: i
+  // chilometri previsti e fatti settimana per settimana e come si
+  // distribuisce la velocita' di ognuna. Lo chiede la Training della Week,
+  // una card in fondo.
   //
-  // `null` quando il goal non ha un blocco: nessuna settimana scritta lo
-  // dichiara ancora. E' lo stato di un goal appena scritto o di
-  // un'alternativa che non si sta seguendo, non un guasto, e la card lo dice
-  // con una riga invece che con un avviso rosso.
-  blockShapeChart: (slug: string, theme: "light" | "dark", signal?: AbortSignal) =>
-    getOrNull<VegaSpec>(
-      `/api/plans/${encodeURIComponent(slug)}/block/chart/vega?theme=${theme}`,
-      signal,
-    ),
+  // **Keyed sul lunedi' e tagliato a quel lunedi'**: il goal e' quello che il
+  // file della settimana dichiara, e oltre quella settimana non si misura —
+  // il grafico e' il blocco com'era alla sua fine, e batte una volta a
+  // settimana come il report.
+  //
+  // `null` quando quella settimana non sta in un blocco: le settimane prima
+  // che il blocco cominciasse non hanno un file che dichiari un goal. Non e'
+  // un guasto, e la card non c'e' affatto.
+  weekShapeChart: (monday: string, theme: "light" | "dark", signal?: AbortSignal) =>
+    getOrNull<VegaSpec>(`/api/weekly/${monday}/shape/chart/vega?theme=${theme}`, signal),
 
   // Dei tre pannelli del todo 96 — `/api/weekly/<lunedi>/block` e
-  // `.../block/charts/vega` — e dell'aderenza la pagina non chiede niente:
-  // le rotte restano e si provano da `/docs`, ma qui non c'e' il loro
+  // `.../block/charts/vega` — dell'aderenza e della forma del blocco keyed
+  // sul goal (`/api/plans/<slug>/block`) la pagina non chiede niente: le
+  // rotte restano e si provano da `/docs`, ma qui non c'e' il loro
   // involucro, che un involucro senza chiamante e' codice morto.
 
   // I lunedi' che hanno un piano (todo 88): il confine fin dove la pagina

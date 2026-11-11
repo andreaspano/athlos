@@ -472,6 +472,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/weekly/{monday}/shape": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The block of a week
+         * @description The block this week belongs to, week by week: the kilometres the plan asked for, the
+         *     kilometres run, and how the equivalent speed of each week is spread.
+         *
+         *     The same reading as `/api/plans/<slug>/block`, **keyed by the week and cut at it**: the
+         *     goal is the one the week's file declares (`plan:` in `summary/05.plan/<monday>.md`), and
+         *     nothing after this Monday is measured. So the answer for a past week is the block as it
+         *     stood at the end of that week, and the answer for the week in progress carries its own
+         *     kilometres as `partial` — out of the line until the week is over. That is the beat of the
+         *     weekly report, and it is on purpose: a block is read once a week, not live.
+         *
+         *     404 when the week has no plan file, when its plan declares no goal, or when that goal is
+         *     gone from `plan/` — none of the three is an error, they are states. A Monday in the future
+         *     is allowed, as for `/plan`: the block is written in advance.
+         */
+        get: operations["get_week_shape_api_weekly__monday__shape_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/weekly/{monday}/shape/chart/vega": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The block of a week, Vega-Lite
+         * @description One Vega-Lite spec of `/shape`: the kilometres on the left axis, the spread of speed on
+         *     the right. This is what the Training view of the Week draws, under the week's work.
+         *
+         *     Singular, unlike the three panels of `/api/weekly/<monday>/block/charts/vega`: here the
+         *     two readings are drawn **together on purpose**, because the week that ran the most
+         *     kilometres is also a week run at some pace, and two stacked panels would make the eye
+         *     jump.
+         */
+        get: operations["get_week_shape_chart_api_weekly__monday__shape_chart_vega_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/weekly/{monday}/adherence": {
         parameters: {
             query?: never;
@@ -754,6 +812,62 @@ export interface paths {
          *     404 when no goal has that slug.
          */
         delete: operations["delete_plan_file_api_plans__slug__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{slug}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The block of a goal
+         * @description A goal's block, week by week: the kilometres the plan asked for, the kilometres run, and
+         *     how the equivalent speed of each week is spread (five numbers: 5th, quartiles, 95th).
+         *
+         *     This is **not** `/api/weekly/<monday>/block`, which answers in percentages of what the race
+         *     asks over three KPIs. This one answers in kilometres and km/h — how the block actually
+         *     moved, week by week — and is keyed by the goal, because a block lasts as long as the goal
+         *     that declares it, not as long as a week.
+         *
+         *     The week in progress comes back with `partial: true`: its kilometres are those run so far,
+         *     so the chart leaves its point out of the line while still using its speed samples.
+         *
+         *     404 when the goal is gone or no written week declares it — a goal just written has no block
+         *     yet, and that is a state, not an error.
+         */
+        get: operations["get_plan_block_api_plans__slug__block_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plans/{slug}/block/chart/vega": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The block of a goal, Vega-Lite
+         * @description One Vega-Lite spec: the kilometres on the left axis, the spread of speed on the right.
+         *
+         *     Singular, unlike the three panels of `/api/weekly/<monday>/block/charts/vega`: here the two
+         *     readings are drawn **together on purpose**, because the week that ran the most kilometres is
+         *     also a week run at some pace, and two stacked panels would make the eye jump.
+         */
+        get: operations["get_plan_block_chart_api_plans__slug__block_chart_vega_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1280,6 +1394,117 @@ export interface components {
              * @description Volume, long run, race pace. A KPI whose target the goal does not declare is not in the list: no target, no percentage to draw.
              */
             panels: components["schemas"]["BlockPanel"][];
+        };
+        /**
+         * BlockShape
+         * @description The block of a goal, week by week: kilometres and the spread of speed.
+         */
+        BlockShape: {
+            /**
+             * Plan
+             * @description Slug of the goal in `plan/` these weeks declare.
+             */
+            plan: string;
+            /**
+             * Title
+             * @description The goal's title.
+             */
+            title: string | null;
+            /** Race */
+            race: string | null;
+            /**
+             * Target Time
+             * @description As written ("2:20:00").
+             */
+            target_time: string | null;
+            /**
+             * Target Speed Kmh
+             * @description Race speed: the dotted line on the speed axis.
+             */
+            target_speed_kmh: number | null;
+            /**
+             * Block Week
+             * @description Which week of the block today falls in, if any.
+             */
+            block_week: number | null;
+            /**
+             * Block Weeks
+             * @description How many weeks the block lasts.
+             */
+            block_weeks: number;
+            /**
+             * Weeks
+             * @description One per week of the block, in order.
+             */
+            weeks: components["schemas"]["BlockShapeWeek"][];
+        };
+        /**
+         * BlockShapeWeek
+         * @description One week of the block: what it asked, what was run, and how fast.
+         */
+        BlockShapeWeek: {
+            /** Block Week */
+            block_week: number;
+            /**
+             * Monday
+             * @description Null for a week of the block with no file written yet.
+             */
+            monday: string | null;
+            /**
+             * Phase
+             * @description base, build, specific, taper or race.
+             */
+            phase: string | null;
+            /**
+             * Plan Km
+             * @description Running kilometres the week's plan asks for.
+             */
+            plan_km: number | null;
+            /**
+             * Done Km
+             * @description Kilometres actually run. Null for a week with no runs.
+             */
+            done_km: number | null;
+            /**
+             * Partial
+             * @description True for the week in progress: its kilometres are those so far, not the week's, so the chart leaves its point out of the line.
+             */
+            partial: boolean;
+            /**
+             * Sessions
+             * @description How many runs the week carries.
+             */
+            sessions: number;
+            /**
+             * Minutes
+             * @description Moving minutes, pauses collapsed, of those runs.
+             */
+            minutes: number | null;
+            /**
+             * P5
+             * @description 5th percentile of the equivalent speed, km/h.
+             */
+            p5: number | null;
+            /**
+             * Q1
+             * @description First quartile.
+             */
+            q1: number | null;
+            /**
+             * Median
+             * @description Median: half the moving time was run slower.
+             */
+            median: number | null;
+            /**
+             * Q3
+             * @description Third quartile.
+             */
+            q3: number | null;
+            /**
+             * P95
+             * @description 95th percentile.
+             */
+            p95: number | null;
         };
         /**
          * BlockWeek
@@ -3458,6 +3683,72 @@ export interface operations {
             };
         };
     };
+    get_week_shape_api_weekly__monday__shape_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                monday: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockShape"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_week_shape_chart_api_weekly__monday__shape_chart_vega_get: {
+        parameters: {
+            query?: {
+                theme?: "light" | "dark";
+            };
+            header?: never;
+            path: {
+                monday: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_adherence_api_weekly__monday__adherence_get: {
         parameters: {
             query?: never;
@@ -3808,6 +4099,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_block_api_plans__slug__block_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockShape"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_block_chart_api_plans__slug__block_chart_vega_get: {
+        parameters: {
+            query?: {
+                theme?: "light" | "dark";
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

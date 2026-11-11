@@ -47,7 +47,7 @@ RACE_PACE_MIN_KM = 1.0
 # un KPI che il piano non dichiara.
 BASELINE_WEEKS = 4
 
-# La forma del blocco (la card della pagina Result): come si liscia la
+# La forma del blocco (la card della Training della Week): come si liscia la
 # velocita' equivalente prima di contarla, e sotto quale soglia si butta via.
 #
 # Trenta secondi perche' la velocita' campione per campione e' rumore — un
@@ -692,6 +692,7 @@ def block_shape_payload(
     activities: pd.DataFrame,
     slug: str,
     samples: Callable[[int], tuple[np.ndarray, np.ndarray]],
+    until: date | None = None,
     today: date | None = None,
 ) -> dict[str, Any] | None:
     """Il blocco di un goal settimana per settimana: i chilometri previsti e
@@ -702,8 +703,12 @@ def block_shape_payload(
     bersaglio; questo dice come si e' mossa la settimana — i chilometri nella
     loro unita' e l'andatura con cui sono stati corsi.
 
-    Keyed sul **goal** e non su un lunedi': la card sta nella pagina Result,
-    una per goal, e un blocco e' lungo quanto il goal che lo dichiara.
+    Keyed sul **goal** e non su un lunedi': un blocco e' lungo quanto il goal
+    che lo dichiara, diciotto settimane e non sette giorni. Chi lo guarda da
+    una settimana — la vista Training della Week — passa `until`, che e' il
+    lunedi' oltre il quale non si misura: cosi' il grafico di una settimana e'
+    il blocco **com'era alla fine di quella settimana**, e le settimane dopo
+    tengono le sole barre del piano. Senza `until` si misura fino a oggi.
 
     `None` quando il goal non c'e' piu' o quando nessuna settimana scritta lo
     dichiara: senza settimane non c'e' un blocco da disegnare, e non e' un
@@ -713,7 +718,9 @@ def block_shape_payload(
     chilometri fatti**: i suoi sono quelli di fin qui, non quelli della
     settimana, e messi sul grafico leggono come un crollo ogni volta che si
     apre la pagina. I suoi campioni di velocita' invece valgono: l'andatura di
-    tre corse e' gia' andatura."""
+    tre corse e' gia' andatura. E' anche il motivo per cui il disegno **batte
+    una volta a settimana**, come il report: il punto di una settimana arriva
+    quando la settimana e' finita."""
     goal = goal_of(plan_dir, slug)
     if goal is None:
         return None
@@ -722,6 +729,9 @@ def block_shape_payload(
         return None
     today = today or date.today()
     this_monday = today - timedelta(days=today.weekday())
+    # Fin dove si misura: oltre oggi non c'e' niente da misurare comunque, e
+    # `until` puo' solo tirare il confine piu' indietro — mai in avanti.
+    edge = min(this_monday, until) if until is not None else this_monday
     declared = [w["block_weeks"] for w in weeks.values() if w.get("block_weeks")]
     block_weeks = int(max(declared)) if declared else max(weeks)
     rows = []
@@ -730,7 +740,7 @@ def block_shape_payload(
         monday = week["monday"] if week else None
         measured = (
             _week_shape(activities, monday, samples)
-            if monday is not None and monday <= this_monday
+            if monday is not None and monday <= edge
             else {"done_km": None, "sessions": 0, "minutes": None, "speed": None}
         )
         rows.append(
@@ -740,7 +750,10 @@ def block_shape_payload(
                 "phase": week["phase"] if week else None,
                 "plan_km": round(week["planned_km"], 1) if week and week["planned_km"] else None,
                 "done_km": round(measured["done_km"], 1) if measured["done_km"] else None,
-                "partial": monday == this_monday,
+                # `partial` e' la settimana in corso **misurata**: guardando
+                # una settimana passata il confine sta prima di questa, che
+                # cosi' non ha chilometri da marcare incompleti.
+                "partial": monday == this_monday == edge,
                 "sessions": measured["sessions"],
                 "minutes": measured["minutes"],
                 **(measured["speed"] or dict.fromkeys(SPEED_KEYS, None)),

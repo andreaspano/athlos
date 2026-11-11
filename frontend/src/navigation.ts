@@ -32,10 +32,10 @@
 // la vista del giorno fino al todo 67, ricade sulla vista di partenza perche'
 // `viewFromUrl` valida contro `VIEWS`, e quella validazione serve a se stessa.
 //
-// La **Result** sta anche lei sullo stesso asse, `?period=result`, e nemmeno
-// lei e' un periodo: e' il blocco, che dura quanto dura — diciotto settimane
-// e non sette giorni, che e' il motivo per cui non e' una vista della Week.
-// Viste non ne ha.
+// La **Result** c'e' stata due giorni, su `?period=result`: era il blocco in
+// una pagina a se'. Il suo grafico e' tornato nella Training della Week, dove
+// la domanda si fa, e `?period=result` adesso ricade sulla Day come
+// qualunque indirizzo che non si capisce.
 //
 // La **Plan** sta sullo stesso asse, `?period=plan`, ma non e' un periodo: i
 // piani di `plan/` guardano avanti e durano quanto dura un blocco, non un
@@ -43,7 +43,7 @@
 // adesso si legge in fila dopo Week, perche' staccata si trovava male ed e'
 // comunque una delle tre pagine. Il piano aperto e' `?plan=<slug>`, cioe' il
 // nome del suo file senza `.md`. Viste non ne ha.
-export type Page = "day" | "week" | "plan" | "result";
+export type Page = "day" | "week" | "plan";
 export type View = "snap" | "training" | "trend";
 
 /** Le viste di ogni periodo, nell'ordine del menu (todo 59).
@@ -63,7 +63,6 @@ export const VIEWS: Record<Page, View[]> = {
   day: ["snap", "training", "trend"],
   week: ["snap", "training", "trend"],
   plan: [],
-  result: [],
 };
 
 /** Il nome con cui ogni vista si scrive: nella riga del menu e nel titolo
@@ -105,7 +104,6 @@ export function pageFromUrl(): Page {
   const value = search().get("period");
   if (value === "week") return "week";
   if (value === "plan") return "plan";
-  if (value === "result") return "result";
   return "day";
 }
 

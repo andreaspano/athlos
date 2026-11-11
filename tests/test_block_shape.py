@@ -1,9 +1,10 @@
 """La forma del blocco: i chilometri e la velocita' di ogni settimana.
 
-E' quello che la pagina Result disegna, una card per goal. Il metro di questi
-test e' che i numeri dicano la verita' sulle due cose che il grafico mostra:
-**la velocita' si pesa sul tempo** e **la settimana in corso non e' una
-settimana finita**.
+E' quello che la Training della Week disegna, in fondo alla vista, per il
+blocco a cui quella settimana appartiene. Il metro di questi test e' che i
+numeri dicano la verita' sulle tre cose che il grafico mostra: **la velocita'
+si pesa sul tempo**, **la settimana in corso non e' una settimana finita** e
+**il disegno e' il blocco com'era alla fine della settimana che si guarda**.
 """
 
 from datetime import date, timedelta
@@ -178,6 +179,50 @@ class TestBlockShapePayload:
             )
             is None
         )
+
+    def test_a_past_week_is_the_block_as_it_was_then(self, block):
+        """Guardando una settimana passata il grafico e' il blocco **com'era
+        alla fine di quella settimana**: i chilometri delle settimane dopo
+        non ci sono, anche se sono stati corsi. E' il taglio che fa battere il
+        disegno una volta a settimana, come il report."""
+        summary_dir, plan_dir = block
+        data = block_shape_payload(
+            summary_dir,
+            plan_dir,
+            runs(
+                (MONDAY + timedelta(days=1), 10.0),
+                (MONDAY + timedelta(weeks=1, days=1), 12.0),
+            ),
+            "half_marathon_2.20",
+            no_samples,
+            until=MONDAY,
+            today=MONDAY + timedelta(weeks=2, days=2),
+        )
+        assert [w["done_km"] for w in data["weeks"]] == [10.0, None, None]
+        # Nessuna settimana e' incompleta: quella in corso sta oltre il
+        # confine, quindi non ha chilometri da marcare `partial`.
+        assert [w["partial"] for w in data["weeks"]] == [False, False, False]
+        # Il piano resta tutto: le settimane che vengono tengono la loro barra
+        # del previsto, che e' il resto del blocco.
+        assert [w["plan_km"] for w in data["weeks"]] == [19.0, 19.0, 19.0]
+
+    def test_a_week_ahead_does_not_measure_the_future(self, block):
+        """Un lunedi' oltre oggi non allarga la misura: `until` puo' solo
+        tirare il confine indietro. Guardando una settimana prevista si vede
+        il blocco di adesso, e quella in corso resta `partial`."""
+        summary_dir, plan_dir = block
+        today = MONDAY + timedelta(weeks=2, days=2)  # mercoledi' della terza
+        data = block_shape_payload(
+            summary_dir,
+            plan_dir,
+            runs((MONDAY + timedelta(days=1), 10.0), (today, 6.0)),
+            "half_marathon_2.20",
+            no_samples,
+            until=MONDAY + timedelta(weeks=9),
+            today=today,
+        )
+        assert [w["done_km"] for w in data["weeks"]] == [10.0, None, 6.0]
+        assert data["weeks"][2]["partial"] is True
 
     def test_the_speed_of_a_week_stacks_its_runs(self, block):
         """I campioni delle corse si impilano e **poi** si riassumono: una

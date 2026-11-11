@@ -756,6 +756,14 @@ body.rail-closed {
   }
 }
 
+/* Il blocco in fondo alla Training: il grafico sta in una card a tutta
+   larghezza, che diciotto settimane su mezza pagina si schiacciano. Il
+   cursore torna quello normale: `.trend-chart .chart-box` lo fa a mano
+   perche' nel Trend un clic apre un giorno, qui non si va in nessun posto. */
+.week-shape .chart-box {
+  cursor: default;
+}
+
 /* I quattro numeri del blocco in mezza larghezza vanno a due a due: su una
    riga sola «28 Feb 2027» arrivava addosso al bersaglio, che le colonne
    della griglia sono uguali e il contenuto no. */

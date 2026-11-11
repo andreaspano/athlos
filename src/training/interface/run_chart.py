@@ -1273,7 +1273,7 @@ def block_panel_charts(data: dict, theme: str = "light") -> list[dict]:
     ]
 
 
-# --- La forma del blocco (la card della pagina Result) ---
+# --- La forma del blocco (la card della Training della Week) ---
 
 # Piu' alto dei 190 di un pannello del blocco: qui il grafico e' uno solo e
 # porta due assi, e le scatole della velocita' vogliono aria per farsi
