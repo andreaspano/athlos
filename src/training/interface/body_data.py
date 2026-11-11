@@ -170,6 +170,15 @@ def body_on(data_dir: Path, day: date) -> dict[str, Any] | None:
         return None
     measured_day = date.fromisoformat(measure["measured_at"][:10])
     window = _window(data_dir, measured_day)
+    # Il bersaglio della bilancia, dove ce n'e' uno: `ideal` del riferimento,
+    # preso **per chiave**, cosi' nessuna tabella in piu' da tenere
+    # d'accordo. Ce l'hanno peso (79.4 kg), BMI (22.0), grasso (15%), muscolo
+    # scheletrico (38.1 kg) e metabolismo basale (1828 kcal); acqua, proteine,
+    # massa magra, grasso viscerale e osso no, e allora la linea verde non si
+    # disegna. Il BMI qui ha un bersaglio sensato pur non avendo una fascia
+    # usabile: 22.0 e' un BMI a cui mirare, 25-30 non e' un intervallo in cui
+    # stare.
+    reference = measure.get("reference") or {}
     measures = [
         {
             "key": key,
@@ -178,6 +187,7 @@ def body_on(data_dir: Path, day: date) -> dict[str, Any] | None:
             "digits": digits,
             "value": measure.get(key),
             "band": _band(window, key, digits),
+            "target": (reference.get(key) or {}).get("ideal"),
         }
         for key, label, unit, digits in MEASURES
     ]

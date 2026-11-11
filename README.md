@@ -217,9 +217,23 @@ Due differenze, e vengono dalla cadenza di una bilancia:
   tre mattine. Pretenderne sei avrebbe voluto dire niente fascia per mesi, che
   su una bilancia ci si sale quando si vuole.
 
-Finche' le pesate non bastano le barre restano tracce vuote e la card scrive
-perche': *«2 weigh-ins in the last twelve weeks: the bands arrive at three»*.
-Una traccia grigia senza una riga si legge come un guasto.
+**Su ogni barra due linee verticali.** Quella **scura** e' il valore di adesso
+— la tacca di sempre, che in tutte le card dice "oggi sei qui" — e quella
+**verde** il bersaglio che la bilancia propone per altezza, eta' e sesso:
+peso 79.4 kg, BMI 22, grasso 15%, muscolo scheletrico 38.1 kg, metabolismo
+1828 kcal. Fra le due si legge la distanza da coprire, e il numero del
+bersaglio si scrive sotto la sua linea quando non finisce addosso alle
+etichette della fascia. Cinque misure su dieci hanno un bersaglio; per acqua,
+proteine, massa magra, grasso viscerale e osso la bilancia non ne propone uno,
+e una linea verde inventata sarebbe un obiettivo inventato.
+
+E' anche quello che rende la barra utile **adesso**: la fascia dello storico
+arriva alla terza pesata, il bersaglio c'e' dalla prima. Dove la fascia non
+c'e' ancora la barra si disegna comunque, con le sue due linee, e la card
+scrive perche' manca: *«2 weigh-ins in the last twelve weeks: the bands of
+where you usually are arrive at three»*. Una traccia grigia senza una riga si
+legge come un guasto; dove non c'e' ne' fascia ne' bersaglio resta la traccia
+vuota, allineata con le altre righe.
 
 Una pesata **senza impedenza** entra nella fascia del peso e non in quelle
 della composizione: quel grasso nessuno l'ha misurato. Quindi il peso puo'

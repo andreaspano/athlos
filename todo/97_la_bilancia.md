@@ -136,6 +136,32 @@ spiegazione si legge come un guasto. E una pesata senza impedenza entra nella
 fascia del peso ma non in quelle della composizione, che quel grasso nessuno
 l'ha misurato.
 
+### Le due linee sulla barra
+
+**Scura dove sei, verde dove la bilancia dice che dovresti arrivare.** La
+prima e' la tacca di sempre (`range-marker`, `var(--text)`), quella che in
+tutte le card dice "oggi sei qui"; la seconda e' `ideal` del riferimento, cioe'
+l'unico pezzo delle soglie della bilancia che e' rimasto a schermo — ed e'
+rimasto perche' un bersaglio non e' una fascia: non c'e' nessun altro disegno
+con cui confonderlo.
+
+Ce l'hanno cinque misure su dieci: peso 79.4 kg, BMI 22.0, grasso 15%, muscolo
+scheletrico 38.1 kg, metabolismo 1828 kcal. Per acqua, proteine, massa magra,
+grasso viscerale e osso la bilancia non propone niente, e una linea verde
+inventata sarebbe un obiettivo inventato. Il BMI, che una fascia usabile non
+ce l'ha, un bersaglio ce l'ha: 22.0 e' un BMI a cui mirare, 25-30 non e' un
+intervallo in cui stare.
+
+Due conseguenze pratiche:
+
+- **la barra si disegna anche senza fascia**, purche' abbia un bersaglio: e'
+  quello che la rende utile adesso, che la fascia arriva alla terza pesata e
+  il bersaglio c'e' dalla prima. Un valore da solo invece non basta — una
+  tacca in mezzo a una traccia vuota non dice niente;
+- l'etichetta verde si scrive **solo se non finisce addosso** a quelle della
+  fascia (`TICK_GAP`, un sesto della barra): in una colonna da 200 px tre
+  numeri si toccano, e un'aggiunta non deve coprire quello che c'era.
+
 Le soglie di riferimento restano **nei file** (`reference`, tutte e dieci,
 anche quelle che nessuno disegna): sono dati che la bilancia manda, e il file
 e' il registro. Se un giorno vorranno un disegno, ce l'avranno — loro, non la

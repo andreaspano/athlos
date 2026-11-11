@@ -927,6 +927,12 @@ class BodyMeasure(BaseModel):
         description="Null when the scale did not measure it — a weigh-in with no impedance "
         "has the weight and the BMI and nothing else. Null is not zero: nobody is 0% water."
     )
+    target: float | None = Field(
+        description="The goal the scale proposes for this measure, in the same unit — the green "
+        "line on the bar. It is the scale's own `ideal`, a property of your height, age and sex, "
+        "not something computed here. Null for the measures it proposes none for (water, "
+        "protein, fat-free mass, visceral fat, bone)."
+    )
     band: "Band | None" = Field(
         description="Where the measure usually sits, read the same way as on every other card: "
         "the mean of the weigh-ins of the twelve weeks ending with this one, plus and minus one "

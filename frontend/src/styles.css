@@ -1066,6 +1066,37 @@ body.rail-closed {
   background: var(--text);
   border-radius: 1px;
 }
+/* Il bersaglio: una linea **verde** dentro la traccia, piu' bassa e piu'
+   sottile della tacca del valore, che le sta sopra. Due righe verticali sulla
+   stessa barra si distinguono dal colore e dall'altezza: quella scura e' dove
+   sei, quella verde dove quella misura dovrebbe arrivare (todo 97).
+
+   Il verde non viene dalla tinta della card — qui non e' un'altra sfumatura
+   della stessa cosa, e' un'altra cosa — ed e' lo stesso nei due temi, solo
+   piu' chiaro al buio per staccare dal fondo. */
+.range-target {
+  position: absolute;
+  top: -1px;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: rgb(47, 158, 68);
+  border-radius: 1px;
+}
+.tick-target,
+.target-word {
+  color: rgb(47, 158, 68);
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .range-target {
+    background: rgb(81, 207, 102);
+  }
+  .tick-target,
+  .target-word {
+    color: rgb(81, 207, 102);
+  }
+}
 .range-ticks {
   position: relative;
   height: 14px;

@@ -37,6 +37,18 @@
 // disegno un secondo significato, e una barra si impara a leggere una volta.
 // I riferimenti restano nei file, se un giorno vorranno un disegno loro.
 //
+// **Due linee verticali su ogni barra** (e vanno spiegate, o sono un
+// disegno): quella scura e' il valore di adesso — la tacca di sempre, che in
+// tutte le card dice "oggi sei qui" — e quella verde il **bersaglio che la
+// bilancia propone** per altezza, eta' e sesso. Il bersaglio ce l'hanno
+// cinque misure su dieci: peso 79.4 kg, BMI 22, grasso 15%, muscolo
+// scheletrico 38.1 kg, metabolismo 1828 kcal. Le altre cinque non lo hanno, e
+// una linea verde inventata sarebbe un obiettivo inventato.
+//
+// E' anche quello che rende la barra utile **adesso**: la fascia dello storico
+// arriva alla terza pesata, il bersaglio c'e' dalla prima, e fra le due linee
+// si legge la distanza da coprire.
+//
 // I segmenti (braccia, gambe, tronco) e le impedenze non sono qui: la
 // bilancia li misura e i file li tengono, ma vogliono un disegno loro — un
 // corpo con cinque valori, non una fila di riquadri.
@@ -83,10 +95,15 @@ export function BodyCard({ body, icon }: { body: BodyComposition; icon: string |
             value={num(m.value, m.digits)}
             unit={m.unit || undefined}
             sub={
-              m.band && m.value != null ? (
+              // La barra si disegna se ha qualcosa da dire: la fascia, o il
+              // bersaglio della bilancia. Un valore da solo non basta — una
+              // tacca in mezzo a una traccia vuota non dice niente, e allora
+              // resta la traccia, allineata con le altre righe.
+              m.band || m.target != null ? (
                 <RangeBar
                   value={m.value}
                   band={m.band}
+                  target={m.target}
                   tick={(v) => v.toFixed(m.digits)}
                 />
               ) : (
@@ -119,14 +136,23 @@ export function BodyCard({ body, icon }: { body: BodyComposition; icon: string |
           composition is not.
         </p>
       )}
-      {/* Perche' le barre sono vuote, finche' lo sono: tre pesate e' il
-          pavimento sotto cui uno scarto tipo non dice niente, e dieci tracce
-          grigie senza una riga si leggono come un guasto. */}
+      {/* Cosa sono le due linee, detto una volta: due righe verticali sulla
+          stessa barra vanno spiegate, o si leggono come un disegno. */}
+      {body.measures.some((m) => m.target != null) && (
+        <p className="caption">
+          On the bars, the dark line is where you are and the{" "}
+          <span className="target-word">green one</span> the goal the scale proposes for your
+          height, age and sex.
+        </p>
+      )}
+      {/* Perche' le fasce non ci sono, finche' non ci sono: tre pesate e' il
+          pavimento sotto cui uno scarto tipo non dice niente, e una traccia
+          senza una riga che la spieghi si legge come un guasto. */}
       {body.measures.every((m) => !m.band) && (
         <p className="caption">
           {body.weighings === 1
-            ? "One weigh-in in the last twelve weeks: the bands arrive at three."
-            : `${body.weighings} weigh-ins in the last twelve weeks: the bands arrive at three.`}
+            ? "One weigh-in in the last twelve weeks: the bands of where you usually are arrive at three."
+            : `${body.weighings} weigh-ins in the last twelve weeks: the bands of where you usually are arrive at three.`}
         </p>
       )}
     </section>
