@@ -81,6 +81,12 @@ Una in piu' nella griglia delle quattro, e dieci numeri: peso, BMI, grasso %,
 acqua %, muscolo scheletrico, massa magra, osso, proteine %, grasso viscerale,
 metabolismo basale. Sotto, l'eta' corporea contro quella vera.
 
+**Prende tutte e due le colonne, e i dieci numeri stanno in due righe da
+cinque.** La prima versione la metteva a mezza pagina come le altre: dieci
+riquadri in due colonne sono cinque righe, cioe' una card alta il doppio delle
+quattro accanto, e la griglia dello Snap si leggeva sfaldata. Dieci misure
+della stessa cosa vogliono una fila, non una colonna.
+
 **Se il giorno non ha una pesata, si mostrano le ultime fino a quel giorno**,
 con scritto quando sono state prese. Non l'ultima in assoluto: aprendo il 15
 ottobre non si deve vedere la pesata di stamattina, o un giorno passato

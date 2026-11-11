@@ -184,10 +184,15 @@ password* sulla schermata di accesso, e si continua a entrare con Google —
 quella password serve solo a noi. Deve stare in **6-16 caratteri**: l'app le
 taglia a 16, e una piu' lunga funziona nell'app e non qui.
 
-La card **Body** sta nella griglia dello Snap della Day, accanto alle quattro
-di sempre, e porta dieci numeri: peso, BMI, grasso, acqua, muscolo
-scheletrico, massa magra, osso, proteine, grasso viscerale e metabolismo
-basale, piu' l'eta' corporea contro quella vera. In testa, il giorno della
+La card **Body** sta in fondo alla griglia dello Snap della Day e prende
+**tutte e due le colonne**, cioe' la larghezza di due card: porta dieci
+numeri — peso, BMI, grasso, acqua, muscolo scheletrico, massa magra, osso,
+proteine, grasso viscerale e metabolismo basale — in **due righe da cinque**,
+piu' l'eta' corporea contro quella vera. A mezza pagina quei dieci riquadri
+diventavano cinque righe, cioe' una card alta il doppio delle quattro che le
+stavano accanto, e la fila si leggeva sfaldata; dieci misure della stessa cosa
+vogliono una fila, non una colonna. Sotto i 900 px vanno a tre per riga, come
+gli altri gruppi da quattro e cinque. In testa, il giorno della
 pesata col nome del giorno della settimana e l'ora — «Tue 10 Nov, 10:06, un
 giorno prima» — e, quando la pesata non e' di quel giorno, la data per intero
 anche sotto i numeri: su una card che mostra spesso una misura di qualche

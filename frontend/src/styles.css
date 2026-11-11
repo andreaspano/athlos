@@ -1142,6 +1142,15 @@ body.rail-closed {
   --range-fill: rgb(230, 190, 130);
   --range-wide-fill: rgba(178, 106, 0, 0.16);
 }
+/* La Body prende **tutte e due le colonne** della griglia: dieci misure in
+   mezza pagina diventano cinque righe, cioe' una card alta il doppio di
+   quelle che le stanno accanto, e la riga di card si legge sfaldata. A tutta
+   larghezza stanno in due righe da cinque, che e' la forma di dieci numeri
+   della stessa cosa. Sta ultima nella griglia, quindi la fila delle quattro
+   sopra resta intera. */
+.body-card {
+  grid-column: 1 / -1;
+}
 @media (prefers-color-scheme: dark) {
   .body-card {
     --range-fill: rgb(150, 110, 50);

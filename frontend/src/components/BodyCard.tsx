@@ -1,7 +1,17 @@
 // "Body" (todo 97): il corpo come l'ha misurato la bilancia — peso, BMI,
 // grasso, acqua, muscolo scheletrico, massa magra, osso, proteine, grasso
-// viscerale e metabolismo basale. Dieci numeri nella griglia dello Snap,
-// accanto alle quattro card di sempre.
+// viscerale e metabolismo basale.
+//
+// **Dieci numeri in due righe da cinque, e la card prende tutta la
+// larghezza**: a mezza pagina in due colonne erano cinque righe, cioe' una
+// card alta il doppio delle altre quattro che le stanno accanto, e la griglia
+// dello Snap si sfaldava. Dieci misure vogliono una fila, non una colonna.
+//
+// Le cinque colonne sono `stats five`, una regola che c'era gia' — il numero
+// piu' piccolo e senza andare a capo, e sotto i 900 px tre per riga — e che
+// da un po' nessuno usava: le card dei numeri di una seduta sono passate a
+// due colonne, questa ne ha dieci e se la riprende invece di scriverne
+// un'altra identica.
 //
 // **Le misure del giorno, o le ultime fino a quel giorno.** Su una bilancia
 // ci si sale quando si vuole, quindi un giorno senza pesata e' il caso
@@ -65,7 +75,7 @@ export function BodyCard({ body, icon }: { body: BodyComposition; icon: string |
           </span>
         }
       />
-      <div className="stats two">
+      <div className="stats five">
         {body.measures.map((m) => (
           <Stat
             key={m.key}
