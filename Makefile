@@ -15,6 +15,19 @@ rebuild:
 
 update_activity:
 	uv run python -c "from training.garmin import update_activity; update_activity()"
+# La bilancia viaggia con la salute, che e' quello che e' (todo 97): questo
+# target lo chiama anche il tasto Refresh della Day e il giro del mattino, e
+# il `-` davanti e' voluto — se il cloud di Renpho e' giu' o la password e'
+# scaduta, il report del mattino non deve diventare rosso per il peso. Chi
+# vuole saperlo lancia `make update_weight`, che invece grida.
+	-uv run training-update-weight
+
+# Le pesate della bilancia (todo 97): le scarica da Renpho Health, le scrive
+# in health/body_composition/ e le rimanda a Garmin, cosi' l'orologio conta le
+# calorie sul peso di stamattina. Le credenziali sono renpho_usr e renpho_pwd
+# in user/config.yaml; senza di loro non fa niente e lo dice.
+update_weight:
+	uv run training-update-weight
 
 backfill_activity_names:
 	uv run python -c "from training.garmin import backfill_activity_names; backfill_activity_names()"

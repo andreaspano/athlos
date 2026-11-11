@@ -22,11 +22,12 @@
 // la scelta del giorno sono le stesse, che il giorno serve a tutte.
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { api, isAbort, type Activity, type DailyData, type DayPlan, type RefreshStatus, type Report, type SportList } from "../api/client";
+import { api, isAbort, type Activity, type BodyComposition, type DailyData, type DayPlan, type RefreshStatus, type Report, type SportList } from "../api/client";
 import { addDays, dayOf, today } from "../format";
 import { preamble, sectionBody, sectionIcon, sectionVerdict, sectionWrittenAt } from "../markdown";
 import { ETICHETTE, daysFromUrl, type View } from "../navigation";
 import { useColorScheme } from "../useColorScheme";
+import { BodyCard } from "./BodyCard";
 import { CacheWarning } from "./CacheWarning";
 import { DayHeader } from "./DayHeader";
 import { DayPlanCard } from "./DayPlanCard";
@@ -79,6 +80,10 @@ export function DayPage({ view = "snap" }: { view?: View }) {
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
+  // Il corpo, dalla bilancia (todo 97). `null` vuol dire "nessuna pesata fino
+  // a questo giorno", e allora la card non c'e': non e' un buco da annunciare
+  // — chi non ha una bilancia non ha niente da vedere.
+  const [body, setBody] = useState<BodyComposition | null>(null);
   const [refresh, setRefresh] = useState<RefreshStatus | null>(null);
   // La cache viaggia sullo stesso stato del lavoro ma non e' del lavoro: si
   // tiene a parte, cosi' la guardia sul tipo qui sotto non la butta via.
@@ -247,6 +252,24 @@ export function DayPage({ view = "snap" }: { view?: View }) {
     return () => controller.abort();
   }, [day, view]);
 
+  // Il corpo del giorno (todo 97), solo sullo Snap, che e' dove sta la card.
+  // `reloads` non c'entra: la bilancia non la scrive un agente, la scrive
+  // `make update_weight`.
+  useEffect(() => {
+    if (view !== "snap") return;
+    const controller = new AbortController();
+    setBody(null);
+    api
+      .dayBody(day, controller.signal)
+      .then(setBody)
+      .catch((e: unknown) => {
+        // Un errore qui non diventa "l'API e' giu'": la card e' un'aggiunta,
+        // e il resto dello Snap non deve perdere la pagina per lei.
+        if (!isAbort(e)) setBody(null);
+      });
+    return () => controller.abort();
+  }, [day, view]);
+
   // Lo Snap e' la vista di partenza e non si nomina, come non si nomina
   // nell'URL; le altre prendono la loro etichetta dal menu, cosi' il nome e'
   // scritto in un posto solo.
@@ -398,6 +421,10 @@ export function DayPage({ view = "snap" }: { view?: View }) {
               face={data.scores.fitness}
               refresh={sectionButton("fitness")}
             />
+            {/* La bilancia (todo 97): c'e' se c'e' una pesata fino a questo
+                giorno. Senza faccia e senza tasto, a differenza delle quattro
+                sopra: nessun agente la commenta — e' una misura e basta. */}
+            {body && <BodyCard body={body} icon={null} />}
           </div>
         ) : (
           !error && <p className="caption">Loading…</p>

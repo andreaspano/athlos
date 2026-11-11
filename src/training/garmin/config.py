@@ -17,6 +17,13 @@ un messaggio solo, cosi' non si scoprono i problemi uno alla volta. Lo stesso
 per le chiavi sconosciute (un refuso come `data_dirr` va detto per nome, non
 come "manca data_dir") e per i valori del tipo sbagliato.
 
+**Qualche chiave e' facoltativa** (`_OPTIONAL`): serve a una cosa che non
+tutti usano — le credenziali della bilancia — e chi quella cosa non ce l'ha
+non deve scriverla per far partire il programma. Facoltativa vuol dire
+*assente o buona*: se c'e' viene controllata come le altre, e se non c'e' la
+costante vale `None`. Non vuol dire "sconosciuta": un refuso resta un refuso
+e viene detto per nome.
+
 Il resto del codice importa i valori da qui, con i nomi di sempre
 (`DATA_DIR`, `REQUEST_DELAY`, ...): cosa significa ogni chiave lo dicono i
 commenti nei file YAML, che e' dove si cambiano.
@@ -48,6 +55,10 @@ class Config:
     request_delay: float
     health_refresh_days: int
     fitness_status_window_days: int
+    # La bilancia (le due qui sotto stanno insieme o non ci stanno): `None`
+    # quando non si usa.
+    renpho_usr: str | None = None
+    renpho_pwd: str | None = None
 
 
 def _is_number(value: Any) -> bool:
@@ -60,6 +71,17 @@ def _path(value: Any) -> tuple[Any, str | None]:
     if not isinstance(value, str) or not value.strip():
         return None, "deve essere un path (testo non vuoto)"
     return Path(value).expanduser(), None
+
+
+def _text(value: Any) -> tuple[Any, str | None]:
+    """Un valore di testo non vuoto, preso com'e'.
+
+    Niente `strip()`: una password puo' legittimamente cominciare o finire con
+    uno spazio, e tagliarlo di nascosto darebbe un login che fallisce senza
+    dire perche'."""
+    if not isinstance(value, str) or not value.strip():
+        return None, "deve essere del testo non vuoto"
+    return value, None
 
 
 def _token_store(value: Any) -> tuple[Any, str | None]:
@@ -112,6 +134,24 @@ _FIELDS = {
     "health_refresh_days": _days,
     "fitness_status_window_days": _days,
 }
+
+# Le chiavi **facoltative**: controllate se ci sono, `None` se non ci sono.
+# Qui ci stanno le credenziali della bilancia, che sono di chi ha una
+# bilancia: metterle fra quelle obbligatorie vorrebbe dire che senza di loro
+# non parte niente, e i dati del peso sono un pezzo in piu', non la radice.
+#
+# Non e' la porta di servizio per le chiavi nuove: una chiave va qui solo se
+# il programma sa cosa fare quando manca. Tutte le altre restano in `_FIELDS`,
+# dove assente e' un problema.
+_OPTIONAL = {
+    "renpho_usr": _text,
+    "renpho_pwd": _text,
+}
+
+# Le chiavi che stanno insieme o non ci stanno: una credenziale a meta' non e'
+# una configurazione, e' un refuso — e si vedrebbe soltanto al primo scarico
+# che fallisce.
+_TOGETHER = (("renpho_usr", "renpho_pwd"),)
 
 
 def load_data_root(path: Path) -> Path:
@@ -168,12 +208,20 @@ def load_config(path: Path) -> Config:
     missing = [key for key in _FIELDS if key not in raw]
     if missing:
         problems.append("chiavi mancanti: " + ", ".join(missing))
-    unknown = [str(key) for key in raw if key not in _FIELDS]
+    known = {**_FIELDS, **_OPTIONAL}
+    unknown = [str(key) for key in raw if key not in known]
     if unknown:
         problems.append("chiavi sconosciute: " + ", ".join(unknown))
+    for group in _TOGETHER:
+        written = [key for key in group if key in raw]
+        if written and len(written) < len(group):
+            absent = [key for key in group if key not in raw]
+            problems.append(
+                f"{', '.join(written)} senza {', '.join(absent)}: vanno scritte insieme"
+            )
 
     values = {}
-    for key, convert in _FIELDS.items():
+    for key, convert in known.items():
         if key not in raw:
             continue
         value, problem = convert(raw[key])
@@ -211,3 +259,7 @@ HISTORY_START = _config.history_start
 REQUEST_DELAY = _config.request_delay
 HEALTH_REFRESH_DAYS = _config.health_refresh_days
 FITNESS_STATUS_WINDOW_DAYS = _config.fitness_status_window_days
+# Le credenziali della bilancia: `None` quando non sono scritte, e allora chi
+# scarica il peso si ferma dicendolo invece di provare un login vuoto.
+RENPHO_USR = _config.renpho_usr
+RENPHO_PWD = _config.renpho_pwd

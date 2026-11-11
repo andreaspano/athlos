@@ -27,7 +27,7 @@ todo 65.
 | Cartella | Cos'e' | Quanto | In questo documento |
 |---|---|---|---|
 | `fit/` | i file originali delle attivita', scaricati da Garmin | 126 MB, 985 file | si' |
-| `health/` | le metriche giornaliere, una cartella per endpoint | 260 MB, ~56.700 file | si' |
+| `health/` | le metriche giornaliere, una cartella per endpoint, piu' le pesate della bilancia | 260 MB, ~56.700 file | si' |
 | `json/` | le cache di nomi e tipi, e le correzioni fatte a mano | 20 KB, 4 file | si' |
 | `db/` | `activities.db`, la cache ricostruibile | 197 MB | si' |
 | `user/` | `config.yaml`, `profile.yaml`, `avatar.jpg` | 48 KB | si' |
@@ -124,6 +124,31 @@ Undici endpoint, una cartella per endpoint, **un file per giorno** chiamato
 Il piu' pesante e' `sleep/` (46 MB): un file di sonno sono ~150 KB, perche'
 dentro c'e' la notte minuto per minuto. `stats/` sta sotto i 6 KB.
 
+**`body_composition/` non e' di Garmin** (todo 97): e' la bilancia Renpho, e
+la scrive `make update_weight` passando dal cloud di Renpho Health
+(`renpho/sync.py`). Stessa forma delle altre — un file per giorno,
+`<AAAA-MM-GG>.json` — con due differenze che vengono dal mestiere della
+bilancia e non da una scelta nostra:
+
+- dentro c'e' **la lista** delle pesate di quel giorno, non un oggetto solo:
+  su una bilancia ci si sale due volte di fila, e l'8 novembre 2026 ce ne sono
+  due a tre minuti di distanza;
+- i campi sono **i nostri**, non i 122 di Renpho: peso, BMI, grasso, acqua,
+  muscolo scheletrico e massa muscolare, massa magra, osso, proteine, grasso
+  sottocutaneo e viscerale, metabolismo basale, eta' corporea, e i cinque
+  segmenti (braccia, gambe, tronco) con la loro massa grassa e muscolare. Il
+  resto di quello che Renpho manda sono zeri, le sue fasce di riferimento e le
+  impedenze degli elettrodi.
+
+**Un campo a zero diventa `null`**: nessuno ha lo 0% di acqua. Una pesata coi
+calzini (`impedance: false`) ha il peso e il BMI misurati e il resto a `null`,
+e la card lo dice invece di disegnare un corpo fatto di zeri.
+
+Le pesate si rimandano anche a **Garmin Connect** (`add_body_composition`),
+cosi' l'orologio conta le calorie sul peso di stamattina: prima si guarda cosa
+Garmin ha gia' (`get_weigh_ins`, che le rende tutte, non una al giorno) e si
+salta quello che c'e', al minuto.
+
 **Un file c'e' anche quando il dato non c'e'.** I 6.147 file di `hrv/`
 partono dal 2010, ma l'orologio e' arrivato molto dopo: un giorno senza
 misura ha i campi a `null` — a volte `null` al posto di un dizionario intero.
@@ -170,7 +195,7 @@ si corregge dalla vista Training della Day: le correzioni stanno qui e non in
 
 | File | Cos'e' |
 |---|---|
-| `config.yaml` | token di login, fuso orario, inizio dello storico, pausa fra le richieste, le finestre in giorni. Tutte le chiavi obbligatorie, nessun default nel codice |
+| `config.yaml` | token di login, fuso orario, inizio dello storico, pausa fra le richieste, le finestre in giorni, e le credenziali della bilancia (`renpho_usr`, `renpho_pwd`). Nessun default nel codice; obbligatorie tutte tranne le due della bilancia, che sono facoltative — chi non ce l'ha non le scrive |
 | `profile.yaml` | i dati personali presi da Garmin (`userprofile-service`): id, nome, data di nascita, altezza, peso |
 | `avatar.jpg` | l'immagine del profilo |
 

@@ -270,6 +270,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/daily/{day}/body": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Body composition
+         * @description The body on one day, from the scale (todo 97): ten measures, and when they were taken.
+         *
+         *     **The day's weigh-in if there is one, otherwise the most recent one up to that day** —
+         *     never a later one, or a past day would be answered with today's weight. `days_ago` says
+         *     how far back it went, zero for the day's own, and there is no cutoff past which the card
+         *     gives up: a weight from six days ago is still your weight, as long as you know when it is
+         *     from. With a scale bought last week that fallback is the normal case, not the exception.
+         *
+         *     One weigh-in and not a best-of: of a day with several, the last **complete** one — the
+         *     electrodes read it — or the last one if none is complete. A weigh-in with no impedance
+         *     carries the weight and the BMI, and null for the rest; `impedance: false` says so, and
+         *     null is not zero.
+         *
+         *     404 when no weigh-in exists up to that day, which is a state and not an error: `health/
+         *     body_composition/` is written by `make update_weight`, and whoever has no scale has no
+         *     folder. A day in the future is a 422, like `/api/daily/{day}`.
+         */
+        get: operations["get_day_body_api_daily__day__body_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/daily/{day}/plan": {
         parameters: {
             query?: never;
@@ -487,13 +522,19 @@ export interface paths {
          *     The same reading as `/api/plans/<slug>/block`, **keyed by the week and cut at it**: the
          *     goal is the one the week's file declares (`plan:` in `summary/05.plan/<monday>.md`), and
          *     nothing after this Monday is measured. So the answer for a past week is the block as it
-         *     stood at the end of that week, and the answer for the week in progress carries its own
-         *     kilometres as `partial` — out of the line until the week is over. That is the beat of the
-         *     weekly report, and it is on purpose: a block is read once a week, not live.
+         *     stood at the end of that week.
          *
-         *     404 when the week has no plan file, when its plan declares no goal, or when that goal is
-         *     gone from `plan/` — none of the three is an error, they are states. A Monday in the future
-         *     is allowed, as for `/plan`: the block is written in advance.
+         *     **Only a closed week has one.** The answer arrives with the week's comment — the
+         *     `training` section of its report, written by the Sunday 21:00 run — and before that it is
+         *     a 404: a block is read once a week, not live, and half a week drawn as a week is the thing
+         *     `partial` already refuses to do for the kilometres. The gate is the comment and not the
+         *     clock, so a week whose Sunday run did not run has no chart until that text exists, by
+         *     timer or by the card's own button.
+         *
+         *     404, then, when the week has no plan file, when its plan declares no goal, when that goal
+         *     is gone from `plan/`, or when the week has not been commented yet — none of the four is an
+         *     error, they are states. A Monday in the future is allowed, as for `/plan`, and answers 404
+         *     for the same reason as this week: nobody has commented it.
          */
         get: operations["get_week_shape_api_weekly__monday__shape_get"];
         put?: never;
@@ -514,7 +555,8 @@ export interface paths {
         /**
          * The block of a week, Vega-Lite
          * @description One Vega-Lite spec of `/shape`: the kilometres on the left axis, the spread of speed on
-         *     the right. This is what the Training view of the Week draws, under the week's work.
+         *     the right. This is what the Training view of the Week draws, under the week's work — and
+         *     only for a week that has been closed and commented, like `/shape` itself.
          *
          *     Singular, unlike the three panels of `/api/weekly/<monday>/block/charts/vega`: here the
          *     two readings are drawn **together on purpose**, because the week that ran the most
@@ -1523,6 +1565,92 @@ export interface components {
              * @description base, build, specific, taper or race.
              */
             phase: string | null;
+        };
+        /**
+         * BodyComposition
+         * @description The body on one day: one weigh-in, with when it was taken.
+         *
+         *     **One weigh-in, never a best-of**: the weight of tonight and the fat of this morning are
+         *     two moments, and stitched together they would describe a body that never existed.
+         */
+        BodyComposition: {
+            /**
+             * Day
+             * Format: date
+             * @description The day asked for.
+             */
+            day: string;
+            /**
+             * Measured At
+             * @description Local time of the weigh-in, to the second.
+             */
+            measured_at: string;
+            /**
+             * Measured Day
+             * Format: date
+             * @description The day the weigh-in belongs to.
+             */
+            measured_day: string;
+            /**
+             * Days Ago
+             * @description How far back the weigh-in is from the day asked: zero when it is that day's own. Never negative — a past day is never answered with a later weigh-in.
+             */
+            days_ago: number;
+            /**
+             * Impedance
+             * @description False for a weigh-in the electrodes did not read (socks, dry feet): the weight and the BMI are there, the composition is null.
+             */
+            impedance: boolean;
+            /**
+             * Measures
+             * @description The ten numbers, in reading order.
+             */
+            measures: components["schemas"]["BodyMeasure"][];
+            /**
+             * Body Age
+             * @description What the scale makes of your age.
+             */
+            body_age: number | null;
+            /**
+             * Age
+             * @description The real one, as the scale knows it.
+             */
+            age: number | null;
+            /**
+             * Weighings
+             * @description How many weigh-ins the twelve-week window carries, this one included: what the bands are computed from.
+             */
+            weighings: number;
+        };
+        /**
+         * BodyMeasure
+         * @description One measure of the body, as the card draws it.
+         */
+        BodyMeasure: {
+            /**
+             * Key
+             * @description Field name in `health/body_composition/<day>.json`.
+             */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Unit
+             * @description Empty for the ones that have none (BMI, visceral fat).
+             */
+            unit: string;
+            /**
+             * Digits
+             * @description Decimals the measure carries: 1 for kilos, 0 for kcal.
+             */
+            digits: number;
+            /**
+             * Value
+             * @description Null when the scale did not measure it — a weigh-in with no impedance has the weight and the BMI and nothing else. Null is not zero: nobody is 0% water.
+             */
+            value: number | null;
+            /** @description Where the measure usually sits, read the same way as on every other card: the mean of the weigh-ins of the twelve weeks ending with this one, plus and minus one standard deviation (`low`/`high`) and two (`outer_*`). The weigh-in shown belongs to its own window — the band describes a period, it does not judge the morning. Null under three weigh-ins, where the standard deviation says nothing; `weighings` says how many there are, so the card can explain the empty bar. */
+            band: components["schemas"]["Band"] | null;
         };
         /**
          * ChartBin
@@ -3451,6 +3579,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DailyData"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_day_body_api_daily__day__body_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                day: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BodyComposition"];
                 };
             };
             /** @description Validation Error */
