@@ -23,6 +23,11 @@ toglie)."""
 
 from typing import Literal
 
+# La direzione delle misure della bilancia sta in `body_data.py`, dove serve
+# gia' al colore della tacca: di la' non si importa niente da qui, quindi
+# l'anello non si chiude.
+from training.interface.body_data import GOOD_HIGH as BODY_GOOD_HIGH
+
 Verdict = Literal["terrible", "low", "medium", "high", "perfect"]
 
 # Dal gradino (-2..+2) alla parola.
@@ -62,21 +67,30 @@ GOOD_LOW: frozenset[str] = frozenset({
 })
 
 
-def step(value: float | None, band: dict | None, key: str) -> int | None:
+def step(
+    value: float | None, band: dict | None, key: str, good_high: bool | None = None
+) -> int | None:
     """Il gradino di una misura, da -2 a +2, o `None` se non si puo' dire.
 
     `None` quando manca il valore, manca la fascia (troppi pochi periodi
     misurati) o la misura non sta nella tabella delle direzioni: **non
     votare e' diverso da votare zero**, e una misura che non si sa leggere
-    non deve tirare la media verso il centro."""
+    non deve tirare la media verso il centro.
+
+    `good_high` e' la direzione detta da fuori, per le misure che nelle due
+    tabelle qui sopra non ci sono: la bilancia ha la sua, in `body_data.py`,
+    e sarebbe sbagliato copiarla qui per poi tenerle d'accordo a mano. Detta
+    da fuori vince sulle tabelle, che e' l'unico modo perche' serva a
+    qualcosa."""
     if value is None or not band:
         return None
-    if key in GOOD_HIGH:
-        good_high = True
-    elif key in GOOD_LOW:
-        good_high = False
-    else:
-        return None
+    if good_high is None:
+        if key in GOOD_HIGH:
+            good_high = True
+        elif key in GOOD_LOW:
+            good_high = False
+        else:
+            return None
     low, high = band.get("low"), band.get("high")
     outer_low, outer_high = band.get("outer_low"), band.get("outer_high")
     if low is None or high is None:
@@ -245,3 +259,45 @@ def _card_scores(
         _WORDS.index(word) - 2 if word is not None else None for word in words.values()
     ])
     return {**words, "summary": summary}
+
+
+# Le misure della bilancia che votano la faccia di Body, e da che parte sta
+# il loro bene. **Tre su dieci**, e le sette fuori non sono una dimenticanza:
+#
+# - **il BMI e' il peso**, diviso per un'altezza che non cambia. Farlo votare
+#   accanto al peso conterebbe due volte lo stesso fatto e farebbe pesare il
+#   peso il doppio del grasso
+# - **il metabolismo basale e' calcolato dagli altri**, e cala quando cali:
+#   votando "piu' alto e' meglio" cancellerebbe sistematicamente la buona
+#   notizia del peso che scende
+# - acqua, proteine, massa magra, osso e grasso viscerale non hanno un lato
+#   buono che la bilancia sappia dire, e una misura che non si sa leggere non
+#   vota (`step` lo dice gia' a modo suo)
+#
+# Restano tre fatti indipendenti: quanto pesi, quanta parte e' grasso, quanto
+# muscolo porti. La direzione viene da `body_data.py`, che e' dove sta scritta
+# per il colore della tacca: una tabella sola per le due cose.
+BODY_VOTERS: tuple[str, ...] = ("weight_kg", "body_fat_pct", "skeletal_muscle_kg")
+
+
+def body_score(measures: list[dict]) -> Verdict | None:
+    """La faccia della card Body: come sta andando il corpo **rispetto alle
+    tue ultime dodici settimane**, non rispetto al bersaglio della bilancia.
+
+    E' la stessa lettura relativa di tutte le altre facce: `perfect` vuol dire
+    insolitamente bene per te, e un peso fermo dove sta di solito e' `medium`
+    anche se dall'ideale lo separano venti chili. La distanza dal bersaglio la
+    dicono gia' le barre, tacca verde o rossa, e dirla due volte avrebbe
+    lasciato la faccia inchiodata sulla stessa smorfia per mesi — che e' un
+    disegno, non una notizia.
+
+    `None` finche' le fasce non ci sono: sotto tre pesate in dodici settimane
+    nessuna misura vota, e la card resta senza faccia."""
+    steps = []
+    for measure in measures:
+        key = measure.get("key")
+        if key not in BODY_VOTERS:
+            continue
+        steps.append(step(measure.get("value"), measure.get("band"), key,
+                          good_high=key in BODY_GOOD_HIGH))
+    return verdict(steps)

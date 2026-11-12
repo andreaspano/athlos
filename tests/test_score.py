@@ -5,7 +5,7 @@ ne' a `terrible`."""
 
 import pytest
 
-from training.api.score import _card_scores, centred, verdict
+from training.api.score import _card_scores, body_score, centred, step, verdict
 
 BAND = {"low": 0, "high": 27, "outer_low": -10, "outer_high": 40}
 
@@ -109,3 +109,81 @@ class TestWeeklyLoadVotes:
         payload = self.payload(150, (150, 150, 150))
         payload["zones"] = {}
         assert weekly_scores(payload)["load"] == "high"
+
+
+class TestBodyFace:
+    """La faccia della card Body: tre misure su dieci votano, e si leggono
+    contro le dodici settimane prima — non contro il bersaglio della
+    bilancia."""
+
+    @staticmethod
+    def measures(**values):
+        """Le dieci misure come le manda `body_on`, con la fascia solo dove
+        serve al test. Il bersaglio non c'entra con la faccia, e infatti qui
+        non si scrive."""
+        bands = {
+            "weight_kg": {"low": 102.0, "high": 104.0, "outer_low": 101.0, "outer_high": 105.0},
+            "body_fat_pct": {"low": 26.0, "high": 28.0, "outer_low": 25.0, "outer_high": 29.0},
+            "skeletal_muscle_kg": {
+                "low": 42.0, "high": 44.0, "outer_low": 41.0, "outer_high": 45.0
+            },
+        }
+        return [
+            {"key": key, "value": values.get(key), "band": bands.get(key)}
+            for key in (
+                "weight_kg", "bmi", "body_fat_pct", "skeletal_muscle_kg", "bmr_kcal",
+                "water_pct", "fat_free_kg", "bone_kg", "protein_pct", "visceral_fat",
+            )
+        ]
+
+    def test_where_you_usually_are_is_medium(self):
+        """Tutte e tre dentro la loro fascia: il corpo sta dove sta di solito,
+        e non e' ne' una buona ne' una cattiva notizia — anche se dal peso
+        ideale lo separano ventitre chili."""
+        face = body_score(self.measures(weight_kg=102.7, body_fat_pct=27.5,
+                                        skeletal_muscle_kg=42.9))
+        assert face == "medium"
+
+    def test_lighter_leaner_stronger_is_the_good_end(self):
+        """Peso e grasso sotto la fascia, muscolo sopra: le tre direzioni
+        tirano tutte dalla stessa parte, ed e' la parte buona."""
+        face = body_score(self.measures(weight_kg=100.0, body_fat_pct=24.0,
+                                        skeletal_muscle_kg=46.0))
+        assert face == "perfect"
+
+    def test_heavier_fatter_weaker_is_the_bad_end(self):
+        face = body_score(self.measures(weight_kg=106.0, body_fat_pct=30.0,
+                                        skeletal_muscle_kg=40.0))
+        assert face == "terrible"
+
+    def test_bmi_and_metabolism_do_not_vote(self):
+        """Il BMI ripete il peso e il metabolismo e' calcolato dagli altri:
+        dargli voce conterebbe due volte gli stessi fatti. Qui hanno un valore
+        e una fascia **ottimi** e la faccia non si muove di un gradino."""
+        plain = self.measures(weight_kg=102.7, body_fat_pct=27.5, skeletal_muscle_kg=42.9)
+        loud = [
+            {**m, "value": 18.0, "band": {"low": 25.0, "high": 30.0,
+                                          "outer_low": 24.0, "outer_high": 31.0}}
+            if m["key"] in ("bmi", "bmr_kcal") else m
+            for m in plain
+        ]
+        assert body_score(loud) == body_score(plain) == "medium"
+
+    def test_no_bands_no_face(self):
+        """Sotto tre pesate in dodici settimane nessuna misura ha una fascia:
+        la card resta senza faccia, che non e' una faccia storta."""
+        naked = [
+            {**m, "band": None}
+            for m in self.measures(weight_kg=102.7, body_fat_pct=27.5, skeletal_muscle_kg=42.9)
+        ]
+        assert body_score(naked) is None
+        assert body_score([]) is None
+
+    def test_the_direction_comes_from_the_scale_table(self):
+        """`step` con la direzione detta da fuori: il muscolo che sale e' un
+        voto positivo, e senza quel parametro non sarebbe nemmeno un voto —
+        `skeletal_muscle_kg` nelle tabelle della salute non c'e'."""
+        band = {"low": 42.0, "high": 44.0, "outer_low": 41.0, "outer_high": 45.0}
+        assert step(46.0, band, "skeletal_muscle_kg") is None
+        assert step(46.0, band, "skeletal_muscle_kg", good_high=True) == 2
+        assert step(46.0, band, "skeletal_muscle_kg", good_high=False) == -2

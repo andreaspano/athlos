@@ -39,6 +39,7 @@ from training.api.plans import (
     set_current,
     weeks_following,
 )
+from training.api.score import body_score
 from training.api.sections import DAILY, SECTIONS, WEEKLY
 from training.api.sections import Report as Report_
 from training.api.weekly import weekly_payload
@@ -465,6 +466,11 @@ def get_day_body(day: date, ctx: Context) -> BodyComposition:
     data = body_on(ctx.data_dir, day)
     if data is None:
         raise HTTPException(status_code=404, detail=f"No weigh-in up to {day}.")
+    # La faccia si aggiunge qui e non dentro `body_on`: la scala delle cinque
+    # parole sta in `api/score.py`, e l'interfaccia non importa dall'API.
+    # Stessa strada delle altre quattro, che `daily_payload` attacca al suo
+    # dizionario un attimo prima di consegnarlo.
+    data["face"] = body_score(data["measures"])
     return BodyComposition(**{name: data[name] for name in BodyComposition.model_fields})
 
 
