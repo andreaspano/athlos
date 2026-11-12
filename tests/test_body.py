@@ -11,7 +11,7 @@ from datetime import date, datetime
 
 import pytest
 
-from training.interface.body_data import body_on
+from training.interface.body_data import _beats_target, body_on
 from training.renpho.sync import measurement, write_days
 
 # Una riga di Renpho, ridotta ai campi che contano. Quella vera ne ha 122, e
@@ -190,7 +190,7 @@ class TestBodyOn:
         assert band["outer_low"] < band["low"] and band["high"] < band["outer_high"]
 
     def test_the_target_is_the_scale_ideal(self, data_dir):
-        """La linea verde della barra: il bersaglio che la bilancia propone,
+        """La linea bassa della barra: il bersaglio che la bilancia propone,
         cioe' `ideal` del suo riferimento, preso per chiave.
 
         Nel campione il peso, il BMI e il grasso hanno lo `Std` e quindi un
@@ -206,8 +206,8 @@ class TestBodyOn:
 
     def test_the_measures_the_scale_proposes_nothing_for_have_no_target(self, data_dir):
         """Acqua, proteine, massa magra, grasso viscerale: la bilancia non dice
-        dove dovrebbero arrivare, e una linea verde inventata sarebbe un
-        obiettivo inventato."""
+        dove dovrebbero arrivare, e una linea inventata sarebbe un obiettivo
+        inventato."""
         body = body_on(data_dir, date(2026, 11, 10))
         targets = {m["key"]: m["target"] for m in body["measures"]}
         assert targets["water_pct"] is None
@@ -243,6 +243,52 @@ class TestBodyOn:
         incomplete = next(m for m in found if not m["impedance"])
         assert incomplete["reference"]["weight_kg"]["low"] == 67.5
         assert only["impedance"] is True
+
+
+class TestBeatsTarget:
+    """Da che parte sta il bene (`_beats_target`): il verde e il rosso della
+    tacca sulle barre di Body.
+
+    Qui si controlla la **direzione**, che e' l'unica cosa che il codice sa di
+    fisiologia e l'unica che, sbagliata, dipinge di verde una cattiva notizia.
+    """
+
+    def test_going_down_is_good_for_weight_bmi_and_fat(self):
+        """Peso, BMI e grasso: sopra il bersaglio e' rosso, sotto e' verde."""
+        assert _beats_target("weight_kg", 102.7, 79.4) is False
+        assert _beats_target("weight_kg", 78.0, 79.4) is True
+        assert _beats_target("bmi", 28.4, 22.0) is False
+        assert _beats_target("body_fat_pct", 27.5, 15.0) is False
+        assert _beats_target("body_fat_pct", 14.0, 15.0) is True
+
+    def test_going_up_is_good_for_muscle_and_metabolism(self):
+        """Muscolo scheletrico e metabolismo basale si leggono al contrario:
+        42.9 kg contro un bersaglio di 38.1 e' una buona notizia, e un codice
+        che non lo sapesse la dipingerebbe di rosso."""
+        assert _beats_target("skeletal_muscle_kg", 42.93, 38.1) is True
+        assert _beats_target("skeletal_muscle_kg", 36.0, 38.1) is False
+        assert _beats_target("bmr_kcal", 1979, 1828) is True
+        assert _beats_target("bmr_kcal", 1700, 1828) is False
+
+    def test_the_target_reached_counts_as_reached(self):
+        """Pari al bersaglio e' verde da entrambi i lati: arrivarci non e' un
+        modo di non arrivarci."""
+        assert _beats_target("weight_kg", 79.4, 79.4) is True
+        assert _beats_target("skeletal_muscle_kg", 38.1, 38.1) is True
+
+    def test_no_side_no_colour(self):
+        """Acqua, proteine, osso: la bilancia non propone un bersaglio e
+        nessuno sa da che parte stia il meglio. `None`, e la tacca resta del
+        nero di tutte le altre — anche se un bersaglio arrivasse."""
+        assert _beats_target("water_pct", 53.2, None) is None
+        assert _beats_target("water_pct", 53.2, 55.0) is None
+        assert _beats_target("protein_pct", 14.5, None) is None
+
+    def test_nothing_measured_nothing_judged(self):
+        """Una pesata coi calzini ha la composizione a `None`: non si giudica
+        quello che gli elettrodi non hanno letto."""
+        assert _beats_target("body_fat_pct", None, 15.0) is None
+        assert _beats_target("weight_kg", None, 79.4) is None
 
 
 class TestWriteDays:

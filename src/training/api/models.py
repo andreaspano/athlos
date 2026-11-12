@@ -928,10 +928,19 @@ class BodyMeasure(BaseModel):
         "has the weight and the BMI and nothing else. Null is not zero: nobody is 0% water."
     )
     target: float | None = Field(
-        description="The goal the scale proposes for this measure, in the same unit — the green "
-        "line on the bar. It is the scale's own `ideal`, a property of your height, age and sex, "
-        "not something computed here. Null for the measures it proposes none for (water, "
-        "protein, fat-free mass, visceral fat, bone)."
+        description="The goal the scale proposes for this measure, in the same unit — the "
+        "shorter line on the bar. It is the scale's own `ideal`, a property of your height, age "
+        "and sex, not something computed here. Null for the measures it proposes none for "
+        "(water, protein, fat-free mass, visceral fat, bone)."
+    )
+    beats_target: bool | None = Field(
+        default=None,
+        description="Whether the value sits on the better side of its target: true colours the "
+        "value mark green on the bar, false red. Which side is better is physiology, decided "
+        "here and not by the page — down for weight, BMI and body fat, up for skeletal muscle "
+        "and basal metabolism. Equal to the target counts as reached. Null, and the mark stays "
+        "the colour of the text, when the value or the target is missing, or when the measure "
+        "has no better side at all (water, protein, fat-free mass, visceral fat, bone)."
     )
     band: "Band | None" = Field(
         description="Where the measure usually sits, read the same way as on every other card: "

@@ -19,21 +19,27 @@ import pandas as pd
 from training.interface.daily_data import _band as _history_band
 from training.renpho.sync import FOLDER
 
-# Le dieci misure della card, nell'ordine in cui si leggono: prima quanto
-# pesi, poi di cosa sei fatto, poi cosa consumi. L'unita' e i decimali
-# viaggiano col numero, come fa la settimana (`WeekMeasure`), cosi' la pagina
-# disegna quello che arriva.
+# Le dieci misure della card, nell'ordine in cui si leggono. La card le
+# dispone in due righe da cinque, e le due righe non sono una lista spezzata
+# a meta': **nella prima stanno le cinque misure che hanno un bersaglio**
+# (peso, BMI, grasso, muscolo scheletrico, metabolismo), nella seconda le
+# cinque che non ce l'hanno. Sono le stesse cinque per cui la bilancia
+# propone un valore per altezza, eta' e sesso, quindi la riga di sopra e'
+# l'unica dove ogni barra ha la linea del bersaglio e si legge una distanza da
+# coprire; sotto restano i numeri che si guardano e basta. L'unita' e i
+# decimali viaggiano col numero, come fa la settimana (`WeekMeasure`), cosi'
+# la pagina disegna quello che arriva.
 MEASURES: tuple[tuple[str, str, str, int], ...] = (
     ("weight_kg", "Weight", "kg", 1),
     ("bmi", "BMI", "", 1),
     ("body_fat_pct", "Body fat", "%", 1),
-    ("water_pct", "Water", "%", 1),
     ("skeletal_muscle_kg", "Skeletal muscle", "kg", 1),
+    ("bmr_kcal", "Basal metabolism", "kcal", 0),
+    ("water_pct", "Water", "%", 1),
     ("fat_free_kg", "Fat-free mass", "kg", 1),
     ("bone_kg", "Bone", "kg", 1),
     ("protein_pct", "Protein", "%", 1),
     ("visceral_fat", "Visceral fat", "", 0),
-    ("bmr_kcal", "Basal metabolism", "kcal", 0),
 )
 
 # La finestra della fascia: le stesse dodici settimane delle card della
@@ -56,6 +62,44 @@ MIN_BAND_WEIGHINS = 3
 # mosso nelle ultime dodici settimane — e un periodo contiene anche l'ultima
 # mattina. In pratica vuol dire anche vedere la fascia una pesata prima, che
 # all'inizio di uno storico non e' poco.
+
+# Da che parte sta il bene, per le misure che hanno un bersaglio. Serve alla
+# tacca del valore, che la card colora di verde quando il valore sta dalla
+# parte buona del bersaglio e di rosso quando sta dall'altra: senza una
+# direzione «meglio» non vuol dire niente, perche' su una bilancia 42.9 contro
+# 38.1 e' una buona notizia per il muscolo e 102.7 contro 79.4 una cattiva per
+# il peso.
+#
+# E' la stessa idea di `GOOD_HIGH`/`GOOD_LOW` in `api/score.py` — da che parte
+# sta il male, scritto dove il codice lo puo' usare invece che solo nel prompt
+# degli agenti — e di proposito non e' la stessa tabella: la' le misure sono
+# quelle della salute e il confronto e' con la fascia dello storico, qui sono
+# quelle della bilancia e il confronto e' con il bersaglio che propone lei.
+#
+# **Il bene e' un lato, non una distanza**: sotto il peso ideale la tacca
+# resta verde. Per un uomo di 102.7 kg che punta a 79.4 e' la risposta giusta,
+# e il giorno in cui uno di questi numeri potra' essere *troppo* basso — il
+# grasso al 3%, il BMI a 17 — questa tabella non bastera' piu' e vorra' due
+# soglie invece di un lato.
+GOOD_LOW: frozenset[str] = frozenset({"weight_kg", "bmi", "body_fat_pct"})
+GOOD_HIGH: frozenset[str] = frozenset({"skeletal_muscle_kg", "bmr_kcal"})
+
+
+def _beats_target(key: str, value: float | None, target: float | None) -> bool | None:
+    """Se quel valore sta dalla parte buona del suo bersaglio.
+
+    `None` — e la tacca resta del nero di tutte le altre — quando manca il
+    valore, manca il bersaglio o quella misura non ha un lato buono: una
+    pesata senza impedenza non va giudicata, e nemmeno l'acqua al 53%, che la
+    bilancia non sa dove dovrebbe stare. Pari al bersaglio conta come
+    arrivato, da entrambi i lati."""
+    if value is None or target is None:
+        return None
+    if key in GOOD_LOW:
+        return value <= target
+    if key in GOOD_HIGH:
+        return value >= target
+    return None
 
 
 
@@ -174,23 +218,28 @@ def body_on(data_dir: Path, day: date) -> dict[str, Any] | None:
     # preso **per chiave**, cosi' nessuna tabella in piu' da tenere
     # d'accordo. Ce l'hanno peso (79.4 kg), BMI (22.0), grasso (15%), muscolo
     # scheletrico (38.1 kg) e metabolismo basale (1828 kcal); acqua, proteine,
-    # massa magra, grasso viscerale e osso no, e allora la linea verde non si
-    # disegna. Il BMI qui ha un bersaglio sensato pur non avendo una fascia
+    # massa magra, grasso viscerale e osso no, e allora la linea del bersaglio
+    # non si disegna. Il BMI qui ha un bersaglio sensato pur non avendo una fascia
     # usabile: 22.0 e' un BMI a cui mirare, 25-30 non e' un intervallo in cui
     # stare.
     reference = measure.get("reference") or {}
-    measures = [
-        {
+    measures = []
+    for key, label, unit, digits in MEASURES:
+        value = measure.get(key)
+        target = (reference.get(key) or {}).get("ideal")
+        measures.append({
             "key": key,
             "label": label,
             "unit": unit,
             "digits": digits,
-            "value": measure.get(key),
+            "value": value,
             "band": _band(window, key, digits),
-            "target": (reference.get(key) or {}).get("ideal"),
-        }
-        for key, label, unit, digits in MEASURES
-    ]
+            "target": target,
+            # Il giudizio sta qui e non nella pagina: da che parte sta il bene
+            # e' fisiologia, e la regola del todo 52 e' che la pagina disegna
+            # quello che arriva. La card ne fa un colore, non un confronto.
+            "beats_target": _beats_target(key, value, target),
+        })
     return {
         "day": day,
         "measured_at": measure["measured_at"],
