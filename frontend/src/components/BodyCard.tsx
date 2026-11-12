@@ -60,6 +60,19 @@
 // arriva alla terza pesata, il bersaglio c'e' dalla prima, e fra le due linee
 // si legge la distanza da coprire.
 //
+// **L'icona e la faccia, come le altre card.** L'icona e' una persona in un
+// cerchio ciano (`icons/body.png`, disegnata da `tools/body_icon.py`) e la
+// passa la Day: le quattro card sopra prendono la loro dal report, sezione
+// per sezione, e Body una sezione del report non ce l'ha — e' una card di
+// soli numeri. La faccia invece arriva con i dati (`face`), decisa dai
+// numeri come quelle di Health, Load, Recovery e Fitness.
+//
+// **La faccia guarda le tue dodici settimane, non il bersaglio.** Di
+// bersagli ne parlano gia' le barre, tacca verde o rossa; una faccia che
+// dicesse la stessa cosa resterebbe la stessa per mesi — a venti chili
+// dall'ideale sarebbe `terrible` a gennaio come a dicembre, e una faccia che
+// non si muove e' un disegno, non una notizia.
+//
 // I segmenti (braccia, gambe, tronco) e le impedenze non sono qui: la
 // bilancia li misura e i file li tengono, ma vogliono un disegno loro — un
 // corpo con cinque valori, non una fila di riquadri.
@@ -86,6 +99,12 @@ export function BodyCard({ body, icon }: { body: BodyComposition; icon: string |
       <CardHead
         icon={icon}
         title="Body"
+        // La faccia come sulle altre quattro card, e come loro la mandano i
+        // numeri e non un'opinione: qui pesa, grasso e muscolo contro le
+        // dodici settimane prima (`body_score`). `null` finche' le fasce non
+        // ci sono, e allora la card resta senza — niente faccia e' diverso
+        // da faccia storta.
+        face={body.face}
         note={
           // Il giorno della pesata col nome del giorno della settimana, come
           // nelle righe delle sedute: in una card che mostra spesso una

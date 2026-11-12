@@ -1581,6 +1581,11 @@ export interface components {
              */
             day: string;
             /**
+             * Face
+             * @description How the body is going, in one of the five words (todo 92) — the face in the corner of the card. Read against **your own last twelve weeks**, like every other face on the page, and not against the scale's target: `perfect` means unusually good for you, and a weight sitting where it usually sits is `medium` even when the ideal is twenty kilos away. The distance from the target is what the bars say already. Three measures vote — weight, body fat and skeletal muscle — because BMI restates the weight and basal metabolism is computed from the rest. Null under three weigh-ins in twelve weeks, where no measure has a band to be read against.
+             */
+            face?: ("terrible" | "low" | "medium" | "high" | "perfect") | null;
+            /**
              * Measured At
              * @description Local time of the weigh-in, to the second.
              */

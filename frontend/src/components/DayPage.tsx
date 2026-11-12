@@ -424,7 +424,10 @@ export function DayPage({ view = "snap" }: { view?: View }) {
             {/* La bilancia (todo 97): c'e' se c'e' una pesata fino a questo
                 giorno. Senza faccia e senza tasto, a differenza delle quattro
                 sopra: nessun agente la commenta — e' una misura e basta. */}
-            {body && <BodyCard body={body} icon={null} />}
+            {/* L'icona non viene dal report, come quelle delle quattro card
+                sopra: Body non e' una sezione del report, e il file lo
+                nomina qui chi la disegna. */}
+            {body && <BodyCard body={body} icon="body.png" />}
           </div>
         ) : (
           !error && <p className="caption">Loading…</p>
