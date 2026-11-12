@@ -23,7 +23,12 @@
   --summary-moon: #6b63a8;
   --warn-bg: rgba(255, 189, 69, 0.22);
   --warn-text: #8a6100;
+  /* Il verde e il rosso del giudizio: la tacca del valore sulle barre con un
+     bersaglio (la card Body). `--up` c'era gia' e non lo usava nessuno; il
+     rosso e' nuovo e sta nella stessa famiglia, scuro sul fondo chiaro e
+     chiaro sul fondo scuro, perche' un rosso solo non si legge nei due temi. */
   --up: #1f7a3a;
+  --down: #c92a2a;
   --low: rgb(170, 162, 222);
   /* La fascia larga (due scarti tipo) sotto quella stretta: lo stesso viola
      dell'accento, molto piu' leggero, cosi' si legge come la stessa cosa. */
@@ -53,6 +58,7 @@
     --warn-bg: rgba(255, 227, 18, 0.16);
     --warn-text: #ffe89a;
     --up: #6fd08f;
+    --down: #ff8787;
     --low: rgb(92, 85, 158);
     --band-wide: rgba(144, 133, 233, 0.22);
     --high: rgb(144, 133, 233);
@@ -1066,36 +1072,61 @@ body.rail-closed {
   background: var(--text);
   border-radius: 1px;
 }
-/* Il bersaglio: una linea **verde** dentro la traccia, piu' bassa e piu'
-   sottile della tacca del valore, che le sta sopra. Due righe verticali sulla
-   stessa barra si distinguono dal colore e dall'altezza: quella scura e' dove
-   sei, quella verde dove quella misura dovrebbe arrivare (todo 97).
+/* La tacca del valore sulle barre che hanno un bersaglio: **verde se il
+   valore sta dalla parte buona, rosso se sta dall'altra**. Da che parte sia
+   il bene lo decide l'API (`beats_target`), che e' l'unico posto dove si sa
+   che per il peso si scende e per il muscolo si sale; qui si dipinge.
 
-   Il verde non viene dalla tinta della card — qui non e' un'altra sfumatura
-   della stessa cosa, e' un'altra cosa — ed e' lo stesso nei due temi, solo
-   piu' chiaro al buio per staccare dal fondo. */
+   Il nero resta il caso normale, non un ripiego: senza bersaglio — le altre
+   quattro card, e le cinque misure della seconda riga di Body — non c'e'
+   niente da giudicare, e una tacca colorata direbbe di piu' di quello che si
+   sa. Il colore e' sulla tacca del valore e non sulla linea del bersaglio:
+   il giudizio e' su dove sei, il bersaglio e' solo il metro. */
+.range-marker.good {
+  background: var(--up);
+}
+.range-marker.bad {
+  background: var(--down);
+}
+/* Le due parole della didascalia che nominano i colori: dette in verde e in
+   rosso, o la frase chiede di cercare una cosa che non si vede. */
+.word-good {
+  color: var(--up);
+  font-weight: 600;
+}
+.word-bad {
+  color: var(--down);
+  font-weight: 600;
+}
+/* Il bersaglio: una linea dentro la traccia, piu' bassa e piu' sottile della
+   tacca del valore, che le sta sopra. **Le due righe verticali sulla stessa
+   barra si distinguono dall'altezza, non dal colore**: sono entrambe del nero
+   del testo, e quella del valore e' piu' alta (16px contro 10) e piu' spessa
+   (3px contro 2) (todo 97).
+
+   E' stato verde, per dire "questa e' un'altra cosa". Ora e' `--text`, lo
+   stesso colore di tutte le scritte della card e della tacca del valore: una
+   barra con due neri di altezza diversa si legge come una misura sola con due
+   riferimenti, che e' quello che e'. `--text` e non `#000` perche' il nero
+   vero, al buio, sul fondo #0e1117 non si vede: la variabile e' quasi nera in
+   tema chiaro e quasi bianca in tema scuro, e per questo non serve piu' un
+   blocco `prefers-color-scheme` qui — ne' per la linea ne' per i numeri. */
 .range-target {
   position: absolute;
   top: -1px;
   width: 2px;
   height: 10px;
   margin-left: -1px;
-  background: rgb(47, 158, 68);
+  background: var(--text);
   border-radius: 1px;
 }
+/* Il numero del bersaglio sotto la barra e la parola che lo nomina nella
+   didascalia: nero come il resto, e il grassetto e' quello che resta a
+   distinguerli dai numeri della fascia. */
 .tick-target,
 .target-word {
-  color: rgb(47, 158, 68);
+  color: var(--text);
   font-weight: 600;
-}
-@media (prefers-color-scheme: dark) {
-  .range-target {
-    background: rgb(81, 207, 102);
-  }
-  .tick-target,
-  .target-word {
-    color: rgb(81, 207, 102);
-  }
 }
 .range-ticks {
   position: relative;

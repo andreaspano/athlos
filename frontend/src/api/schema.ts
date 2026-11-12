@@ -1651,9 +1651,14 @@ export interface components {
             value: number | null;
             /**
              * Target
-             * @description The goal the scale proposes for this measure, in the same unit — the green line on the bar. It is the scale's own `ideal`, a property of your height, age and sex, not something computed here. Null for the measures it proposes none for (water, protein, fat-free mass, visceral fat, bone).
+             * @description The goal the scale proposes for this measure, in the same unit — the shorter line on the bar. It is the scale's own `ideal`, a property of your height, age and sex, not something computed here. Null for the measures it proposes none for (water, protein, fat-free mass, visceral fat, bone).
              */
             target: number | null;
+            /**
+             * Beats Target
+             * @description Whether the value sits on the better side of its target: true colours the value mark green on the bar, false red. Which side is better is physiology, decided here and not by the page — down for weight, BMI and body fat, up for skeletal muscle and basal metabolism. Equal to the target counts as reached. Null, and the mark stays the colour of the text, when the value or the target is missing, or when the measure has no better side at all (water, protein, fat-free mass, visceral fat, bone).
+             */
+            beats_target?: boolean | null;
             /** @description Where the measure usually sits, read the same way as on every other card: the mean of the weigh-ins of the twelve weeks ending with this one, plus and minus one standard deviation (`low`/`high`) and two (`outer_*`). The weigh-in shown belongs to its own window — the band describes a period, it does not judge the morning. Null under three weigh-ins, where the standard deviation says nothing; `weighings` says how many there are, so the card can explain the empty bar. */
             band: components["schemas"]["Band"] | null;
         };

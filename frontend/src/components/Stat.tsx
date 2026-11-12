@@ -98,15 +98,24 @@ export function RangeBar({
   value,
   band,
   target,
+  beatsTarget,
   tick = (v: number) => String(v),
 }: {
   value: number | null;
   /** La fascia, se c'e': senza di lei la barra si disegna comunque, purche'
    * abbia qualcosa da mostrare (un valore, un bersaglio). */
   band?: Band | null;
-  /** Il bersaglio, la linea verde (la card Body, todo 97): dove quella misura
-   * **dovrebbe** arrivare. Le altre card non ne hanno uno e non la disegnano. */
+  /** Il bersaglio, la linea bassa dentro la traccia (la card Body, todo 97):
+   * dove quella misura **dovrebbe** arrivare. Le altre card non ne hanno uno e
+   * non la disegnano. */
   target?: number | null;
+  /** Se il valore sta dalla parte buona del bersaglio: verde la tacca se si',
+   * rossa se no, del colore del testo se `null` o `undefined`. **Il confronto
+   * arriva fatto** (`beats_target` dell'API): da che parte sta il bene e'
+   * fisiologia, e qui non si sa se per quella misura e' meglio sopra o sotto
+   * — scendere e' buono per il peso, salire per il muscolo. Le barre delle
+   * altre card non lo passano e restano come sono sempre state. */
+  beatsTarget?: boolean | null;
   tick?: (value: number) => string;
 }) {
   // I punti che la barra deve contenere: la fascia se c'e', il valore, il
@@ -148,8 +157,8 @@ export function RangeBar({
   // etichette si pestano i piedi.
   const frac = (v: number) => (max === min ? 0.5 : (v - min) / (max - min));
   // L'etichetta del bersaglio si scrive se non finisce addosso a quelle della
-  // fascia: il numero verde e' un'aggiunta, e un'aggiunta non deve coprire
-  // quello che c'era.
+  // fascia: il numero del bersaglio e' un'aggiunta, e un'aggiunta non deve
+  // coprire quello che c'era.
   const targetTick =
     target != null &&
     (!band ||
@@ -166,7 +175,17 @@ export function RangeBar({
           <div className="range-target" style={{ left: at(target) }} />
         )}
         {value != null && (
-          <div className="range-marker" style={{ left: at(value) }} />
+          <div
+            className={
+              // La tacca prende il verde o il rosso solo dove un bersaglio
+              // c'e' e un lato buono esiste: altrove resta quella di sempre,
+              // che in quattro card su cinque e' tutto quello che serve.
+              beatsTarget == null
+                ? "range-marker"
+                : `range-marker ${beatsTarget ? "good" : "bad"}`
+            }
+            style={{ left: at(value) }}
+          />
         )}
       </div>
       <div className="range-ticks">

@@ -1,11 +1,19 @@
 // "Body" (todo 97): il corpo come l'ha misurato la bilancia — peso, BMI,
-// grasso, acqua, muscolo scheletrico, massa magra, osso, proteine, grasso
-// viscerale e metabolismo basale.
+// grasso, muscolo scheletrico, metabolismo basale, acqua, massa magra, osso,
+// proteine e grasso viscerale.
 //
 // **Dieci numeri in due righe da cinque, e la card prende tutta la
 // larghezza**: a mezza pagina in due colonne erano cinque righe, cioe' una
 // card alta il doppio delle altre quattro che le stanno accanto, e la griglia
 // dello Snap si sfaldava. Dieci misure vogliono una fila, non una colonna.
+//
+// **La prima riga sono le cinque misure con un bersaglio** — peso, BMI,
+// grasso, muscolo scheletrico, metabolismo — e la seconda le cinque senza.
+// L'ordine lo decide `MEASURES` in `body_data.py`, qui si disegna quello che
+// arriva: la card non sa quali sono le cinque, le mette in fila e la griglia
+// va a capo da se'. Serve a far coincidere la riga di sopra con le barre che
+// hanno la linea del bersaglio, cosi' la distanza da coprire si legge tutta
+// insieme invece di stare sparsa fra le due righe.
 //
 // Le cinque colonne sono `stats five`, una regola che c'era gia' — il numero
 // piu' piccolo e senza andare a capo, e sotto i 900 px tre per riga — e che
@@ -38,12 +46,15 @@
 // I riferimenti restano nei file, se un giorno vorranno un disegno loro.
 //
 // **Due linee verticali su ogni barra** (e vanno spiegate, o sono un
-// disegno): quella scura e' il valore di adesso — la tacca di sempre, che in
-// tutte le card dice "oggi sei qui" — e quella verde il **bersaglio che la
-// bilancia propone** per altezza, eta' e sesso. Il bersaglio ce l'hanno
-// cinque misure su dieci: peso 79.4 kg, BMI 22, grasso 15%, muscolo
-// scheletrico 38.1 kg, metabolismo 1828 kcal. Le altre cinque non lo hanno, e
-// una linea verde inventata sarebbe un obiettivo inventato.
+// disegno): quella alta e' il valore di adesso — la tacca di sempre, che in
+// tutte le card dice "oggi sei qui" — e quella bassa il **bersaglio che la
+// bilancia propone** per altezza, eta' e sesso. Sono dello stesso nero, e si
+// distinguono per altezza: il bersaglio e' stato verde per un po', e il verde
+// e' caduto perche' dava alla barra un secondo colore da imparare quando
+// bastava una seconda altezza. Il bersaglio ce l'hanno cinque misure su
+// dieci: peso 79.4 kg, BMI 22, grasso 15%, muscolo scheletrico 38.1 kg,
+// metabolismo 1828 kcal. Le altre cinque non lo hanno, e una linea inventata
+// sarebbe un obiettivo inventato.
 //
 // E' anche quello che rende la barra utile **adesso**: la fascia dello storico
 // arriva alla terza pesata, il bersaglio c'e' dalla prima, e fra le due linee
@@ -104,6 +115,7 @@ export function BodyCard({ body, icon }: { body: BodyComposition; icon: string |
                   value={m.value}
                   band={m.band}
                   target={m.target}
+                  beatsTarget={m.beats_target}
                   tick={(v) => v.toFixed(m.digits)}
                 />
               ) : (
@@ -137,12 +149,21 @@ export function BodyCard({ body, icon }: { body: BodyComposition; icon: string |
         </p>
       )}
       {/* Cosa sono le due linee, detto una volta: due righe verticali sulla
-          stessa barra vanno spiegate, o si leggono come un disegno. */}
+          stessa barra vanno spiegate, o si leggono come un disegno. La frase
+          nomina l'altezza — "la piu' corta" — e non il colore, che adesso il
+          colore vuol dire un'altra cosa: era "the green one", e il verde se
+          l'e' preso la tacca del valore per dire che il bersaglio e' battuto.
+          **Il verde e il rosso si spiegano qui o non si spiegano**: un colore
+          con un significato che la pagina non dice e' una decorazione che
+          sembra un dato. */}
       {body.measures.some((m) => m.target != null) && (
         <p className="caption">
-          On the bars, the dark line is where you are and the{" "}
-          <span className="target-word">green one</span> the goal the scale proposes for your
-          height, age and sex.
+          On the bars, the taller line is where you are and the{" "}
+          <span className="target-word">shorter one</span> the goal the scale proposes for your
+          height, age and sex. The taller line turns{" "}
+          <span className="word-good">green</span> when you are on the better side of that goal
+          and <span className="word-bad">red</span> when you are not — down for weight, BMI and
+          body fat, up for skeletal muscle and basal metabolism.
         </p>
       )}
       {/* Perche' le fasce non ci sono, finche' non ci sono: tre pesate e' il
