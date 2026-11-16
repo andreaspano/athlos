@@ -986,7 +986,7 @@ Dal todo 47 il report si scrive da solo due volte al giorno, e dal todo 66
 
 | | ore | sezioni | scrive |
 |---|---|---|---|
-| mattina | 08:00 | health, recovery, load, fitness, summary | Day:Snap |
+| mattina | 08:15 | health, recovery, load, fitness, summary | Day:Snap |
 | sera | 21:00 | training | Day:Training |
 
 Ogni sezione gira **una volta al giorno**. Prima i due giri si
@@ -1103,7 +1103,7 @@ systemctl --user --failed                  # cosa e' andato storto
 ```
 
 Tre coppie, con gli stessi orari delle righe di cron che c'erano prima:
-`athlos-morning` alle 8, `athlos-evening` alle 21 da lunedi a sabato,
+`athlos-morning` alle 8:15, `athlos-evening` alle 21 da lunedi a sabato,
 `athlos-weekend` la domenica alle 21. La domenica e' un'unita' sola con due
 `ExecStart` perche' il settimanale deve girare **dopo** il giornaliero: il
 lock ne lascia passare uno alla volta e chi lo trova occupato se ne va senza
