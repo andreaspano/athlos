@@ -1,8 +1,14 @@
 [Unit]
-Description=athlos: il report del mattino, alle 8
+Description=athlos: il report del mattino, alle 8:15
 
 [Timer]
-OnCalendar=*-*-* 08:00:00
+# Alle 8:15 e non alle 8:00 (16/11/2026): l'orologio scarica la notte su
+# Garmin Connect quando si ritrova accanto al telefono, al risveglio, e
+# quella mattina ci e' arrivato alle 08:02 — due minuti dopo che il giro
+# aveva gia' chiesto i dati. Risultato: HRV e respiro nel sonno vuoti nella
+# card, e la sezione Health scritta sui buchi. Il quarto d'ora e' il margine
+# per quel ritardo.
+OnCalendar=*-*-* 08:15:00
 # Il giro perso si recupera: cron non lo faceva, e una macchina spenta alle
 # 8 lasciava un buco che non segnalava nessuno (todo 81).
 Persistent=true

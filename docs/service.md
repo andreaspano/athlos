@@ -13,7 +13,7 @@ senza, si sta parlando di un'altra cosa che non esiste.
 | Unita' | Cos'e' | Quando |
 |---|---|---|
 | `athlos-api.service` | uvicorn: l'API **e** la pagina compilata, su `127.0.0.1:8000` | sempre su |
-| `athlos-morning.timer` | le cinque sezioni del corpo (lo Snap) | ogni giorno, 08:00 |
+| `athlos-morning.timer` | le cinque sezioni del corpo (lo Snap) | ogni giorno, 08:15 |
 | `athlos-evening.timer` | la Training, cioe' la seduta | lun-sab, 21:00 |
 | `athlos-weekend.timer` | la Training **e poi** il report della settimana | domenica, 21:00 |
 | `athlos-alert@.service` | l'avvisatore: lo lancia `OnFailure=` delle altre | solo sui guasti |
