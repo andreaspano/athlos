@@ -33,7 +33,6 @@ aggiunge la riga, e per quello la pagina Test resta il posto dove si guarda.
 import difflib
 import json
 import re
-from pathlib import Path
 from typing import Any
 
 from training.api import ollama
@@ -87,7 +86,7 @@ NOT_A_CODE = {"VO2MAX", "HRV", "RPE", "ATTENZIONE"}
 # imparato a sue spese: la prima versione prendeva ogni `I` e dava 38 errori
 # sui 104 testi di Claude — tutti del tipo *«I would not shrug it away»*,
 # *«breathing in sleep is the one I like least»*, che e' la voce che
-# `01_health.md` chiede espressamente («in a coach's voice: *I do not like
+# `.claude/agents/01_health.md` chiede espressamente («in a coach's voice: *I do not like
 # that one*»). E i tre `we` del corpus sono *«what we do have is stark»*, che
 # e' inglese normale.
 #
@@ -148,57 +147,6 @@ SCAFFOLD = (
     "the verdict is",
     "the verdict was",
 )
-
-# Quanto si puo' sbagliare la lunghezza che il prompt chiede, in piu' o in
-# meno, prima che sia un errore leggero. Meta' e il doppio: i prompt dicono
-# "circa novanta parole", non novanta.
-#
-# **Di suo questo controllo non morde**, perche' vale solo per le sezioni
-# intere (`wanted_words` rende `None` per le spezzate) e il ciclo le lascia
-# fuori — la ragione sta in `bench_tune.DEFAULT_SECTIONS`. Resta perche' e'
-# giusto, e chiedendo `--sections health,load` torna a contare: sui testi
-# interi di llama spara 48 volte su 50, che e' la forma non rispettata.
-LENGTH_SLACK = 0.5
-
-# Quante parole chiede un prompt, letto dal prompt. **Non una tabella scritta a
-# mano**: ne avevo scritta una e aveva i numeri delle sezioni spezzate sulle
-# intere, che dava otto errori di lunghezza sui testi di Claude per colpa mia.
-# La frase e' uniforme in tutti e otto i file, e leggerla vuol dire che se
-# qualcuno cambia il conto nel prompt il controllo lo segue.
-WANTED_WORDS = re.compile(r"[Aa]bout (\d+) words")
-
-
-def wanted_words(repo_root, section, *, claude: bool) -> int | None:
-    """Quante parole chiede il prompt che ha scritto quel testo.
-
-    Due file diversi per la stessa sezione: la copia di llama e quella di
-    Claude chiedono lunghezze diverse — la Load di Claude ottanta parole, la
-    copia di llama centottanta, perche' una e' un paragrafo e l'altra sono sei
-    — e misurare un testo contro il conto dell'altro e' un errore inventato.
-
-    **Per una sezione spezzata non si controlla**, e `None` vuol dire proprio
-    questo. Il conto non sta scritto in nessun file: i pezzi parlano di frasi
-    («due o tre», «quarantacinque parole» per l'apertura) e il totale non lo
-    dice nessuno. Prendere quello dell'intera e' sbagliato di suo — la Recovery
-    di Claude chiede ottanta parole per un paragrafo, la spezzata ne fa cinque
-    — e la prima versione dava un errore di lunghezza su ogni testo della
-    Recovery spezzata per quel motivo. Un controllo che non ha un numero vero
-    da confrontare non si inventa il numero: si tace."""
-    if isinstance(section, ollama.Split):
-        return None
-    whole = next(
-        (s for s in ollama.SECTIONS.values()
-         if not isinstance(s, ollama.Split) and s.title == section.title),
-        None,
-    )
-    if whole is None:
-        return None
-    path = Path(repo_root) / (".claude/agents" if claude else ".ollama/agents") / whole.agent
-    if not path.exists():
-        return None
-    found = WANTED_WORDS.search(path.read_text(encoding="utf-8"))
-    return int(found.group(1)) if found else None
-
 
 # Un passo o un'ora scritti coi due punti: `5:53`, `8:09`. Vanno riconosciuti
 # interi, o si leggono come due numeri e nessuno dei due sta nei fatti — che e'
@@ -296,7 +244,7 @@ def invented_numbers(text: str, facts: Any) -> "list[str]":
     return out
 
 
-def _paragraphs(section: "ollama.Section | ollama.Split", text: str, facts: dict):
+def _paragraphs(section: "ollama.Split", text: str, facts: dict):
     """I paragrafi del testo accoppiati ai fatti che ognuno aveva in mano.
 
     Per una sezione spezzata l'accoppiamento e' esatto, e non per fortuna:
@@ -306,12 +254,11 @@ def _paragraphs(section: "ollama.Section | ollama.Split", text: str, facts: dict
     `_one_paragraph` non ha appiattito — si lascia perdere invece di dare la
     colpa al paragrafo sbagliato.
 
-    Per una sezione intera non c'e' nessun accoppiamento da fare: il testo e'
-    uno e i fatti sono quelli della sezione. I controlli che hanno bisogno di
-    sapere *di chi* e' un paragrafo valgono quindi solo per le spezzate, ed e'
-    una differenza da dire, non da nascondere."""
-    if not isinstance(section, ollama.Split):
-        return [(None, facts, text)]
+    Quando sul banco c'erano anche le sezioni intere questa funzione le
+    lasciava passare intere — un testo, i fatti della sezione, nessun
+    accoppiamento — e i controlli che hanno bisogno di sapere *di chi* e' un
+    paragrafo valevano solo per le spezzate. Adesso sono tutte spezzate e il
+    caso non esiste piu'."""
     pieces = ollama.asked(section, facts)
     written = text.split("\n\n")
     if len(written) != len(pieces):
@@ -379,12 +326,10 @@ def _other_labels(section) -> "set[str]":
 def foreign_measures(section, text: str, facts: dict) -> "list[str]":
     """I paragrafi che nominano una misura che non era loro.
 
-    Vale per le spezzate, dove si sa di chi e' ogni paragrafo. Un'etichetta che
-    e' pezzo dell'altra — *body battery* dentro *body battery at wake-up* —
-    si lascia fuori, che prenderebbe il paragrafo giusto per il motivo
-    sbagliato."""
-    if not isinstance(section, ollama.Split):
-        return []
+    Si sa di chi e' ogni paragrafo perche' ogni paragrafo e' un pezzo.
+    Un'etichetta che e' pezzo dell'altra — *body battery* dentro *body battery
+    at wake-up* — si lascia fuori, che prenderebbe il paragrafo giusto per il
+    motivo sbagliato."""
     foreign = _other_labels(section) - COMMON_WORDS
     mine = {_label_of(piece) for piece in section.parts} - COMMON_WORDS
     out = []
@@ -434,28 +379,34 @@ def hard_faults(section, text: str, facts: dict) -> "list[str]":
     return out
 
 
-def soft_faults(section, text: str, facts: dict, wanted: int | None = None) -> "list[str]":
+def soft_faults(section, text: str, facts: dict) -> "list[str]":
     """Gli errori leggeri: quelli che fanno dire al testo una cosa vera in un
     modo che non va."""
     out = []
     out += [f"nome di campo: {m}" for m in sorted(set(FIELD_NAMES.findall(text)))]
     low = text.lower()
     out += [f"parla di se': {p}" for p in SCAFFOLD if p in low]
-    if wanted:
-        words = len(text.split())
-        if not (wanted * (1 - LENGTH_SLACK) <= words <= wanted * (1 + LENGTH_SLACK)):
-            out.append(f"lunghezza: {words} parole invece di circa {wanted}")
+    # **La lunghezza qui non si misura**, e non e' una dimenticanza. Il conto
+    # non sta scritto in nessun file: i pezzi parlano di frasi («due o tre»,
+    # «quarantacinque parole» per l'apertura) e il totale non lo dice nessuno.
+    # C'era un controllo che leggeva «circa N parole» dal prompt della sezione
+    # intera, ed e' andato via con quella: prendere il conto di un paragrafo e
+    # applicarlo a cinque dava un errore su ogni testo della Recovery. Un
+    # controllo che non ha un numero vero da confrontare non si inventa il
+    # numero: si tace.
+
     # Il numero del paragrafo scritto piu' di una volta: i prompt dicono "al
     # massimo un numero per paragrafo, e solo se porta il punto".
     #
-    # **Solo per le spezzate**, dove un paragrafo e' una misura. In una sezione
-    # intera un paragrafo copre quattro misure e due o tre numeri ci stanno di
-    # diritto: contarli li' dava ventisette errori sui testi di Claude, che e'
-    # la regola di un prompt applicata al prompt sbagliato.
-    if isinstance(section, ollama.Split):
-        for piece, owned, paragraph in _paragraphs(section, text, facts):
-            if len(_numbers(paragraph)) > 1:
-                out.append(f"numeri nello stesso paragrafo: {piece.key}")
+    # **Vale perche' un paragrafo e' una misura.** In una sezione intera, di
+    # quelle che il banco teneva accanto, un paragrafo copre quattro misure e
+    # due o tre numeri ci stanno di diritto: contarli li' dava ventisette
+    # errori sui testi di Claude, che e' la regola di un prompt applicata al
+    # prompt sbagliato. La guardia che lo impediva e' andata via con le intere,
+    # la ragione no.
+    for piece, owned, paragraph in _paragraphs(section, text, facts):
+        if len(_numbers(paragraph)) > 1:
+            out.append(f"numeri nello stesso paragrafo: {piece.key}")
     return out
 
 
@@ -480,9 +431,6 @@ def score(
     facts: dict,
     text: str,
     claude: str | None = None,
-    *,
-    wanted: int | None = None,
-    claude_wanted: int | None = None,
 ) -> "dict[str, Any]":
     """La pagella di un testo: gli errori, la distanza dal bersaglio, e il
     punteggio — che e' **la somma dei soli errori**.
@@ -493,7 +441,7 @@ def score(
     quello degli errori. E' la riga che impedisce al ciclo di imparare gli
     sbagli del 19 novembre."""
     hard = hard_faults(section, text, facts)
-    soft = soft_faults(section, text, facts, wanted)
+    soft = soft_faults(section, text, facts)
     target_faults = hard_faults(section, claude, facts) if claude else []
     gap = distance(text, claude) if claude and not target_faults else 0.0
     return {

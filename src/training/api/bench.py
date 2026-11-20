@@ -76,20 +76,17 @@ def _path(data_dir: Path) -> Path:
     return Path(data_dir) / _FOLDER / _FILENAME
 
 
-def prompt_files(section: "ollama.Section | ollama.Split") -> "tuple[str, ...]":
+def prompt_files(section: "ollama.Split") -> "tuple[str, ...]":
     """I file di prompt che compongono una sezione, nell'ordine in cui il
     modello li legge.
 
-    Per una sezione intera e' uno; per una spezzata sono quelli di ogni pezzo,
-    l'apertura compresa — nove o dieci, perche' le misure portano anche le
-    regole condivise. `_style.md` non c'e' dentro: lo attacca `_system_prompt`
-    a tutti, e `impronta` lo include passando da li'."""
-    if isinstance(section, ollama.Split):
-        return tuple(name for piece in (section.opening, *section.parts) for name in piece.agent)
-    return (section.agent,)
+    Sono quelli di ogni pezzo, l'apertura compresa — nove o dieci, perche' le
+    misure portano anche le regole condivise. `_style.md` non c'e' dentro: lo
+    attacca `_system_prompt` a tutti, e `impronta` lo include passando da li'."""
+    return tuple(name for piece in (section.opening, *section.parts) for name in piece.agent)
 
 
-def fingerprint(repo_root: Path, section: "ollama.Section | ollama.Split") -> str:
+def fingerprint(repo_root: Path, section: "ollama.Split") -> str:
     """L'impronta dei prompt di una sezione: lo hash di **quello che il modello
     legge davvero**, non dei file su disco.
 
@@ -106,14 +103,12 @@ def fingerprint(repo_root: Path, section: "ollama.Section | ollama.Split") -> st
     pieces = [
         ollama._system_prompt(repo_root, *piece.agent)
         for piece in (section.opening, *section.parts)
-    ] if isinstance(section, ollama.Split) else [
-        ollama._system_prompt(repo_root, section.agent)
     ]
     digest = hashlib.sha256("\n".join(pieces).encode("utf-8")).hexdigest()
     return digest[:_FINGERPRINT_CHARS]
 
 
-def claude_text(summary_dir: Path, day: date, section: "ollama.Section | ollama.Split") -> str | None:
+def claude_text(summary_dir: Path, day: date, section: "ollama.Split") -> str | None:
     """Il frammento che l'agente di Claude ha scritto per quel giorno e quella
     sezione, cioe' **il bersaglio**.
 
@@ -204,14 +199,27 @@ def latest(data_dir: Path, start: date | None = None, end: date | None = None):
 
     Il file tiene la storia — un giro per ogni taratura, e dentro un giro un
     giro per ogni modifica ai prompt — ma chi guarda la pagina vuole l'ultima
-    versione di ogni card, non l'archivio. Il piu' recente e' per (giro,
-    iterazione): i giri hanno il nome dell'ora in cui sono partiti, quindi si
-    ordinano da se'.
+    versione di ogni card, non l'archivio.
+
+    **Il piu' recente e' quello scritto per ultimo** (`written_at`), e non
+    quello col nome del giro piu' alto. Il nome e' l'ora in cui il ciclo e'
+    partito e di suo si ordinerebbe da se', ma e' una stringa che chi lancia
+    il ciclo decide: una volta ho scritto quattro righe a mano chiamando il
+    giro `2026-11-20-leaning`, e in ordine di stringa `l` sta sopra ogni
+    cifra. Quelle righe avrebbero vinto contro ogni giro successivo e la
+    pagina si sarebbe fermata li' senza dirlo a nessuno. L'ora della
+    scrittura, invece, non dipende da come qualcuno chiama le cose; il nome
+    del giro resta a parita', che due righe scritte nello stesso secondo
+    vanno comunque ordinate.
 
     E' la funzione che la pagina Test legge. **Niente qui genera testo**: i due
     testi — quello del modello di casa e quello di Claude — sono nella stessa
     riga da quando il ciclo l'ha scritta, e la pagina li mostra affiancati
     senza chiedere niente a nessuno."""
+
+    def quando(row: "dict[str, Any]"):
+        return (row.get("written_at", ""), row.get("run", ""), row.get("iteration", 0))
+
     newest: "dict[tuple[str, str], dict[str, Any]]" = {}
     for row in load(data_dir):
         day = row.get("day", "")
@@ -219,10 +227,7 @@ def latest(data_dir: Path, start: date | None = None, end: date | None = None):
             continue
         key = (day, row.get("section", ""))
         seen = newest.get(key)
-        if seen is None or (row.get("run", ""), row.get("iteration", 0)) >= (
-            seen.get("run", ""),
-            seen.get("iteration", 0),
-        ):
+        if seen is None or quando(row) >= quando(seen):
             newest[key] = row
     return [newest[key] for key in sorted(newest)]
 

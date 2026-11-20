@@ -27,9 +27,18 @@
 // altro prompt, e un bersaglio che si muove non e' un bersaglio.
 //
 // **Le quattro sezioni a destra sono quelle spezzate** — un modello per
-// paragrafo, cucito da Python — perche' sono quelle che il ciclo tara e che
-// hanno vinto il confronto con la domanda sola. Le intere restano nel
-// quaderno come termine di paragone e si guardano con `grep`.
+// paragrafo, cucito da Python — e sono le sole che restano: i quattro prompt
+// che chiedevano una sezione intera, con una domanda sola, non ci sono piu'.
+//
+// **Il confronto fra i due modi non e' stato vinto, e' stato chiuso.** Alla
+// pari, prima che il ciclo tarasse qualcosa, le intere avevano meno errori
+// gravi delle spezzate, stavano piu' vicine ai testi di Claude e ci
+// arrivavano in 76 parole contro 153 — che e' la lunghezza di Claude, non
+// quella della spezzata. La spezzata le ha superate dopo quattro giri di
+// taratura, che all'intera non sono mai stati dati. Le 50 righe misurate
+// restano nel quaderno sotto le chiavi `health` e `load` — la pagina le
+// ignora, perche' cerca le quattro chiavi spezzate — e si guardano con
+// `grep`: sono l'unica traccia di quella strada.
 //
 // I numeri, le barre e le facce restano quelli dell'API, come sulla Day: una
 // richiesta per giorno a `/api/daily/{giorno}`, e il giorno si disegna quando
