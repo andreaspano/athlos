@@ -971,9 +971,9 @@ MEASURE_READS = (
 # piu' innocente di uno di sei righe: se nomina una misura, quella misura
 # ricompare. La persona si chiede senza dare un esempio.
 RECOVERY_TAIL = (
-    "Write it to him as **you**, and never as *I*, *we* or *he*: it is his body and "
-    "his night. And say nothing about what he should train today: that is nobody's "
-    "business on this card. "
+    "**The reader is spoken to as *you***, in every sentence: *your* readiness, "
+    "*your* night, what *you* can be asked for. And say nothing about what to train "
+    "today: that is nobody's business on this card. "
 )
 
 # Le quattro misure della Recovery: come si legge una misura, piu' le due
@@ -1095,6 +1095,30 @@ NORMAL_GOOD_EDGE = "normal, and nowhere near trouble"
 NORMAL_BAD_EDGE = "normal, but {edge} in its range"
 
 
+def _leans_bad(reading: str) -> bool:
+    """Una misura **dentro la fascia ma appoggiata al lato che preoccupa**.
+
+    Sono le letture che `NORMAL_BAD_EDGE` produce — *normal, but high in its
+    range* per una misura che si legge in alto, *low* per una che si legge al
+    contrario — e per un giro intero non contavano niente: `_reading` le
+    calcolava, i paragrafi delle misure le ricevevano, e il verdetto le
+    buttava.
+
+    **La mattina del 20 novembre ha fatto vedere che era troppo stretto.**
+    Tutte e quattro le misure dentro la fascia, quindi verdetto *«the body is
+    fine»* e niente da nominare — ma la frequenza a riposo stava all'88% della
+    sua fascia e l'HRV al 5% della sua, cioe' **entrambe appoggiate al loro
+    lato cattivo, e dalla stessa parte**. Il frammento di Claude di quel
+    giorno apriva con *«slightly off — nothing wrong, but a body that has not
+    quite put yesterday behind it»*, che e' la lettura giusta della
+    configurazione, e la nostra diceva che andava tutto bene.
+
+    Resta vero che **una** misura appoggiata al bordo non e' una notizia: era
+    la ragione per cui `_sits` non doveva pesare, e vale ancora. Due dalla
+    stessa parte lo sono."""
+    return reading.startswith("normal, but")
+
+
 def _reading(where: str, bad_when: str, sits: str | None = None) -> str:
     """Che cosa vuol dire quel `where` **per quella misura**: normale,
     peggio del solito, meglio del solito.
@@ -1168,6 +1192,10 @@ def _reading(where: str, bad_when: str, sits: str | None = None) -> str:
 # smontare.
 VERDICT_WORDS = {
     "good": "the body is fine",
+    # Il gradino fra «sta bene» e «una misura fuori»: niente fuori fascia, ma
+    # due o piu' appoggiate al loro lato cattivo. Il perche' sta in
+    # `_leans_bad`.
+    "leaning": "fine, but leaning tired",
     "niggle": "broadly fine, with one measure out",
     "off": "something is not right",
     "fatigue": "a tired body",
@@ -1190,8 +1218,11 @@ def _health_verdict(readings: "list[str]") -> str:
     dicono. Che e' poi il mestiere per cui lo si e' aggiunto."""
     much = readings.count("much worse than usual")
     worse = readings.count("worse than usual")
+    leaning = sum(1 for reading in readings if _leans_bad(reading))
     if not much and not worse:
-        return "good"
+        # **Due appoggiate al lato cattivo non sono una mattina tranquilla**,
+        # anche se nessuna e' fuori. La storia sta in `_leans_bad`.
+        return "leaning" if leaning >= 2 else "good"
     if not much and worse == 1:
         return "niggle"
     if much >= 2 or much + worse == 4 or (much and worse >= 2):
@@ -1199,7 +1230,7 @@ def _health_verdict(readings: "list[str]") -> str:
     return "off"
 
 
-def _rests_on(bad: "list[str]", good: "list[str]") -> str | None:
+def _rests_on(bad: "list[str]", leaning: "list[str]", good: "list[str]") -> str | None:
     """Di che cosa parla la seconda frase del paragrafo di apertura. **Nullo
     vuol dire che quella frase non c'e'.** Quali misure nomina lo dice
     `_spoken_of`, qui sotto.
@@ -1282,6 +1313,10 @@ def _rests_on(bad: "list[str]", good: "list[str]") -> str | None:
             if len(bad) == 1
             else "these read badly this morning"
         )
+    if leaning:
+        # Nessuna fuori fascia, ma due appoggiate al lato che conta: la frase
+        # dice che pendono, non che vanno male, perche' non vanno male.
+        return "nothing is out of range, and these are leaning the tired way"
     if good:
         return (
             "nothing reads badly, and this one reads better than usual"
@@ -1291,8 +1326,16 @@ def _rests_on(bad: "list[str]", good: "list[str]") -> str | None:
     return None
 
 
+# Come una misura appoggiata al lato cattivo arriva all'apertura. **Senza la
+# fascia dentro**: il paragrafo di apertura di fasce non parla — e' scritto nel
+# suo compito in due righe — e passargli *«normal, but high in its range»*
+# vorrebbe dire mettergli in mano proprio quello. Questa frase dice la stessa
+# cosa e non nomina niente da ricopiare.
+LEANING_READING = "leaning the tired way"
+
+
 def _spoken_of(
-    seen: "list[dict]", bad: "list[str]", good: "list[str]"
+    seen: "list[dict]", bad: "list[str]", leaning: "list[str]", good: "list[str]"
 ) -> "list[dict]":
     """Le misure che il paragrafo di apertura puo' nominare, **le peggiori per
     prime**, e come si legge ognuna. Vuota vuol dire che non ce n'e' nessuna
@@ -1328,8 +1371,11 @@ def _spoken_of(
     e il buco l'ha trovato un test. Adesso la lista e' una e la regola e'
     quella di `measures`: le cattive, o le buone se cattive non ce ne
     sono."""
-    reading = {m["measure"]: m["reading"] for m in seen}
-    return [{"measure": name, "reading": reading[name]} for name in (bad or good)]
+    reading = {
+        m["measure"]: LEANING_READING if _leans_bad(m["reading"]) else m["reading"]
+        for m in seen
+    }
+    return [{"measure": name, "reading": reading[name]} for name in (bad or leaning or good)]
 
 
 def _readings_of(split: "Split", facts: dict) -> "list[dict]":
@@ -1353,8 +1399,19 @@ def _readings_of(split: "Split", facts: dict) -> "list[dict]":
     return [
         {
             "measure": part.label,
+            # **Col posto dentro la fascia**, e prima senza. La riga diceva che
+            # all'apertura `sits` non serve, perche' di fasce non parla — vero
+            # per quello che l'apertura *scrive*, falso per quello che il
+            # verdetto deve *contare*: senza, due misure appoggiate al loro
+            # lato cattivo leggevano «normal» e la mattina del 20 novembre
+            # prendeva «il corpo sta bene» (`_leans_bad`).
+            #
+            # Il linguaggio della fascia non le arriva comunque: `_spoken_of`
+            # traduce quelle letture prima di passarle.
             "reading": _reading(
-                (measures.get(part.key) or {}).get("where", "unknown"), part.bad_when
+                (measures.get(part.key) or {}).get("where", "unknown"),
+                part.bad_when,
+                _sits(measures.get(part.key) or {}),
             ),
         }
         for part in split.parts
@@ -1362,17 +1419,23 @@ def _readings_of(split: "Split", facts: dict) -> "list[dict]":
     ]
 
 
-def _carried_by(seen: "list[dict]") -> "tuple[list[str], list[str]]":
-    """Quali misure portano il verdetto e quali danno una buona notizia, **le
-    peggiori per prime**.
+def _carried_by(seen: "list[dict]") -> "tuple[list[str], list[str], list[str]]":
+    """Quali misure portano il verdetto, quali pendono dalla parte stanca e
+    quali danno una buona notizia, **le peggiori per prime**.
 
     L'ordine e' quello con cui `_rests_on` le nomina, e per questo si conta
-    qui una volta per tutte e due le sezioni: due copie di queste quattro
-    righe sarebbero due ordini che divergono al primo che le ritocca."""
+    qui una volta per tutte e due le sezioni: due copie di queste righe
+    sarebbero due ordini che divergono al primo che le ritocca.
+
+    **Il gruppo di mezzo e' nato dopo**, e il perche' sta in `_leans_bad`: una
+    mattina con due misure appoggiate al loro lato cattivo prende un verdetto
+    suo, e un verdetto senza niente da nominare e' il paragrafo che si
+    inventa la seconda frase o la salta."""
     named = lambda reading: [m["measure"] for m in seen if m["reading"] == reading]
     bad = named("much worse than usual") + named("worse than usual")
+    leaning = [m["measure"] for m in seen if _leans_bad(m["reading"])]
     good = named("much better than usual") + named("better than usual")
-    return bad, good
+    return bad, leaning, good
 
 
 def _health_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
@@ -1428,7 +1491,7 @@ def _health_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     volta: contare non e' giudicare, e chi sa contare conti. Quanto pesino
     due misure su quattro resta a lui, e la frase pure."""
     seen = _readings_of(split, facts)
-    rests_on, good_news = _carried_by(seen)
+    rests_on, leaning, good_news = _carried_by(seen)
     # **Gli arrivano solo le misure di cui parlera', e di quelle solo come si
     # leggono.** Non il valore e non la fascia — dove sta una misura e' il
     # mestiere dei quattro paragrafi, che gli stanno sotto e che il lettore
@@ -1448,8 +1511,8 @@ def _health_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     # piu' sotto. Tolta dal compito, non c'e' piu' niente da sbagliare.
     return {
         "verdict": VERDICT_WORDS[_health_verdict([m["reading"] for m in seen])],
-        "about": _rests_on(rests_on, good_news),
-        "how_they_read": _spoken_of(seen, rests_on, good_news),
+        "about": _rests_on(rests_on, leaning, good_news),
+        "how_they_read": _spoken_of(seen, rests_on, leaning, good_news),
     }
 
 
@@ -1469,8 +1532,10 @@ def _health_opening_prompt(split: "Split", part: Part, day: date, facts: dict) -
         "these. **An empty `measures` is no measure to name and no second sentence at "
         "all** — write the first sentence and the third, and leave the missing one "
         "unmentioned. `how_they_read` is how each of those measures reads, so that your "
-        "paragraph does not contradict the section it opens. He is reading a card about "
-        "his body, not a report on how it was assembled: **no field is named in it, and "
+        "paragraph does not contradict the section it opens — **say each one as its reading says "
+        "it and no further**: the reading has already chosen how strongly it puts "
+        "itself. The reader is looking at a "
+        "card about a body, not a report on how it was assembled: **no field is named in "
         "no sentence of it is about the card**. "
         "Answer with the paragraph and nothing else: no number in it, no band in it, "
         "no heading, no list, no quotes around it."
@@ -1641,14 +1706,14 @@ def _load_part_prompt(split: "Split", part: Part, day: date, facts: dict) -> str
         f"{json.dumps(facts, indent=2, default=str)}\n\n"
         "`where` says where today's value falls against its own band — where this kind "
         "of work has sat over the last 28 days, which is not a target — and never "
-        "contradict it: `inside its band` means he is doing about as much of it as "
+        "contradict it: `inside its band` means you are doing about as much of it as "
         "usual, and the right thing to say is that it is normal. `week` is what the "
         "week it belongs to asked for, and it is what decides the reading: the same "
         "value is the plan working in one week and the plan ignored in another — "
         "**judge with it, and do not report it**, because its sessions and its counts "
         "belong to the last paragraph of the section and not to you. Never write the "
-        "figure in `value`: it is on the card, right above your text. Write it to him "
-        "as **you** — never *we*, never *he*. "
+        "figure in `value`: it is on the card, right above your text. **The reader is "
+        "spoken to as *you***, in every sentence. "
         "Answer with the one paragraph and nothing else: no heading, no preamble, "
         "no sign-off, no quotes around it."
     )
@@ -1756,6 +1821,8 @@ def _week_asks_prompt(split: "Split", part: Part, day: date, facts: dict) -> str
 # l'etichetta di un campo.
 RECOVERY_VERDICT_WORDS = {
     "ready": "you woke up ready",
+    # Lo stesso gradino della Health, per la stessa ragione (`_leans_bad`).
+    "leaning": "ready, but not fresh",
     "workable": "good enough to work, not to race",
     "flat": "the body is not rested",
 }
@@ -1778,8 +1845,9 @@ def _recovery_verdict(readings: "list[str]") -> str:
     una riga che non si puo' provare."""
     much = readings.count("much worse than usual")
     worse = readings.count("worse than usual")
+    leaning = sum(1 for reading in readings if _leans_bad(reading))
     if not much and not worse:
-        return "ready"
+        return "leaning" if leaning >= 2 else "ready"
     if much >= 2 or much + worse == 3:
         return "flat"
     return "workable"
@@ -1826,7 +1894,7 @@ def _recovery_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     e': una cosa da dire, non un termine del conto. La riga che glielo dice
     sta nel messaggio."""
     seen = _readings_of(split, facts)
-    rests_on, good_news = _carried_by(seen)
+    rests_on, leaning, good_news = _carried_by(seen)
     # Il pezzo senza parte cattiva e' il minimo di ieri, e di lui al quinto
     # arriva il costo della giornata e non il posto nella fascia: dove sta un
     # valore e' del paragrafo che lo possiede, due centimetri piu' sotto.
@@ -1834,8 +1902,8 @@ def _recovery_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     low = facts.get(split.measures_in, {}).get(cost.key, {}) if cost else {}
     return {
         "verdict": RECOVERY_VERDICT_WORDS[_recovery_verdict([m["reading"] for m in seen])],
-        "about": _rests_on(rests_on, good_news),
-        "how_they_read": _spoken_of(seen, rests_on, good_news),
+        "about": _rests_on(rests_on, leaning, good_news),
+        "how_they_read": _spoken_of(seen, rests_on, leaning, good_news),
         "what_yesterday_cost": _cost_of_yesterday(low.get("where", "unknown")),
     }
 
@@ -1857,16 +1925,18 @@ def _recovery_opening_prompt(split: "Split", part: Part, day: date, facts: dict)
         "these. **An empty `measures` is no measure to name and no second sentence at "
         "all** — write the first sentence and the third, and leave the missing one "
         "unmentioned. `how_they_read` is how each of those measures reads, so that your "
-        "paragraph does not contradict the section it opens. He is reading a card about "
-        "his body, not a report on how it was assembled: **no field is named in it, and "
+        "paragraph does not contradict the section it opens — **say each one as its reading says "
+        "it and no further**: the reading has already chosen how strongly it puts "
+        "itself. The reader is looking at a "
+        "card about a body, not a report on how it was assembled: **no field is named in "
         "no sentence of it is about the card**. "
-        "`what_yesterday_cost` is what the day before took out of him: **it is "
+        "`what_yesterday_cost` is what the day before took out of you: **it is "
         "not part of the verdict and it never softens it** — a day that cost a lot is a "
         "fact about the training, and what matters is whether the morning came back "
         "anyway. Say it as the one thing worth knowing alongside the verdict, and never "
         "as the reason for it. **Never name a field and never say what a sentence of "
-        "yours is doing**: he is reading a card about his body, not a report on how it "
-        "was assembled. "
+        "yours is doing**: you are writing to the person whose body it is, not a report "
+        "on how it was assembled. "
         "Answer with the paragraph and nothing else: no number in it, no band in it, "
         "no heading, no list, no quotes around it."
     )
@@ -2101,8 +2171,9 @@ LOAD_SPLIT = Split(
 # soglia ha chiuso con *"should be considered in training decisions"*, che e'
 # un consiglio, e i punteggi scivolavano nel *we*.
 FITNESS_TAIL = (
-    "Write it to him as **you**, and never as *I*, *we* or *he*. And say nothing "
-    "about what he should train: that is nobody's business on this card. "
+    "**The reader is spoken to as *you***, in every sentence: *your* scores, *your* "
+    "shape, what *you* can do today. And say nothing about what to train: that is "
+    "nobody's business on this card. "
 )
 
 # Le righe che dicono a un punteggio come si leggono i suoi campi.
@@ -2284,11 +2355,11 @@ def _fitness_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     il corpo si trova non e' una capacita'. I loro paragrafi se li scrivono
     da se', sotto."""
     seen = _readings_of(split, facts)
-    rests_on, good_news = _carried_by(seen)
+    rests_on, leaning, good_news = _carried_by(seen)
     return {
         "verdict": FITNESS_VERDICT_WORDS[_fitness_verdict([m["reading"] for m in seen])],
-        "about": _rests_on(rests_on, good_news),
-        "how_they_read": _spoken_of(seen, rests_on, good_news),
+        "about": _rests_on(rests_on, leaning, good_news),
+        "how_they_read": _spoken_of(seen, rests_on, leaning, good_news),
     }
 
 
@@ -2306,16 +2377,18 @@ def _fitness_opening_prompt(split: "Split", part: Part, day: date, facts: dict) 
         "`verdict` is the verdict and you do not reopen it. `how_they_read` names the "
         "only measures you may name anywhere in the paragraph, worst first, and says "
         "which way each of them points — it is the same truth the paragraphs below "
-        "were written from, so that yours does not contradict them. The second "
+        "were written from, so that yours does not contradict them, and **at the "
+        "strength they use**: no reading is put more strongly than it puts itself. "
+        "The second "
         "sentence names them and says what they come to, and the third says what that "
-        "shape lets him do; **an empty list is no measure to name and no second "
+        "shape lets you do; **an empty list is no measure to name and no second "
         "sentence at all**, so write the first and the third. **Name a score in the "
         "second sentence only**, and never say twice how one reads. **This is about "
         "today and not about the month**, and it is not about a morning either: these "
         "scores are months of work, so no story of the last four weeks and no *this "
-        "morning*. He is reading a card about what his body can do, not a report on "
-        "how it was assembled: **no field is named in it, and no sentence of it is "
-        "about the card**. Write it to him as **you** — never *I*, *we* or *he*. "
+        "morning*. You are writing to the person whose body it is, about what that body "
+        "can do, not a report on how it was assembled: **no field is named in it, and no sentence of it is "
+        "about the card**. Write it to the person whose body it is. "
         "Answer with the paragraph and nothing else: no number in it, no band in it, "
         "no heading, no list, no quotes around it."
     )

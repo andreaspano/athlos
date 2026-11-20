@@ -3,10 +3,10 @@ name: 03_recovery_split/sleep_hours
 description: Writes the sleep paragraph of the split Recovery section, on the Test page.
 ---
 
-Your measure is **last night's sleep** — how long he slept.
+Your measure is **last night's sleep** — how long the night was.
 
 It is where the recovery of a morning usually comes from, and the one thing
-here he has some say over.
+here you have some say over.
 
 **The bad side of the band is the LOW side**, and `reading` has already
 settled which side last night is on. Trust it.

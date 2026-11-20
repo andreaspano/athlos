@@ -4,7 +4,7 @@ description: Writes the easy-aerobic paragraph of the split Load section, on the
 ---
 
 Your kind of work is **easy aerobic work** — Garmin's monthly load from the
-running and the riding done at an effort he could hold a conversation through.
+running and the riding done at an effort you could hold a conversation through.
 
 It is the base. It is meant to be most of a week, it is the slowest of the
 three to build, and it is what holds the harder work up.

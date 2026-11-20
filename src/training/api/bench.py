@@ -198,6 +198,35 @@ def store(data_dir: Path, rows: "list[dict[str, Any]]") -> None:
             print(f"ATTENZIONE: il banco non registra ({exc}): vado avanti.", flush=True)
 
 
+def latest(data_dir: Path, start: date | None = None, end: date | None = None):
+    """La riga piu' recente per ogni (giorno, sezione), cioe' **lo stato di
+    adesso** del quaderno.
+
+    Il file tiene la storia — un giro per ogni taratura, e dentro un giro un
+    giro per ogni modifica ai prompt — ma chi guarda la pagina vuole l'ultima
+    versione di ogni card, non l'archivio. Il piu' recente e' per (giro,
+    iterazione): i giri hanno il nome dell'ora in cui sono partiti, quindi si
+    ordinano da se'.
+
+    E' la funzione che la pagina Test legge. **Niente qui genera testo**: i due
+    testi — quello del modello di casa e quello di Claude — sono nella stessa
+    riga da quando il ciclo l'ha scritta, e la pagina li mostra affiancati
+    senza chiedere niente a nessuno."""
+    newest: "dict[tuple[str, str], dict[str, Any]]" = {}
+    for row in load(data_dir):
+        day = row.get("day", "")
+        if (start and day < start.isoformat()) or (end and day > end.isoformat()):
+            continue
+        key = (day, row.get("section", ""))
+        seen = newest.get(key)
+        if seen is None or (row.get("run", ""), row.get("iteration", 0)) >= (
+            seen.get("run", ""),
+            seen.get("iteration", 0),
+        ):
+            newest[key] = row
+    return [newest[key] for key in sorted(newest)]
+
+
 def reusable(
     known: "list[dict[str, Any]]", day: date, section_key: str, prompts: str, model: str
 ) -> "dict[str, Any] | None":

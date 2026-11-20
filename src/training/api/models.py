@@ -1152,6 +1152,44 @@ class Adherence(BaseModel):
 # --- Il banco di prova: un modello in casa al posto dell'agente ---
 
 
+class BenchText(BaseModel):
+    """Una riga del quaderno del banco: quello che il modello di casa ha scritto
+    per una sezione di un giorno, **accanto a quello che l'agente di Claude ha
+    scritto davvero**, con la pagella.
+
+    La legge la pagina Test, che da quando c'e' il quaderno non genera piu'
+    niente: i due testi sono stati scritti quando il ciclo di taratura
+    (`bench_tune`) ha girato, e la pagina li mostra affiancati. Prima li
+    chiedeva a ollama a ogni apertura — venti secondi per sei card, e nulla che
+    restasse da riguardare il giorno dopo."""
+
+    day: Date = Field(description="The day the two texts are about.")
+    section: str = Field(description="Which section, by its key in the report.")
+    model: str = Field(description="The Ollama model that wrote the local text, tag included.")
+    seconds: float = Field(description="How long the local model took, when it was asked.")
+    written_at: str = Field(description="When the local text was written, local time.")
+    ollama: str = Field(description="What the model on this machine wrote. Markdown.")
+    claude: str | None = Field(
+        default=None, description="What the Claude agent wrote for that day: the target."
+    )
+    score: float = Field(
+        default=0.0, description="The faults, and only the faults: hard plus soft, weighted."
+    )
+    faults: list[str] = Field(
+        default_factory=list, description="The hard faults found in the local text."
+    )
+    soft: list[str] = Field(
+        default_factory=list, description="The soft faults found in the local text."
+    )
+    distance: float = Field(
+        default=0.0,
+        description=(
+            "How far the local text is from the Claude one, 0 to 1. Measured, not scored, "
+            "and zero where the Claude text itself fails a check."
+        ),
+    )
+
+
 class LocalText(BaseModel):
     """A section's text written by the model running on this machine, for the Test page.
 

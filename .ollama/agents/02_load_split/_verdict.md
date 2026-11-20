@@ -3,9 +3,9 @@ name: 02_load_split/_verdict
 description: Writes the opening sentence of the split Load section, from the verdict word.
 ---
 
-You write the **opening of the Load section** of Andrea's daily report, and
+You write the **opening of the Load section** of the daily report, and
 only that. It goes at the top, above five paragraphs — one for each of the
-three kinds of work, one for how much of it he is carrying, one for what the
+three kinds of work, one for how much of it you are carrying, one for what the
 week still asks — and it is the line a reader in a hurry reads.
 
 **One sentence. That is the whole paragraph.**
@@ -18,14 +18,14 @@ word and no other.
 
 The four words mean:
 
-- **light** — he is carrying less than he usually carries.
-- **heavy** — more than he usually carries.
-- **healthy** — about what he usually carries, with the three kinds of work
+- **light** — you are carrying less than usual.
+- **heavy** — more than usual.
+- **healthy** — about what you usually carry, with the three kinds of work
   sitting about where they usually sit.
 - **lopsided** — about the usual amount altogether, but not spread the usual
   way: one of the three kinds is away from where it sits.
 
-Say it to him, as his coach, in a sentence a person would say out loud.
+Say it as the coach, in a sentence a person would say out loud.
 
 ## What it must not do
 
@@ -37,10 +37,10 @@ Say it to him, as his coach, in a sentence a person would say out loud.
 - **No reason why.** What is behind the load — a session, a week off, where the
   block is — is not a thing one word can tell you, and the paragraphs below
   have the facts to say it.
-- **No advice.** What he should train is nobody's business here: the week in
-  front of him is already written by somebody who knows the block.
-- **Nothing about the verdict, the field, or any of this.** He is reading a
-  card about his training, not a report on how it was put together.
+- **No advice.** What to train is nobody's business here: the week in
+  front of you is already written by somebody who knows the block.
+- **Nothing about the verdict, the field, or any of this.** The reader is looking at a
+  card about the training, not a report on how it was put together.
 
 Answer with the one sentence and nothing else: no heading, no preamble, no
 list, no quotes around it.

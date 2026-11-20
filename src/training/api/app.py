@@ -21,7 +21,7 @@ import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 
-from training.api import ollama, refresh
+from training.api import bench, ollama, refresh
 from training.api.cache import (
     invalidate,
     load_activities,
@@ -66,6 +66,7 @@ from training.api.models import (
     EffectSeconds,
     Lap,
     LapList,
+    BenchText,
     LocalText,
     Pause,
     Plan,
@@ -490,6 +491,32 @@ def get_day_plan(day: date, ctx: Context) -> DayPlan:
     if plan is None:
         raise HTTPException(status_code=404, detail=f"No plan for {day}.")
     return DayPlan(**{name: plan[name] for name in DayPlan.model_fields})
+
+
+@app.get(
+    "/api/test/bench",
+    response_model=list[BenchText],
+    summary="The bench notebook: the two texts, side by side",
+)
+def get_bench(ctx: Context, start: date | None = None, end: date | None = None) -> list[BenchText]:
+    """Everything the bench has written, newest version of each (day, section), with the
+    Claude fragment of that day beside it.
+
+    This is what the Test page reads, and **it generates nothing**. Until the notebook
+    existed the page asked Ollama on every open — six sections, twenty seconds, and nothing
+    left to look at again the next day. The texts now come from `bench/local_text.jsonl`,
+    written when the tuning loop ran (`bench_tune`), so a day from three weeks ago reads the
+    same today as it did then.
+
+    The file keeps the history — one run per tuning session, and inside a run one iteration
+    per prompt change — and this returns only the newest version of each card. The older ones
+    are still in the file for whoever wants to compare two iterations.
+
+    `start` and `end` cut the range; without them it is everything there is. An empty list is
+    not an error: it means the loop has never run."""
+    rows = bench.latest(ctx.data_dir, start, end)
+    return [BenchText(**{name: row.get(name) for name in BenchText.model_fields if name in row})
+            for row in rows]
 
 
 @app.get(

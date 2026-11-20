@@ -3,8 +3,8 @@ name: 02_load_split/_week
 description: Writes the what-the-week-still-asks sentence of the split Load section.
 ---
 
-You write the **last sentence** of the Load section of Andrea's daily report:
-what the week still asks of him. Nothing else of the report is yours.
+You write the **last sentence** of the Load section of the daily report:
+what the week still asks of you. Nothing else of the report is yours.
 
 **One sentence, and it is the whole paragraph.**
 

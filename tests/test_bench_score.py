@@ -355,3 +355,64 @@ def test_the_distance_is_measured_but_not_scored(health_facts):
     assert marks["target_faults"] == []
     assert marks["distance"] > 0
     assert marks["score"] == 0.0
+
+
+def test_the_athletes_name_is_third_person():
+    """**Il buco che questo controllo ha avuto per due giorni.** Cercavo i
+    pronomi e non il nome, quindi dieci testi su centocinquanta dicevano
+    *«Andrea's nervous system»* e il punteggio non ne sapeva niente. E lo
+    dicevano perche' lo diceva la riga del compito dei miei prompt."""
+    assert bench_score.wrong_person("Andrea's nervous system spent the night under load")
+    assert bench_score.wrong_person("this is good news for Andrea")
+
+
+def test_the_prompts_do_not_name_him_in_the_task_line():
+    """La causa, non il sintomo: il nome stava nella frase piu' letta del
+    prompt — *«one paragraph of Andrea's daily report»* — in dieci file su
+    tredici. I prompt di Claude quella riga non ce l'hanno, e Claude il nome
+    non lo scrive mai. Resta solo in `_style.md`, che ha la stessa forma di
+    quello di Claude e non perde."""
+    from pathlib import Path
+
+    colpevoli = [
+        str(path.relative_to(REPO_ROOT / ".ollama/agents"))
+        for path in (REPO_ROOT / ".ollama/agents").rglob("*.md")
+        if path.name != "_style.md" and "Andrea" in path.read_text(encoding="utf-8")
+    ]
+    assert colpevoli == [], f"il nome e' tornato in {colpevoli}"
+
+
+def test_an_ordinary_word_is_not_another_section_s_measure(recovery_facts):
+    """**Il falso positivo che mi ha fatto ritoccare due prompt per niente.**
+    *«which is good news for your morning readiness»* e *«a good place for
+    recovery after last night's sleep»* sono prosa inglese, non riferimenti
+    alla misura di un'altra sezione: cercare l'etichetta come sottostringa
+    dava undici errori su centoquattro testi."""
+    split = ollama.SECTIONS["recovery_split"]
+    text = "\n\n".join(
+        [
+            "You woke up ready.",
+            "Your readiness reads better than usual.",
+            "Last night's sleep was long.",
+            "Your body battery at wake-up came back fully, which is good news for your "
+            "morning readiness.",
+            "Yesterday cost about what a day costs.",
+        ]
+    )
+    assert bench_score.foreign_measures(split, text, recovery_facts) == []
+
+
+def test_a_distinctive_measure_name_is_still_caught(recovery_facts):
+    """Il prezzo e' solo sulle parole comuni: *hill score* in un paragrafo
+    della Recovery resta un errore, che in una frase non ci capita per caso."""
+    split = ollama.SECTIONS["recovery_split"]
+    text = "\n\n".join(
+        [
+            "You woke up ready.",
+            "Your readiness reads better than usual, and the hill score agrees.",
+            "Last night's sleep was long.",
+            "Body battery at wake-up is normal.",
+            "Yesterday cost about what a day costs.",
+        ]
+    )
+    assert any("hill score" in f for f in bench_score.foreign_measures(split, text, recovery_facts))

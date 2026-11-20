@@ -13,7 +13,7 @@ more lightly than the same move elsewhere** — a figure that has halved is one
 session not run, not a body falling apart.
 
 - **Above its band** is sharpness being worked on: the plan in a week that
-  asked for quality, and somebody racing his training partners in a week that
+  asked for quality, and somebody racing the training partners in a week that
   asked for easy running.
 - **Below its band**, or near nothing at all, is a top end nobody is asking
   for. Through a base phase that is exactly what should happen and is worth

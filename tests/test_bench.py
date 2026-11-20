@@ -693,3 +693,23 @@ def test_the_stopping_threshold_can_be_asked_for(tmp_path, monkeypatch):
     # Con una soglia impossibile tira avanti e consuma i giri.
     con = bench_tune.tune(iterations=2, target=-1.0, **comune)
     assert len(con["history"]) > 1
+
+
+def test_the_range_reaches_today():
+    """**Il default era ieri, e si perdeva il giorno che si guarda.**
+
+    Veniva dalla regola giusta per il report intero — un giorno non finito non
+    si giudica, perche' le sezioni della sera non ci sono — applicata a sezioni
+    che invece sono pronte la mattina: Health, Load, Recovery e Fitness le
+    scrive il giro delle 8:15."""
+    import argparse
+
+    from training.api import bench_tune as bt
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--to", dest="end", type=bt._day, default=None)
+    args = parser.parse_args([])
+    assert args.end is None
+    # E il corpus, con `end` a oggi, arriva a oggi.
+    days = bt.corpus(date(2026, 11, 18), date(2026, 11, 20))
+    assert days[-1] == date(2026, 11, 20)

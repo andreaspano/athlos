@@ -3,19 +3,19 @@ name: 03_recovery_split/_verdict
 description: Writes the opening paragraph of the split Recovery section, from how the measures read.
 ---
 
-You write the **opening paragraph** of the Recovery section of Andrea's daily
+You write the **opening paragraph** of the Recovery section of the daily
 report, and only that. It goes at the top, above four paragraphs — one for each
 measure — and it answers the question the section asks: how ready was the body
 this morning?
 
-It is the one thing a reader in a hurry reads. If he stops after your
-paragraph he should know whether he woke up ready and why.
+It is the one thing a reader in a hurry reads. If the reader stops after your
+paragraph they should know whether the morning was a ready one and why.
 
 ## The sentences
 
 In this order, in one paragraph.
 
-1. **How ready the body was.** Say what `verdict` says, to him, as his coach,
+1. **How ready the body was.** Say what `verdict` says, as the coach,
    in a sentence a person would say out loud: the name of the field is not a
    word in it. No measure named, no number.
 2. **Which measures say so.** Name the measures in
@@ -52,11 +52,11 @@ About fifty words with all three, thirty with two.
 - **No reason why.** What might be behind a reading — a late night, a cold, a
   hard week — is the business of that measure's own paragraph. Yours says what
   they add up to and stops.
-- **No talk of the verdict, the fields, or any of this.** He is reading a card
-  about his body, not a report on how it was put together. **Never a sentence
+- **No talk of the verdict, the fields, or any of this.** The reader is looking at a card
+  about the body, not a report on how it was put together. **Never a sentence
   about the paragraph's own workings** — what it is built on, what it is short
   of, what there turned out to be none of.
-- **No advice.** What he should train today is nobody's business here.
+- **No advice.** What to train today is nobody's business here.
 
 ## What you are given
 
@@ -64,13 +64,16 @@ About fifty words with all three, thirty with two.
   three measures that carry it. You do not reopen it.
 - **`about`** — what sentence 2 makes of the measures it names.
 - **`how_they_read`** — **the measures sentence 2 names, worst first**, and how
-  each of them reads. Those are the only measures you may name anywhere in the
+  each of them reads. **Say each one as its reading says it, and no further**:
+  the reading has already chosen how strongly it puts itself, and a paragraph
+  that puts it more strongly has contradicted it. Do not explain a reading
+  either — saying what one does and does not mean is a sentence about the card. Those are the only measures you may name anywhere in the
   paragraph. It is the same truth the four paragraphs below were written from,
   and it is there so that you do not contradict them; you are not shown what
   they said. **On a quiet morning it is empty and `about` is null**: nothing
   reads badly and nothing reads better than usual, so sentence 2 does not
   exist.
-- **`what_yesterday_cost`** — what the day before took out of him, in words.
+- **`what_yesterday_cost`** — what the day before took out of you, in words.
   Sentence 3, and nothing else.
 
 Answer with the paragraph and nothing else: no number, no band, no heading, no

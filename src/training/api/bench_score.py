@@ -101,6 +101,15 @@ NOT_A_CODE = {"VO2MAX", "HRV", "RPE", "ATTENZIONE"}
 # La terza persona invece si vieta per intero: **Claude non la usa mai** in
 # tutto il corpus, e llama ci scivola (*«yesterday cost him»*, *«took more out
 # of him»*).
+#
+# **E il nome proprio e' terza persona**, che e' il buco che questo controllo
+# ha avuto per due giorni. Cercavo i pronomi e non il nome, quindi *«Andrea's
+# nervous system spent the night under load»* passava liscio: dieci testi su
+# centocinquanta lo dicevano e il punteggio non ne sapeva niente. Lo diceva
+# perche' lo dicevano i miei prompt — «one paragraph of **Andrea's** daily
+# report» nella riga del compito, dieci file su tredici — e un nome nella
+# frase piu' letta del prompt e' un nome che ricompare nella card. I prompt di
+# Claude quella riga non ce l'hanno, e Claude il nome non lo scrive mai.
 FIRST_PERSON = re.compile(
     r"\bmy\b|\bour\b"
     r"|\bwe(?:'re|'ve| are| were| have)?\s+(?:doing|getting|seeing|running|sleeping|"
@@ -110,7 +119,9 @@ FIRST_PERSON = re.compile(
     r"|\bI\s+(?:slept|woke|ran|feel|felt|trained)\b",
     re.IGNORECASE,
 )
-THIRD_PERSON = re.compile(r"\b(?:he|he's|his|him|the athlete)\b", re.IGNORECASE)
+THIRD_PERSON = re.compile(
+    r"\b(?:he|he's|his|him|the athlete|Andrea|Andrea's)\b", re.IGNORECASE
+)
 
 # I nomi dei campi letti ad alta voce. Solo le forme distintive: `about` e
 # `where` sono inglese normale e vietarle farebbe solo falsi positivi.
@@ -332,6 +343,23 @@ def contradicted_readings(section, text: str, facts: dict) -> "list[str]":
     return out
 
 
+# Le etichette che in inglese sono parole comuni, e che percio' **non si
+# cercano**: «your morning readiness» e «a good place for recovery after last
+# night's sleep» sono prosa, non riferimenti alla misura di un'altra sezione.
+#
+# Cercandole come sottostringa davano undici errori su centoquattro testi, e
+# per due di quelli ho ritoccato i prompt prima di accorgermi che il difetto
+# era nel metro. E' la stessa classe dei falsi positivi che mi aveva insegnato
+# il corpus di Claude — il passo `5:53` letto come due numeri, l'`I`
+# dell'allenatore — e si chiude allo stesso modo: il controllo tiene solo i
+# nomi che in una frase non ci capitano per caso.
+#
+# Il prezzo, detto: un riferimento vero alla readiness dentro il paragrafo di
+# un'altra misura non si prende piu'. Un falso positivo pero' costa di piu' —
+# manda a cambiare i prompt per niente, e l'ho appena fatto.
+COMMON_WORDS = {"readiness", "last night's sleep", "sleep"}
+
+
 def _label_of(piece) -> str:
     return re.sub(r"^the ", "", piece.label.lower())
 
@@ -345,7 +373,7 @@ def _other_labels(section) -> "set[str]":
         if not isinstance(other, ollama.Split) or other.title == section.title:
             continue
         out.update(_label_of(piece) for piece in other.parts)
-    return out
+    return out - COMMON_WORDS
 
 
 def foreign_measures(section, text: str, facts: dict) -> "list[str]":
@@ -357,8 +385,8 @@ def foreign_measures(section, text: str, facts: dict) -> "list[str]":
     sbagliato."""
     if not isinstance(section, ollama.Split):
         return []
-    foreign = _other_labels(section)
-    mine = {_label_of(piece) for piece in section.parts}
+    foreign = _other_labels(section) - COMMON_WORDS
+    mine = {_label_of(piece) for piece in section.parts} - COMMON_WORDS
     out = []
     for piece, owned, paragraph in _paragraphs(section, text, facts):
         if piece is None:

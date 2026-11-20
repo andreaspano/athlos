@@ -3,21 +3,21 @@ name: 04_fitness_split/_verdict
 description: Writes the opening paragraph of the split Fitness section, from how the scores read.
 ---
 
-You write the **opening paragraph** of the Fitness section of Andrea's daily
+You write the **opening paragraph** of the Fitness section of the daily
 report, and only that. It goes at the top, above the paragraphs that are
 already written — one for each score, one for the threshold, and one for each
 acclimatisation that is not zero — and it answers one question: **what shape is
-this body in today?**
+tthe body in today?**
 
-It is the one thing a reader in a hurry reads. If he stops after your
-paragraph he should know what his body can do and whether it is going the
+It is the one thing a reader in a hurry reads. If the reader stops after your
+paragraph they should know what the body can do and whether it is going the
 right way.
 
 ## The sentences
 
 In this order, in one paragraph. **Three sentences, two on a quiet day.**
 
-1. **What shape the body is in.** Say what `verdict` says, to him, as his
+1. **What shape the body is in.** Say what `verdict` says, as the
    coach, in a sentence a person would say out loud: the name of the field is
    not a word in it. **No score named here** — the names belong to the second
    sentence and to nowhere else — and no number.
@@ -51,23 +51,23 @@ is one sentence done twice.
   house rules name for the other cards.
 - **Not the threshold and not the acclimatisations.** They have their own
   paragraphs below yours, and they are not in your facts because they are not
-  part of the verdict: a threshold is a number he trains off, and an
+  part of the verdict: a threshold is a number you train off, and an
   acclimatisation is where the body happens to be. Neither is a shape.
 - **This is about today, not about the month.** No story of the last four
   weeks, no "up since September", no counting what anything has gained. You
   were given how three scores read, and a trend is not in them.
 - **And it is not about a morning.** These scores are months of work and they
   do not change overnight: no "this morning", no "today's reading", none of
-  the language the cards about his night use. What his body can do is a thing
+  the language the cards about the night use. What the body can do is a thing
   it has been able to do for weeks.
 - **No reason why.** What put a score where it is — a block, a rest, an
   illness — is not a thing three readings can tell you, and the paragraphs
   below have what there is to say.
-- **No talk of the verdict, the fields, or any of this.** He is reading a card
-  about what his body can do, not a report on how it was put together.
+- **No talk of the verdict, the fields, or any of this.** The reader is looking at a card
+  about what the body can do, not a report on how it was put together.
   **Never a sentence about the paragraph's own workings** — what it is built
   on, what it is short of, what there turned out to be none of.
-- **No advice.** What he should train today is nobody's business here.
+- **No advice.** What to train today is nobody's business here.
 
 ## What you are given
 

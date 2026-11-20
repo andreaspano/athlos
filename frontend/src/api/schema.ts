@@ -331,6 +331,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/test/bench": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The bench notebook: the two texts, side by side
+         * @description Everything the bench has written, newest version of each (day, section), with the
+         *     Claude fragment of that day beside it.
+         *
+         *     This is what the Test page reads, and **it generates nothing**. Until the notebook
+         *     existed the page asked Ollama on every open — six sections, twenty seconds, and nothing
+         *     left to look at again the next day. The texts now come from `bench/local_text.jsonl`,
+         *     written when the tuning loop ran (`bench_tune`), so a day from three weeks ago reads the
+         *     same today as it did then.
+         *
+         *     The file keeps the history — one run per tuning session, and inside a run one iteration
+         *     per prompt change — and this returns only the newest version of each card. The older ones
+         *     are still in the file for whoever wants to compare two iterations.
+         *
+         *     `start` and `end` cut the range; without them it is everything there is. An empty list is
+         *     not an error: it means the loop has never run.
+         */
+        get: operations["get_bench_api_test_bench_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/test/local/{section}/{day}": {
         parameters: {
             query?: never;
@@ -343,18 +377,43 @@ export interface paths {
          * @description One section of the daily report written by the **Ollama model running on this
          *     machine**, for the Test page — the same prompt as the Claude agent, a different writer.
          *
-         *     `section` is `health` or `load`, the same keys the Day page uses for its cards. The other
-         *     five are not wired up: each one needs its own slice of the facts and its own trial, and
-         *     they are added one at a time.
+         *     `section` is `health`, `load`, `recovery` or `fitness`, the same keys the Day page uses
+         *     for its cards. The other three are not wired up: each one needs its own slice of the facts
+         *     and its own trial, and they are added one at a time.
          *
-         *     `health_split` is the **same** section asked a different way: five small writers instead
-         *     of one — a paragraph each for the resting heart rate, the HRV, the breathing and the
-         *     stress, none of which is given the other three, and a fifth that reads those four and
-         *     writes the opening verdict. The section's shape stops being something the prompt has to
-         *     ask for and becomes four answers joined in order. It costs five calls, the four measures
-         *     going at once and the verdict after them, and the `seconds` of the answer is what the
-         *     whole thing took: the Test page shows it next to the single-call one, on the same day and
-         *     the same numbers, because that comparison is the only way to tell which is better.
+         *     `recovery` is the one that answers the first question — can the local model write this
+         *     section at all? — because the Test page puts it beside the fragment the Claude agent
+         *     actually wrote, over the same four numbers, so the only thing that differs is who wrote
+         *     it. The first night said no three times over, and in the three ways that had already
+         *     forced the other two sections apart: a verdict the next line contradicted, the night in
+         *     the wrong spelling, and the two body battery numbers folded into one sentence. So the
+         *     page now shows `recovery_split` on that side — four writers, one per measure, and a fifth
+         *     that reads their readings and says how ready the body was — and `recovery` stays here as
+         *     the thing it has to beat.
+         *
+         *     `fitness` and `fitness_split` are the same pair over the most varied section there is:
+         *     three scores read the other way round (above the band is good), a threshold with no band
+         *     at all, and two acclimatisations that are zero most of the year. In the split those two
+         *     are **pieces that are not asked for** when the figure is zero, so the section comes back
+         *     as five paragraphs in winter and six or seven in a week spent high up — a shape the whole
+         *     prompt has to remember to leave out, and on the first night did not.
+         *
+         *     `health_split` and `load_split` are those **same** two sections asked a different way:
+         *     one small writer per paragraph instead of one for the lot. `health_split` is five — a
+         *     paragraph each for the resting heart rate, the HRV, the breathing and the stress, none of
+         *     which is given the other three, plus one that reads those four readings and opens the
+         *     section. `load_split` is six, and they are not the same job six times: one for each of
+         *     the three kinds of work (each given its own load and what the week asked for, and neither
+         *     of the other two), one for how much of it you are carrying, one for what the week still
+         *     asks, and one that writes the opening word. The section's shape stops being something the
+         *     prompt has to ask for and becomes answers joined in order — and a paragraph with nothing
+         *     to say is not asked for at all, which is how a week with no plan comes back as five
+         *     paragraphs instead of six with a hole in it.
+         *
+         *     The split costs one call per paragraph, all of them at once, and the `seconds` of the
+         *     answer is what the whole thing took: the Test page shows each section beside itself, on
+         *     the same day and the same numbers, because that comparison is the only way to tell which
+         *     way of asking is better.
          *
          *     It is a bench, not a report. Nothing is written to `summary/`: the text is made when this
          *     is called and lives only in the answer, so the cards of the Day go on showing what the
@@ -1312,6 +1371,78 @@ export interface components {
              * @description Two standard deviations above the average.
              */
             outer_high: number;
+        };
+        /**
+         * BenchText
+         * @description Una riga del quaderno del banco: quello che il modello di casa ha scritto
+         *     per una sezione di un giorno, **accanto a quello che l'agente di Claude ha
+         *     scritto davvero**, con la pagella.
+         *
+         *     La legge la pagina Test, che da quando c'e' il quaderno non genera piu'
+         *     niente: i due testi sono stati scritti quando il ciclo di taratura
+         *     (`bench_tune`) ha girato, e la pagina li mostra affiancati. Prima li
+         *     chiedeva a ollama a ogni apertura — venti secondi per sei card, e nulla che
+         *     restasse da riguardare il giorno dopo.
+         */
+        BenchText: {
+            /**
+             * Day
+             * Format: date
+             * @description The day the two texts are about.
+             */
+            day: string;
+            /**
+             * Section
+             * @description Which section, by its key in the report.
+             */
+            section: string;
+            /**
+             * Model
+             * @description The Ollama model that wrote the local text, tag included.
+             */
+            model: string;
+            /**
+             * Seconds
+             * @description How long the local model took, when it was asked.
+             */
+            seconds: number;
+            /**
+             * Written At
+             * @description When the local text was written, local time.
+             */
+            written_at: string;
+            /**
+             * Ollama
+             * @description What the model on this machine wrote. Markdown.
+             */
+            ollama: string;
+            /**
+             * Claude
+             * @description What the Claude agent wrote for that day: the target.
+             */
+            claude?: string | null;
+            /**
+             * Score
+             * @description The faults, and only the faults: hard plus soft, weighted.
+             * @default 0
+             */
+            score: number;
+            /**
+             * Faults
+             * @description The hard faults found in the local text.
+             */
+            faults?: string[];
+            /**
+             * Soft
+             * @description The soft faults found in the local text.
+             */
+            soft?: string[];
+            /**
+             * Distance
+             * @description How far the local text is from the Claude one, 0 to 1. Measured, not scored, and zero where the Claude text itself fails a check.
+             * @default 0
+             */
+            distance: number;
         };
         /**
          * BlockPanel
@@ -3735,6 +3866,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DayPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_bench_api_test_bench_get: {
+        parameters: {
+            query?: {
+                start?: string | null;
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BenchText"][];
                 };
             };
             /** @description Validation Error */
