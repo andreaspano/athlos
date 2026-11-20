@@ -44,6 +44,7 @@ export function LoadCard({
   icon,
   face,
   refresh,
+  title = "Load",
 }: {
   data: DailyData;
   text: string | null;
@@ -53,12 +54,18 @@ export function LoadCard({
   /** La faccia della card (todo 92). */
   face: Verdict | null;
   refresh?: ReactNode;
+  /** Il nome in testa alla card. Sulla Day e' sempre "Load", ed e' il motivo
+   * per cui prima era scritto qui dentro. Sul banco di prova le card della
+   * Load sono due — la stessa sezione scritta in un pezzo e in sei — e due
+   * card con lo stesso nome una accanto all'altra non si confrontano, si
+   * confondono. */
+  title?: string;
 }) {
   const now = data.load.now;
   const bands = data.load.bands;
   return (
-    <section className="card load-card" aria-label="Load">
-      <CardHead icon={icon} title="Load" face={face} refresh={refresh} />
+    <section className="card load-card" aria-label={title}>
+      <CardHead icon={icon} title={title} face={face} refresh={refresh} />
       {/* La fascia e' quella di `_band`, come in Health, Recovery e Fitness:
           dove il carico sta di solito, non dove Garmin vorrebbe che stesse.
           Quindi due livelli, come le altre card. */}

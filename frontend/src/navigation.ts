@@ -43,7 +43,10 @@
 // adesso si legge in fila dopo Week, perche' staccata si trovava male ed e'
 // comunque una delle tre pagine. Il piano aperto e' `?plan=<slug>`, cioe' il
 // nome del suo file senza `.md`. Viste non ne ha.
-export type Page = "day" | "week" | "plan";
+// La **Test** sta sullo stesso asse, `?period=test`, e come la Plan non e'
+// un periodo: e' una pagina vuota dove provare le cose prima di metterle
+// dove vanno. Viste non ne ha.
+export type Page = "day" | "week" | "plan" | "test";
 export type View = "snap" | "training" | "trend";
 
 /** Le viste di ogni periodo, nell'ordine del menu (todo 59).
@@ -63,6 +66,7 @@ export const VIEWS: Record<Page, View[]> = {
   day: ["snap", "training", "trend"],
   week: ["snap", "training", "trend"],
   plan: [],
+  test: [],
 };
 
 /** Il nome con cui ogni vista si scrive: nella riga del menu e nel titolo
@@ -104,6 +108,7 @@ export function pageFromUrl(): Page {
   const value = search().get("period");
   if (value === "week") return "week";
   if (value === "plan") return "plan";
+  if (value === "test") return "test";
   return "day";
 }
 
@@ -135,6 +140,25 @@ export function weeksFromUrl(): number {
   const value = text === null ? NaN : Number(text);
   if (!Number.isFinite(value)) return DEFAULT_WEEKS;
   return Math.min(MAX_WEEKS, Math.max(MIN_WEEKS, Math.round(value)));
+}
+
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Il giorno chiesto dall'URL (`?day=2026-10-07`), se e' una data valida e
+ * non nel futuro; se no `now`.
+ *
+ * Sta qui e non nella Day perche' dal todo del banco di prova sono in due a
+ * leggerlo — la Day e la Test — e due copie della stessa validazione sono
+ * due modi diversi di sbagliare: un giorno che una pagina accetta e l'altra
+ * no si scoprirebbe solo seguendo un link da una all'altra.
+ *
+ * Il futuro ricade su oggi e non su un errore: `/api/daily/{day}` risponde
+ * 422 a un giorno che non e' arrivato, e una pagina non deve mostrare un
+ * errore per un segnalibro vecchio o un dito storto sul calendario. */
+export function dayFromUrl(now: string): string {
+  const day = paramFromUrl("day");
+  if (!day || !DAY_PATTERN.test(day) || Number.isNaN(Date.parse(day)) || day > now) return now;
+  return day;
 }
 
 /** Il valore di un parametro dell'URL, o `null`. */

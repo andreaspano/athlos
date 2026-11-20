@@ -36,6 +36,7 @@ export type Scores = Schemas["Scores"];
 export type Verdict = NonNullable<Scores["health"]>;
 export type DayPlan = Schemas["DayPlan"];
 export type BodyComposition = Schemas["BodyComposition"];
+export type LocalText = Schemas["LocalText"];
 export type BodyMeasure = Schemas["BodyMeasure"];
 export type PlannedSession = Schemas["PlannedSession"];
 export type Terrain = NonNullable<Activity["terrain"]>;
@@ -199,6 +200,15 @@ export const api = {
 
   dailyReport: (day: string, signal?: AbortSignal) =>
     getOrNull<Report>(`/api/reports/daily/${day}`, signal),
+
+  // Il testo di una sezione scritto dal modello locale, per la pagina Test:
+  // lo stesso prompt dell'agente, un altro che scrive. `section` e' la
+  // chiave della card (`health`, `load`), la stessa che usa la Day. Non e'
+  // un report e non tocca `summary/` — nasce qui e muore con la risposta. Ci
+  // mette qualche secondo, e il primo di tutti un po' di piu': il modello si
+  // carica in memoria. Un 503 vuol dire che Ollama non risponde.
+  localText: (section: string, day: string, signal?: AbortSignal) =>
+    getJson<LocalText>(`/api/test/local/${section}/${day}`, signal),
 
   // Aggiorna i dati e riscrive il report del giorno, in background: lo stato
   // si segue con `refresh()`.

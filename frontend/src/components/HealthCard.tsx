@@ -15,6 +15,7 @@ export function HealthCard({
   icon,
   face,
   refresh,
+  title = "Health",
 }: {
   data: DailyData;
   text: string | null;
@@ -24,6 +25,12 @@ export function HealthCard({
   /** La faccia della card (todo 92). */
   face: Verdict | null;
   refresh?: ReactNode;
+  /** Il nome in testa alla card. Sulla Day e' sempre "Health", ed e' il
+   * motivo per cui prima era scritto qui dentro. Sul banco di prova le card
+   * della Health sono due — la stessa sezione scritta in un pezzo e in
+   * cinque — e due card con lo stesso nome una accanto all'altra non si
+   * confrontano, si confondono. */
+  title?: string;
 }) {
   const m = data.morning;
   // Sotto ogni numero solo la barra della sua fascia: dice da sola dove sta
@@ -32,8 +39,8 @@ export function HealthCard({
   // meno uno scarto tipo. La fascia equilibrata di Garmin (`hrv_baseline`)
   // resta nei dati e la usano il report e l'allarme dell'HRV, non la card.
   return (
-    <section className="card" aria-label="Health">
-      <CardHead icon={icon} title="Health" face={face} refresh={refresh} />
+    <section className="card" aria-label={title}>
+      <CardHead icon={icon} title={title} face={face} refresh={refresh} />
       <div className="stats two">
         <Stat
           label="Resting heart rate"

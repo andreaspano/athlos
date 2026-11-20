@@ -1685,3 +1685,26 @@ body.rail-closed {
 .plan-path {
   margin-top: 22px;
 }
+
+/* La riga sotto la card del banco di prova (pagina Test): chi ha scritto il
+   testo, quanto ci ha messo, e il tasto per farglielo rifare. E' una nota,
+   non una card: stessa misura e stesso grigio di `.written-at`, che e'
+   l'altra riga della pagina che parla di come il testo e' venuto. */
+.bench-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* Il giorno accanto al nome della pagina Test: la stessa riga del titolo, ma
+   spenta e piu' piccola — e' il soggetto delle card, non il nome della
+   pagina. */
+.bench-day {
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 10px;
+}

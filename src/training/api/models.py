@@ -1147,3 +1147,20 @@ class Adherence(BaseModel):
         description="`done_km / planned_km`. Adherence says how you executed, this says whether "
         "you were over or under."
     )
+
+
+# --- Il banco di prova: un modello in casa al posto dell'agente ---
+
+
+class LocalText(BaseModel):
+    """A section's text written by the model running on this machine, for the Test page.
+
+    It is **not** part of any report: nothing is written to `summary/`, and the Day page goes
+    on reading the fragment its Claude agent wrote. This is the same prompt given to a
+    different writer, so the two can be read side by side."""
+
+    day: Date = Field(description="The day the text is about.")
+    section: str = Field(description="Which section was written, by its key in the report.")
+    model: str = Field(description="The Ollama model that wrote it, tag included.")
+    seconds: float = Field(description="How long it took, loading the model into memory included.")
+    text: str = Field(description="The body of the section, as the card shows it. Markdown.")

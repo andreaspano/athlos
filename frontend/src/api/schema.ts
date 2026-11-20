@@ -331,6 +331,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/test/local/{section}/{day}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A section's text, written on this machine
+         * @description One section of the daily report written by the **Ollama model running on this
+         *     machine**, for the Test page — the same prompt as the Claude agent, a different writer.
+         *
+         *     `section` is `health` or `load`, the same keys the Day page uses for its cards. The other
+         *     five are not wired up: each one needs its own slice of the facts and its own trial, and
+         *     they are added one at a time.
+         *
+         *     `health_split` is the **same** section asked a different way: five small writers instead
+         *     of one — a paragraph each for the resting heart rate, the HRV, the breathing and the
+         *     stress, none of which is given the other three, and a fifth that reads those four and
+         *     writes the opening verdict. The section's shape stops being something the prompt has to
+         *     ask for and becomes four answers joined in order. It costs five calls, the four measures
+         *     going at once and the verdict after them, and the `seconds` of the answer is what the
+         *     whole thing took: the Test page shows it next to the single-call one, on the same day and
+         *     the same numbers, because that comparison is the only way to tell which is better.
+         *
+         *     It is a bench, not a report. Nothing is written to `summary/`: the text is made when this
+         *     is called and lives only in the answer, so the cards of the Day go on showing what the
+         *     Claude agents wrote and this cannot overwrite them. The prompt is the section's file in
+         *     `.ollama/agents/` plus the house rules beside it, and the facts are only what that
+         *     section owns, put in the message because a local model has no tools to read a file with.
+         *
+         *     503 when Ollama is not answering (`ollama serve` down, or the model not pulled): the page
+         *     says so instead of showing an empty card.
+         */
+        get: operations["get_local_section_api_test_local__section___day__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/weekly/trend": {
         parameters: {
             query?: never;
@@ -2061,6 +2104,42 @@ export interface components {
             load_balance_phrase: string | null;
         };
         /**
+         * LocalText
+         * @description A section's text written by the model running on this machine, for the Test page.
+         *
+         *     It is **not** part of any report: nothing is written to `summary/`, and the Day page goes
+         *     on reading the fragment its Claude agent wrote. This is the same prompt given to a
+         *     different writer, so the two can be read side by side.
+         */
+        LocalText: {
+            /**
+             * Day
+             * Format: date
+             * @description The day the text is about.
+             */
+            day: string;
+            /**
+             * Section
+             * @description Which section was written, by its key in the report.
+             */
+            section: string;
+            /**
+             * Model
+             * @description The Ollama model that wrote it, tag included.
+             */
+            model: string;
+            /**
+             * Seconds
+             * @description How long it took, loading the model into memory included.
+             */
+            seconds: number;
+            /**
+             * Text
+             * @description The body of the section, as the card shows it. Markdown.
+             */
+            text: string;
+        };
+        /**
          * Mean
          * @description An average over a window, with the number of days it is made of.
          */
@@ -3656,6 +3735,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DayPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_local_section_api_test_local__section___day__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                section: string;
+                day: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocalText"];
                 };
             };
             /** @description Validation Error */
