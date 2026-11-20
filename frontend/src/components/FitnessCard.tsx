@@ -27,6 +27,7 @@ export function FitnessCard({
   icon,
   face,
   refresh,
+  title = "Fitness",
 }: {
   data: DailyData;
   text: string | null;
@@ -36,6 +37,12 @@ export function FitnessCard({
   /** La faccia della card (todo 92). */
   face: Verdict | null;
   refresh?: ReactNode;
+  /** Il nome in testa alla card. Sulla Day e' sempre "Fitness", ed e' il
+   * motivo per cui prima era scritto qui dentro. Sul banco di prova le card
+   * della Fitness sono due — gli stessi sei numeri, il testo di Claude e
+   * quello del modello di casa — e due card con lo stesso nome una accanto
+   * all'altra non si confrontano, si confondono. */
+  title?: string;
 }) {
   const vo2 = data.fitness.vo2max;
   const endurance = data.fitness.endurance;
@@ -50,8 +57,8 @@ export function FitnessCard({
   // ancora salendo. La soglia non ha fascia (e' un valore solo, rilevato di
   // rado) e resta un numero nudo.
   return (
-    <section className="card fitness-card" aria-label="Fitness">
-      <CardHead icon={icon} title="Fitness" face={face} refresh={refresh} />
+    <section className="card fitness-card" aria-label={title}>
+      <CardHead icon={icon} title={title} face={face} refresh={refresh} />
       {/* Tre colonne e non due: i punteggi con la loro barra sulla prima
           riga, e sulla seconda la soglia e la quota a cui il corpo e'
           acclimatato, i due numeri nudi. */}

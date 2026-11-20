@@ -5,19 +5,22 @@
 // metterla dove va. Per questo sta per ultima nella barra, dopo Goal, e non
 // ha viste: `?period=test` e basta.
 //
-// Dentro ci sono la **Health**, la **Load** e la **Recovery** del giorno, le
-// stesse card dello Snap della Day, con una differenza sola e che e' tutto il
-// punto: **il testo non lo scrive Claude, lo scrive il modello che gira su
+// Dentro ci sono la **Health**, la **Load**, la **Recovery** e la **Fitness**
+// del giorno, le stesse card dello Snap della Day, con una differenza sola e
+// che e' tutto il punto: **il testo non lo scrive Claude, lo scrive il modello che gira su
 // questa macchina**. I numeri, le icone e le facce restano quelli dell'API,
 // come sulla Day; i testi arrivano da `/api/test/local/<sezione>/<giorno>`,
 // che da' a llama lo stesso prompt dell'agente di quella sezione e gli chiede
 // la stessa cosa.
 //
-// **Tre e non una** perche' una card sola non dice se il modello sa scrivere
-// o se quel prompt gli era venuto bene: la Health giudica quattro misure che
-// si somigliano, la Load tre carichi, un rapporto e due parole in codice di
-// Garmin da tradurre, la Recovery quattro misure di cui due sono lo stesso
-// numero a due ore diverse. Sono tre mestieri diversi.
+// **Quattro e non una** perche' una card sola non dice se il modello sa
+// scrivere o se quel prompt gli era venuto bene: la Health giudica quattro
+// misure che si somigliano, la Load tre carichi, un rapporto e due parole in
+// codice di Garmin da tradurre, la Recovery quattro misure di cui due sono lo
+// stesso numero a due ore diverse, la Fitness tre punteggi letti al contrario
+// — sopra la fascia e' buono — piu' una soglia senza fascia e due
+// acclimatamenti che per quasi tutto l'anno sono zero. Sono quattro mestieri
+// diversi.
 //
 // **E ognuna delle due e' due volte**, affiancata a se' stessa. La seconda
 // card di una sezione e' la stessa sezione chiesta in un altro modo: non a un
@@ -84,7 +87,16 @@
 // Il confronto a sinistra pero' resta quello di prima, che e' quello che conta:
 // non quale dei due modi di chiedere, ma se a questo punto regga Claude.
 //
-// Le cinque richieste si fanno **insieme**, non una dopo l'altra: sono
+// **La Fitness sta come la Recovery**: a sinistra il frammento di Claude, a
+// destra il modello di casa in pezzi. E' la coppia giusta per una sezione
+// nuova, ed e' anche quella che la prima sera ha dato il divario piu' netto —
+// il prompt intero, in un paragrafo, ha scritto una fila di quattro numeri
+// senza nessun verdetto e ha chiuso con "non sei acclimatato a nessuna quota
+// ne' al caldo", che e' esattamente la frase che quel prompt dice di non
+// scrivere. La sezione intera resta chiedibile all'API, che e' il termine di
+// paragone.
+//
+// Le sei richieste si fanno **insieme**, non una dopo l'altra: sono
 // indipendenti e Ollama le mette in fila da se'. Ognuna riempie la sua card
 // quando arriva, cosi' la Health non aspetta la Load.
 //
@@ -106,6 +118,7 @@ import { dayFromUrl, pushUrl } from "../navigation";
 import { DayNav } from "./DayNav";
 import { HealthCard } from "./HealthCard";
 import { LoadCard } from "./LoadCard";
+import { FitnessCard } from "./FitnessCard";
 import { RecoveryCard } from "./RecoveryCard";
 import { SideBar } from "./SideBar";
 
@@ -140,6 +153,7 @@ const SEZIONI = [
   "load",
   "load_split",
   "recovery_split",
+  "fitness_split",
 ] as const;
 // La Recovery e' una chiave sola e la sua riga ha due card: a sinistra non
 // c'e' un'altra domanda a llama, c'e' il frammento che l'agente di Claude ha
@@ -358,6 +372,39 @@ export function TestPage() {
                 icon={sectionIcon(report, "Recovery")}
                 face={data.scores.recovery}
                 title="Recovery, in five"
+              />
+              {/* **La Fitness come la legge la Day**, col frammento vero e la
+                  sua data, e accanto quella in pezzi: e' la coppia della
+                  Recovery, sulla sezione piu' varia che ci sia. */}
+              <FitnessCard
+                data={data}
+                text={sectionBody(report, "Fitness")}
+                writtenAt={sectionWrittenAt(report, "Fitness")}
+                day={day}
+                icon={sectionIcon(report, "Fitness")}
+                face={data.scores.fitness}
+                title="Fitness, by Claude"
+              />
+              {/* La stessa card, gli stessi numeri, e il modello di casa in
+                  pezzi: uno per punteggio, uno per la soglia, uno per ogni
+                  acclimatamento **che non sia zero**, e il verdetto in cima.
+
+                  Qui il paragrafo che non c'e' e' la regola e non
+                  l'eccezione: d'inverno i due acclimatamenti sono zero e la
+                  sezione viene di cinque paragrafi, nelle settimane in
+                  montagna di sei o sette. Il prompt intero quel buco lo deve
+                  chiedere a parole, e la prima sera non l'ha fatto — ha
+                  scritto "you are not acclimatised to any altitude or heat",
+                  che e' esattamente la frase che il suo prompt dice di non
+                  scrivere. */}
+              <FitnessCard
+                data={data}
+                text={local.fitness_split?.text ?? null}
+                writtenAt={null}
+                day={day}
+                icon={sectionIcon(report, "Fitness")}
+                face={data.scores.fitness}
+                title="Fitness, in pieces"
               />
             </div>
             <p className="bench-note">
