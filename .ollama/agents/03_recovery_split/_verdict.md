@@ -15,14 +15,16 @@ paragraph he should know whether he woke up ready and why.
 
 In this order, in one paragraph.
 
-1. **How ready the body was.** Say `verdict` in your own words, to him, as his
-   coach. No measure named, no number.
-2. **What that rests on.** Say what `what_it_rests_on.about` says, in your own
-   words, naming the measures in `what_it_rests_on.measures` — all of them, and
-   no others. When there are two or more, say whether they point the same way.
-   **This sentence is written only when there is something for the morning to
-   rest on**: when `about` is null there is nothing, and the sentence does not
-   exist. The paragraph is then the first sentence and the third.
+1. **How ready the body was.** Say what `verdict` says, to him, as his coach,
+   in a sentence a person would say out loud: the name of the field is not a
+   word in it. No measure named, no number.
+2. **Which measures say so.** Name the measures in
+   `how_they_read` — all of them, no others, the first one first — and say what
+   `about` makes of them, in your own words and never in its.
+   When there are two or more, say whether they point the same way.
+   **This sentence exists only when `how_they_read` has something in it.** An empty
+   list means there is no second sentence: the paragraph is the first sentence
+   and the third.
 3. **What the day before cost, and whether the morning answered it.** Say
    `what_yesterday_cost` in your own words, and then that the morning came back
    anyway — or did not, if the verdict says it did not. This is the sentence
@@ -42,28 +44,32 @@ About fifty words with all three, thirty with two.
   the morning came back, not whether there is an excuse.
 - **No numbers, and no bands.** Where a measure falls against its band is the
   business of the four paragraphs below, and they have already done it.
-- **No measure you were not given.** `what_it_rests_on.measures` is the whole
-  of what you may name, anywhere in the paragraph, and an empty list is no
-  measure named at all — not one of this section's four under a shorter name,
+- **No measure you were not given**, and **no count of them**: how many there
+  are is not a thing to say. `how_they_read` is the whole of what
+  you may name, anywhere in the paragraph, and an empty list is no measure
+  named at all — not one of this section's four under a shorter name,
   and not one of the measures the house rules name for the other cards.
 - **No reason why.** What might be behind a reading — a late night, a cold, a
   hard week — is the business of that measure's own paragraph. Yours says what
   they add up to and stops.
 - **No talk of the verdict, the fields, or any of this.** He is reading a card
-  about his body, not a report on how it was put together.
+  about his body, not a report on how it was put together. **Never a sentence
+  about the paragraph's own workings** — what it is built on, what it is short
+  of, what there turned out to be none of.
 - **No advice.** What he should train today is nobody's business here.
 
 ## What you are given
 
 - **`verdict`** — how ready the body was, decided already, counted from the
   three measures that carry it. You do not reopen it.
-- **`what_it_rests_on`** — what sentence 2 is about (`about`) and the measures
-  it names (`measures`), worst first. On a quiet morning `about` is null and
-  `measures` is empty: nothing reads badly and nothing reads better than usual,
-  so there is no second sentence and no measure to name.
-- **`how_they_read`** — how each of those measures reads. It is the same truth
-  the four paragraphs below were written from, and it is there so that you do
-  not contradict them. You are not shown what they said.
+- **`about`** — what sentence 2 makes of the measures it names.
+- **`how_they_read`** — **the measures sentence 2 names, worst first**, and how
+  each of them reads. Those are the only measures you may name anywhere in the
+  paragraph. It is the same truth the four paragraphs below were written from,
+  and it is there so that you do not contradict them; you are not shown what
+  they said. **On a quiet morning it is empty and `about` is null**: nothing
+  reads badly and nothing reads better than usual, so sentence 2 does not
+  exist.
 - **`what_yesterday_cost`** — what the day before took out of him, in words.
   Sentence 3, and nothing else.
 

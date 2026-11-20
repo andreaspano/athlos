@@ -1010,6 +1010,14 @@ def _reading(where: str, bad_when: str, sits: str | None = None) -> str:
 # inventare le misure di altre sezioni. Un nome di campo e' una cornice, e
 # cambiarla ha cambiato la frase; un valore ricopiato e' solo una frase. Le
 # due cose si somigliano e non sono la stessa.
+#
+# **E c'era una terza strada, che non era rinominare.** Il nome che si leggeva
+# ad alta voce piu' di tutti era `what_it_rests_on`, e li' non si e' rinominato
+# niente: si e' tolto l'involucro e i due campi dentro sono saliti in cima
+# (`_rests_on`, `_spoken_of`). Un nome con una relazione dentro — *rests on* —
+# diventa un verbo in bocca a chi scrive; `about` da solo no. Quindi la lezione
+# di qui vale per i nomi che restano, non dice che un campo non si possa
+# smontare.
 VERDICT_WORDS = {
     "good": "the body is fine",
     "niggle": "broadly fine, with one measure out",
@@ -1043,9 +1051,10 @@ def _health_verdict(readings: "list[str]") -> str:
     return "off"
 
 
-def _rests_on(bad: "list[str]", good: "list[str]") -> dict:
-    """Di che cosa parla la seconda frase del paragrafo di apertura, e quali
-    misure nomina. **`about` nullo vuol dire che quella frase non c'e'.**
+def _rests_on(bad: "list[str]", good: "list[str]") -> str | None:
+    """Di che cosa parla la seconda frase del paragrafo di apertura. **Nullo
+    vuol dire che quella frase non c'e'.** Quali misure nomina lo dice
+    `_spoken_of`, qui sotto.
 
     **Il ramo lo prende Python.** Erano tre casi — c'e' qualcosa che va
     male, non c'e' niente che va male ma qualcosa va meglio del solito, non
@@ -1093,26 +1102,86 @@ def _rests_on(bad: "list[str]", good: "list[str]") -> dict:
     pointing in the wrong direction like the others that read badly this
     morning"* — le altre non c'erano, e il plurale del campo gliele ha fatte
     inventare. Contare uno e piu' di uno e' la stessa riga di
-    `_health_verdict`, e si conta qui."""
+    `_health_verdict`, e si conta qui.
+
+    **E questa frase non sta piu' dentro a un campo che si chiamava
+    `what_it_rests_on`.** Era un oggetto con dentro `about` e `measures`, e il
+    suo nome e' finito nel testo su **otto aperture di prova su otto**: *"this
+    rests on your readiness measure being higher than usual"*, *"it rests on a
+    wake-up body battery that reads worse than usual"*, *"which is what your
+    morning rests on"*. E sulla mattina tranquilla la cosa che il compito del
+    quinto vieta in due righe diverse: *"there's nothing for it to rest on this
+    morning"*, una frase sul campo che non c'era.
+
+    Rinominarlo era gia' stato provato, e aveva peggiorato sei mattine su sei:
+    la storia e' in `VERDICT_WORDS`, e la conclusione era che un nome di campo
+    e' una cornice. **Quello che non era stato provato e' non avere una
+    cornice.** *Rests on* non era un nome, era una relazione, e una relazione
+    in un nome diventa un verbo in bocca a chi scrive; `about` e
+    `how_they_read`, in cima e per conto loro, un verbo non ce l'hanno.
+    Dieci aperture su dieci dopo, il nome del campo si legge una volta — e in
+    piu' la frase e' tornata a non sbagliare i numeri (togliendo invece
+    `about`, per vedere se era lei la colpevole, una mattina con due buone
+    notizie e' diventata *"resting heart rate is much worse than usual"*: la
+    prosa che si fa saccheggiare ancorava anche la direzione, e quella e' la
+    ragione per cui e' rimasta).
+
+    Le parole dentro `about` restano quelle che erano: una frase che in inglese
+    sta in piedi da sola, ricopiata di peso, resta una frase."""
     if bad:
-        return {
-            "about": (
-                "this one reads badly this morning"
-                if len(bad) == 1
-                else "these read badly this morning"
-            ),
-            "measures": bad,
-        }
+        return (
+            "this one reads badly this morning"
+            if len(bad) == 1
+            else "these read badly this morning"
+        )
     if good:
-        return {
-            "about": (
-                "nothing reads badly, and this one reads better than usual"
-                if len(good) == 1
-                else "nothing reads badly, and these read better than usual"
-            ),
-            "measures": good,
-        }
-    return {"about": None, "measures": []}
+        return (
+            "nothing reads badly, and this one reads better than usual"
+            if len(good) == 1
+            else "nothing reads badly, and these read better than usual"
+        )
+    return None
+
+
+def _spoken_of(
+    seen: "list[dict]", bad: "list[str]", good: "list[str]"
+) -> "list[dict]":
+    """Le misure che il paragrafo di apertura puo' nominare, **le peggiori per
+    prime**, e come si legge ognuna. Vuota vuol dire che non ce n'e' nessuna
+    da nominare, e che la seconda frase non c'e'.
+
+    **Erano due campi e sono uno.** Accanto ad `about` c'era un `measures`
+    con gli stessi nomi dentro, e di `how_they_read` quei nomi sono le
+    chiavi: la stessa cosa scritta due volte, che e' la cosa che questo file
+    non fa (`_part_facts`, `_sits`). Per un giro e' passata perche' i due
+    campi stavano dentro un involucro che li teneva insieme; tolto
+    l'involucro, `measures` nudo e' diventato **il nome di tutte le misure
+    della sezione** in bocca a chi scrive — *"only readiness was measured"*,
+    una mattina in cui ne erano state misurate quattro. Non era un campo
+    letto ad alta voce: era un campo capito male, e capito male perche' il
+    suo nome prometteva piu' di quello che conteneva.
+
+    `how_they_read` quel nome non lo promette, e in tutte le prove e' stato
+    usato bene: *"body battery at wake-up reads worse than usual"*, misura
+    per misura, mai una in piu'. Quindi i nomi si leggono da li', l'ordine
+    e' quello di `_carried_by` — la peggiore prima, che e' quella da nominare
+    per prima — e la lunghezza della lista resta un fatto da cui il
+    singolare e il plurale si vedono senza contarli.
+
+    **E unendoli e' venuta fuori un'incoerenza che c'era da sempre.** Il
+    vecchio `measures` conteneva le cattive se c'erano cattive, e le buone
+    solo quando di cattive non ce n'era nessuna — una mattina non da' una
+    buona notizia e una cattiva nella stessa frase. `how_they_read` invece
+    elencava le une e le altre, sempre: su una mattina con una misura fuori e
+    una che andava meglio del solito, al quinto arrivava una misura **in
+    `how_they_read` ma non in `measures`**, cioe' una misura che vedeva e che
+    la riga sopra gli vietava di nominare. Non si e' mai visto nel testo, che
+    quella riga per una volta e' stata seguita, ma era un recinto con un buco
+    e il buco l'ha trovato un test. Adesso la lista e' una e la regola e'
+    quella di `measures`: le cattive, o le buone se cattive non ce ne
+    sono."""
+    reading = {m["measure"]: m["reading"] for m in seen}
+    return [{"measure": name, "reading": reading[name]} for name in (bad or good)]
 
 
 def _readings_of(split: "Split", facts: dict) -> "list[dict]":
@@ -1221,7 +1290,6 @@ def _health_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     # diceva c'era, e l'ha letta quattro volte su quattro senza farci caso.
     # Quello che non si ha non si scrive: e' la stessa ragione per cui
     # `week_ago` non arriva alla Load.
-    speaks_of = rests_on + good_news
     # **"Everything else is where it should be" non e' piu' roba sua.** Era
     # la seconda meta' della seconda frase, e il 18 ottobre — quattro misure
     # su quattro fuori, un "everything else" che non esisteva — l'ha scritto
@@ -1232,12 +1300,8 @@ def _health_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     # piu' sotto. Tolta dal compito, non c'e' piu' niente da sbagliare.
     return {
         "verdict": VERDICT_WORDS[_health_verdict([m["reading"] for m in seen])],
-        "what_it_rests_on": _rests_on(rests_on, good_news),
-        "how_they_read": [
-            {"measure": m["measure"], "reading": m["reading"]}
-            for m in seen
-            if m["measure"] in speaks_of
-        ],
+        "about": _rests_on(rests_on, good_news),
+        "how_they_read": _spoken_of(seen, rests_on, good_news),
     }
 
 
@@ -1251,12 +1315,15 @@ def _health_opening_prompt(split: "Split", part: Part, day: date, facts: dict) -
         "It goes at the top of the section, above four paragraphs that are already "
         "written, one for each measure, and it says what they add up to.\n\n"
         f"{json.dumps(facts, indent=2, default=str)}\n\n"
-        "`verdict` is the verdict and you do not reopen it. `what_it_rests_on` says "
-        "what the second sentence is about and names the only measures you may name "
-        "anywhere in the paragraph — when its `about` is null the morning rests on "
-        "nothing, and there is no second sentence to write and no measure to name; "
-        "`how_they_read` is how each of those measures reads, so that your paragraph "
-        "does not contradict the section it opens. "
+        "`verdict` is the verdict and you do not reopen it. `measures` names the only "
+        "measures you may name anywhere in the paragraph, worst first, and `about` is "
+        "what the second sentence makes of them: put both in your own words and not in "
+        "these. **An empty `measures` is no measure to name and no second sentence at "
+        "all** — write the first sentence and the third, and leave the missing one "
+        "unmentioned. `how_they_read` is how each of those measures reads, so that your "
+        "paragraph does not contradict the section it opens. He is reading a card about "
+        "his body, not a report on how it was assembled: **no field is named in it, and "
+        "no sentence of it is about the card**. "
         "Answer with the paragraph and nothing else: no number in it, no band in it, "
         "no heading, no list, no quotes around it."
     )
@@ -1612,7 +1679,6 @@ def _recovery_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     sta nel messaggio."""
     seen = _readings_of(split, facts)
     rests_on, good_news = _carried_by(seen)
-    speaks_of = rests_on + good_news
     # Il pezzo senza parte cattiva e' il minimo di ieri, e di lui al quinto
     # arriva il costo della giornata e non il posto nella fascia: dove sta un
     # valore e' del paragrafo che lo possiede, due centimetri piu' sotto.
@@ -1620,12 +1686,8 @@ def _recovery_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     low = facts.get("morning", {}).get(cost.key, {}) if cost else {}
     return {
         "verdict": RECOVERY_VERDICT_WORDS[_recovery_verdict([m["reading"] for m in seen])],
-        "what_it_rests_on": _rests_on(rests_on, good_news),
-        "how_they_read": [
-            {"measure": m["measure"], "reading": m["reading"]}
-            for m in seen
-            if m["measure"] in speaks_of
-        ],
+        "about": _rests_on(rests_on, good_news),
+        "how_they_read": _spoken_of(seen, rests_on, good_news),
         "what_yesterday_cost": _cost_of_yesterday(low.get("where", "unknown")),
     }
 
@@ -1641,17 +1703,22 @@ def _recovery_opening_prompt(split: "Split", part: Part, day: date, facts: dict)
         "written, one for each measure, and it says how ready the body was this "
         "morning.\n\n"
         f"{json.dumps(facts, indent=2, default=str)}\n\n"
-        "`verdict` is the verdict and you do not reopen it. `what_it_rests_on` says "
-        "what the second sentence is about and names the only measures you may name "
-        "anywhere in the paragraph — when its `about` is null the morning rests on "
-        "nothing, and there is no second sentence to write and no measure to name; "
-        "`how_they_read` is how each of those measures reads, so that your paragraph "
-        "does not contradict the section it opens. `what_yesterday_cost` is what the "
-        "day before took out of him: **it is not part of the verdict and it never "
-        "softens it** — a day that cost a lot is a fact about the training, and what "
-        "matters is whether the morning came back anyway. Say it in the paragraph, as "
-        "the one thing it is worth knowing alongside the verdict, and never as the "
-        "reason for it. "
+        "`verdict` is the verdict and you do not reopen it. `measures` names the only "
+        "measures you may name anywhere in the paragraph, worst first, and `about` is "
+        "what the second sentence makes of them: put both in your own words and not in "
+        "these. **An empty `measures` is no measure to name and no second sentence at "
+        "all** — write the first sentence and the third, and leave the missing one "
+        "unmentioned. `how_they_read` is how each of those measures reads, so that your "
+        "paragraph does not contradict the section it opens. He is reading a card about "
+        "his body, not a report on how it was assembled: **no field is named in it, and "
+        "no sentence of it is about the card**. "
+        "`what_yesterday_cost` is what the day before took out of him: **it is "
+        "not part of the verdict and it never softens it** — a day that cost a lot is a "
+        "fact about the training, and what matters is whether the morning came back "
+        "anyway. Say it as the one thing worth knowing alongside the verdict, and never "
+        "as the reason for it. **Never name a field and never say what a sentence of "
+        "yours is doing**: he is reading a card about his body, not a report on how it "
+        "was assembled. "
         "Answer with the paragraph and nothing else: no number in it, no band in it, "
         "no heading, no list, no quotes around it."
     )
