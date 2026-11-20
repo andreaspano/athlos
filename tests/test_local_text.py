@@ -535,7 +535,7 @@ def test_the_fuzzy_normals_are_still_normal(payload):
     assert ollama._health_verdict([*fuzzy, "normal"]) == "good"
     facts = verdict_facts(payload)
     assert facts["verdict"] == ollama.VERDICT_WORDS["good"]
-    assert facts["what_it_rests_on"] == {"about": None, "measures": []}
+    assert facts["about"] is None
 
 
 def test_the_place_inside_the_band_arrives_only_in_the_reading(payload):
@@ -573,7 +573,7 @@ def test_the_reading_reaches_both_the_part_and_the_verdict(payload):
     hrv = owned(part("hrv_last_night"), ollama.health_facts(payload))
     assert hrv["reading"] == "comfortably normal"
     # Tutte e quattro normali: al quinto non resta niente da nominare.
-    assert verdict_facts(payload)["what_it_rests_on"] == {"about": None, "measures": []}
+    assert verdict_facts(payload)["about"] is None
 
 
 def test_the_shared_rules_come_after_the_measure():
@@ -635,10 +635,10 @@ def test_the_verdict_is_told_which_way_is_bad(payload):
     file non li legge, e il confronto gli arriva fatto."""
     payload["morning"]["hrv_last_night"]["value"] = 60.0  # sopra la sua fascia
     payload["morning"]["resting_hr"]["value"] = 54.0  # sopra la sua
-    why = verdict_facts(payload)["what_it_rests_on"]
+    named = verdict_facts(payload)["how_they_read"]
     # L'HRV sopra la fascia e' una buona notizia e non porta il verdetto; la
     # frequenza sopra la sua lo porta.
-    assert why["measures"] == ["resting heart rate"]
+    assert [m["measure"] for m in named] == ["resting heart rate"]
 
 
 @pytest.mark.parametrize(
@@ -702,7 +702,7 @@ def test_the_second_sentence_knows_what_it_is_about(bad, good, about, named):
     Il singolare e il plurale si contano qui per la stessa ragione: con una
     misura sola, *these read badly* gli ha fatto scrivere *"like the others
     that read badly this morning"*, e le altre non c'erano."""
-    assert ollama._rests_on(bad, good) == {"about": about, "measures": named}
+    assert ollama._rests_on(bad, good) == about
 
 
 def test_a_quiet_morning_has_no_second_sentence(payload):
@@ -714,7 +714,7 @@ def test_a_quiet_morning_has_no_second_sentence(payload):
     quattro misure che la riga di sopra gli vietava di nominare. Senza quella
     frase il paragrafo ne ha due, e non c'e' piu' niente da riempire."""
     facts = verdict_facts(payload)
-    assert facts["what_it_rests_on"] == {"about": None, "measures": []}
+    assert facts["about"] is None
     # E il campo che parla di quelle misure e' vuoto: non ce n'e' nessuna.
     assert facts["how_they_read"] == []
 
@@ -1368,7 +1368,7 @@ def test_the_verdict_counts_three_and_not_four(recovery_payload):
         "yesterday took a great deal more out of you than a day usually does"
     )
     # E non si fa nominare fra le misure che portano il verdetto.
-    assert "body battery low" not in json.dumps(facts["what_it_rests_on"])
+    assert "body battery low" not in json.dumps(facts["how_they_read"])
 
 
 @pytest.mark.parametrize(
@@ -1406,7 +1406,7 @@ def test_a_quiet_recovery_morning_has_no_second_sentence(recovery_payload):
     nullo e' una risposta mentre un campo che manca e' una domanda."""
     recovery_payload["morning"]["readiness"] = measure(70.0, 60.2, 79.3, 50.6, 88.9)
     facts = rec_opening(recovery_payload)
-    assert facts["what_it_rests_on"] == {"about": None, "measures": []}
+    assert facts["about"] is None
     assert facts["how_they_read"] == []
     assert facts["verdict"] == ollama.RECOVERY_VERDICT_WORDS["ready"]
 
