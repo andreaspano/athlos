@@ -501,9 +501,19 @@ def get_local_section(section: str, day: date, ctx: Context) -> LocalText:
     """One section of the daily report written by the **Ollama model running on this
     machine**, for the Test page — the same prompt as the Claude agent, a different writer.
 
-    `section` is `health` or `load`, the same keys the Day page uses for its cards. The other
-    five are not wired up: each one needs its own slice of the facts and its own trial, and
-    they are added one at a time.
+    `section` is `health`, `load` or `recovery`, the same keys the Day page uses for its
+    cards. The other four are not wired up: each one needs its own slice of the facts and its
+    own trial, and they are added one at a time.
+
+    `recovery` is the one that answers the first question — can the local model write this
+    section at all? — because the Test page puts it beside the fragment the Claude agent
+    actually wrote, over the same four numbers, so the only thing that differs is who wrote
+    it. The first night said no three times over, and in the three ways that had already
+    forced the other two sections apart: a verdict the next line contradicted, the night in
+    the wrong spelling, and the two body battery numbers folded into one sentence. So the
+    page now shows `recovery_split` on that side — four writers, one per measure, and a fifth
+    that reads their readings and says how ready the body was — and `recovery` stays here as
+    the thing it has to beat.
 
     `health_split` and `load_split` are those **same** two sections asked a different way:
     one small writer per paragraph instead of one for the lot. `health_split` is five — a

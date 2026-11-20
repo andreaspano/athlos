@@ -5,19 +5,19 @@
 // metterla dove va. Per questo sta per ultima nella barra, dopo Goal, e non
 // ha viste: `?period=test` e basta.
 //
-// Dentro ci sono la **Health** e la **Load** del giorno, le stesse due card
-// dello Snap della Day, con una differenza sola e che e' tutto il punto: **il
-// testo non lo scrive Claude, lo scrive il modello che gira su questa
-// macchina**. I numeri, le icone e le facce restano quelli dell'API, come
-// sulla Day; i testi arrivano da `/api/test/local/<sezione>/<giorno>`, che da'
-// a llama lo stesso prompt dell'agente di quella sezione e gli chiede la
-// stessa cosa.
+// Dentro ci sono la **Health**, la **Load** e la **Recovery** del giorno, le
+// stesse card dello Snap della Day, con una differenza sola e che e' tutto il
+// punto: **il testo non lo scrive Claude, lo scrive il modello che gira su
+// questa macchina**. I numeri, le icone e le facce restano quelli dell'API,
+// come sulla Day; i testi arrivano da `/api/test/local/<sezione>/<giorno>`,
+// che da' a llama lo stesso prompt dell'agente di quella sezione e gli chiede
+// la stessa cosa.
 //
-// **Due e non una** perche' una card sola non dice se il modello sa scrivere
+// **Tre e non una** perche' una card sola non dice se il modello sa scrivere
 // o se quel prompt gli era venuto bene: la Health giudica quattro misure che
 // si somigliano, la Load tre carichi, un rapporto e due parole in codice di
-// Garmin da tradurre. Sono due mestieri diversi, e il secondo e' piu'
-// difficile.
+// Garmin da tradurre, la Recovery quattro misure di cui due sono lo stesso
+// numero a due ore diverse. Sono tre mestieri diversi.
 //
 // **E ognuna delle due e' due volte**, affiancata a se' stessa. La seconda
 // card di una sezione e' la stessa sezione chiesta in un altro modo: non a un
@@ -27,7 +27,8 @@
 // sempre e nell'ordine della card: la forma smette di essere una cosa che il
 // prompt deve chiedere.
 //
-// La Health e' in cinque — un paragrafo per misura e il verdetto in cima — e
+// Due delle tre sono cosi'. La Health e' in cinque — un paragrafo per misura
+// e il verdetto in cima — e
 // la Load in sei, che spezzandola si scopre fatta di mestieri diversi: i tre
 // carichi con la loro fascia, quanto stai portando, che cosa la settimana
 // chiede ancora, e la parola in cima. **E li' si vede la cosa che una card
@@ -63,9 +64,29 @@
 // Della `DayHeader` prende solo le frecce: la striscia della settimana e il
 // Refresh sono della Day — qui non c'e' nessun report da riscrivere.
 //
-// Le quattro card si chiedono **insieme**, non una dopo l'altra: sono
-// richieste indipendenti e Ollama le mette in fila da se'. Ognuna riempie la
-// sua card quando arriva, cosi' la Health non aspetta la Load.
+// **La Recovery e' affiancata a un'altra cosa**, e il paragrafo di sopra non
+// vale per lei. La sua card di sinistra non e' llama chiesto in un altro modo:
+// e' il frammento che l'agente di Claude ha scritto davvero, quello che la Day
+// legge, con la sua data in fondo. A destra c'e' il modello di casa, e fra le
+// due cambia chi scrive e nient'altro.
+//
+// E' la domanda che viene **prima** di quella delle altre due: non come
+// chiedere una sezione al modello di casa, ma se il modello di casa quella
+// sezione la sappia scrivere.
+//
+// **La prima sera ha risposto no, e tre volte.** Col prompt di Claude llama ha
+// aperto con un verdetto che due righe sotto contraddiceva, ha scritto la notte
+// in una scrittura che sulla card non c'e', e ha impastato i due body battery
+// in una frase — che e' il paragrafo in grassetto del suo prompt, letto e non
+// applicato. Sono le tre righe che avevano gia' fatto spezzare le altre due
+// sezioni, e la Recovery e' andata dove sono andate loro: la card di destra e'
+// in cinque pezzi, e quelle tre cose non sono piu' cose che possano succedere.
+// Il confronto a sinistra pero' resta quello di prima, che e' quello che conta:
+// non quale dei due modi di chiedere, ma se a questo punto regga Claude.
+//
+// Le cinque richieste si fanno **insieme**, non una dopo l'altra: sono
+// indipendenti e Ollama le mette in fila da se'. Ognuna riempie la sua card
+// quando arriva, cosi' la Health non aspetta la Load.
 //
 // La riga in fondo dice **quanto ci ha messo ognuna**, ed e' meta' del
 // confronto: una sezione spezzata sono cinque o sei domande invece di una, e
@@ -80,11 +101,12 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ApiError, api, isAbort, type DailyData, type LocalText, type Report } from "../api/client";
 import { longDayLabel, today } from "../format";
-import { sectionIcon } from "../markdown";
+import { sectionBody, sectionIcon, sectionWrittenAt } from "../markdown";
 import { dayFromUrl, pushUrl } from "../navigation";
 import { DayNav } from "./DayNav";
 import { HealthCard } from "./HealthCard";
 import { LoadCard } from "./LoadCard";
+import { RecoveryCard } from "./RecoveryCard";
 import { SideBar } from "./SideBar";
 
 const API_DOWN = "Cannot reach the API. Is it running (make api)?";
@@ -112,7 +134,22 @@ const OLD_API = (sezione: string) =>
  * all'altra sugli stessi numeri e' il solo modo di vedere quale delle due
  * strade scrive meglio, e una coppia per riga e' il solo modo di non
  * confrontare la Health con la Load. */
-const SEZIONI = ["health", "health_split", "load", "load_split"] as const;
+const SEZIONI = [
+  "health",
+  "health_split",
+  "load",
+  "load_split",
+  "recovery_split",
+] as const;
+// La Recovery e' una chiave sola e la sua riga ha due card: a sinistra non
+// c'e' un'altra domanda a llama, c'e' il frammento che l'agente di Claude ha
+// scritto davvero, lo stesso che la Day legge. Quindi niente da chiedere e
+// niente da aspettare, per quella meta'.
+//
+// E a destra c'e' `recovery_split` e non `recovery`: la sezione intera resta
+// nel registro dell'API — si chiede a mano, ed e' il termine di paragone della
+// prima sera — ma sulla pagina quel posto adesso e' della strada in cinque
+// pezzi, che e' quello che la prima sera ha fatto vedere di servire.
 type Sezione = (typeof SEZIONI)[number];
 
 export function TestPage() {
@@ -143,9 +180,15 @@ export function TestPage() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // I numeri e le icone, come li chiede la Day. Del report servono **solo le
-  // icone** delle sezioni: i testi di Claude questa pagina non li mostra, che
-  // se li mostrasse non sarebbe un confronto, sarebbero due card uguali.
+  // I numeri e le icone, come li chiede la Day. Del report servono le icone
+  // delle sezioni — e **un testo solo**, quello della Recovery.
+  //
+  // Per le altre due i testi di Claude non si mostrano: le loro due card sono
+  // la stessa domanda fatta a llama in due modi, e metterci in mezzo anche
+  // Claude vorrebbe dire tre testi su una riga da due. La Recovery invece e'
+  // proprio quel confronto — il frammento vero a sinistra, llama a destra —
+  // ed e' la domanda che viene prima: non come chiederglielo, ma se lo sappia
+  // scrivere.
   useEffect(() => {
     const controller = new AbortController();
     api
@@ -276,6 +319,45 @@ export function TestPage() {
                 icon={sectionIcon(report, "Load")}
                 face={data.scores.load}
                 title="Load, in six"
+              />
+              {/* **La Recovery come la legge la Day**: gli stessi quattro
+                  numeri e il frammento che l'agente di Claude ha scritto,
+                  `summary/01.daily/<giorno>/`, con la data in fondo alla card
+                  perche' quel testo una data ce l'ha — e' un file, scritto la
+                  mattina in cui il report e' girato. Le altre card del banco
+                  non ce l'hanno: nascono adesso. */}
+              <RecoveryCard
+                data={data}
+                text={sectionBody(report, "Recovery")}
+                writtenAt={sectionWrittenAt(report, "Recovery")}
+                day={day}
+                icon={sectionIcon(report, "Recovery")}
+                face={data.scores.recovery}
+                title="Recovery, by Claude"
+              />
+              {/* La stessa card, gli stessi quattro numeri, e il testo del
+                  modello di casa — chiesto in cinque pezzi, uno per misura,
+                  piu' il quinto che li legge e dice quanto il corpo era
+                  pronto.
+
+                  **Non e' piu' lo stesso prompt di Claude**, e la prima sera
+                  ha detto perche': il verdetto contraddetto due righe sotto,
+                  la notte scritta nella scrittura sbagliata, i due body
+                  battery impastati in una frase. Tre righe del prompt lette e
+                  non applicate, e sono le tre che la strada in pezzi rende
+                  impossibili — il verdetto lo conta Python, la scrittura la
+                  dice la riga del pezzo, e i due body battery sono due
+                  modelli che l'uno dell'altro non sanno niente. La sezione
+                  intera resta chiedibile all'API, che e' il termine di
+                  paragone. */}
+              <RecoveryCard
+                data={data}
+                text={local.recovery_split?.text ?? null}
+                writtenAt={null}
+                day={day}
+                icon={sectionIcon(report, "Recovery")}
+                face={data.scores.recovery}
+                title="Recovery, in five"
               />
             </div>
             <p className="bench-note">
