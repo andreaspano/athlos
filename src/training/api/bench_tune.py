@@ -238,13 +238,7 @@ def generate(
                     continue
                 seconds = round(time.monotonic() - began, 1)
                 say(f"  {day} {key:16} {seconds}s")
-            marks = bench_score.score(
-                section,
-                facts,
-                text,
-                claude,
-                wanted=bench_score.wanted_words(repo_root, section, claude=False),
-            )
+            marks = bench_score.score(section, facts, text, claude)
             out.append(
                 {
                     **bench.row(
@@ -320,28 +314,33 @@ def claude_floor(
 
     E il confronto e' fra cose confrontabili perche' da tutti e due i lati il
     punteggio sono i soli errori: la distanza, che Claude contro se stesso non
-    ha, sta fuori (`bench_score`, in cima). Col primo peso che le avevo dato
-    la soglia era irraggiungibile per costruzione. Misurato sul corpus di oggi: 32 errori gravi su 104 testi,
-    tutti numeri che nei fatti non c'erano — un passo di soglia portato avanti
-    per diciassette giorni quando il lattato non era stato rilevato, e quattro
-    body battery sbagliati. Nessun errore leggero."""
+    ha, sta fuori (`bench_score`, in cima). Col primo peso che le avevo dato la
+    soglia era irraggiungibile per costruzione. Misurato sul corpus di ottobre
+    e novembre: 32 errori gravi su 104 testi, tutti numeri che nei fatti non
+    c'erano — un passo di soglia portato avanti per diciassette giorni quando
+    il lattato non era stato rilevato, e quattro body battery sbagliati.
+    Nessun errore leggero.
+
+    **I controlli sono quelli delle sezioni spezzate**, e per un po' erano
+    quelli delle intere: finche' il banco le teneva, un frammento di Claude —
+    che e' un blocco solo, come lo chiedeva l'intera — si misurava con quelle.
+    Non e' una perdita di rigore: i controlli che hanno bisogno di sapere di
+    chi e' un paragrafo (la misura non sua, la lettura contraddetta) su un
+    testo che di paragrafi ne ha uno si fermano da se', ed e' esattamente
+    quello che `score` fa da sempre quando misura lo stesso frammento come
+    bersaglio di una riga del quaderno. Quelli che mordono — i numeri
+    inventati, i codici di Garmin, la persona sbagliata — guardano il testo
+    intero e non cambiano."""
     totals = []
     for day in days:
         payload, week = _facts_of(day, data_dir, summary_dir)
-        for key in ("health", "load", "recovery", "fitness"):
+        for key in DEFAULT_SECTIONS:
             section = ollama.SECTIONS[key]
             text = bench.claude_text(summary_dir, day, section)
             if not text:
                 continue
             facts = section.facts(payload, week)
-            totals.append(
-                bench_score.score(
-                    section,
-                    facts,
-                    text,
-                    wanted=bench_score.wanted_words(repo_root, section, claude=True),
-                )
-            )
+            totals.append(bench_score.score(section, facts, text))
     hard = sum(len(t["faults"]) for t in totals)
     soft = sum(len(t["soft"]) for t in totals)
     return {

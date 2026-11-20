@@ -10,7 +10,7 @@ controllo che non prende il guasto che l'ha fatto nascere non serve a niente.
 **E la meta' dei test e' sui falsi positivi**, che e' il modo in cui una
 metrica cosi' muore. Tutti e tre quelli che ci sono stati li ha trovati il
 corpus di Claude, non il ragionamento: il passo `5:53` letto come due numeri,
-l'`I` dell'allenatore (che `01_health.md` autorizza) preso per la prima
+l'`I` dell'allenatore (che `.claude/agents/01_health.md` autorizza) preso per la prima
 persona dell'atleta, e il conto dei numeri per paragrafo applicato a una
 sezione intera, dove un paragrafo copre quattro misure.
 """
@@ -134,7 +134,7 @@ def test_small_numbers_in_prose_are_not_invented(health_facts):
 
 
 def test_the_coachs_first_person_is_allowed():
-    """**`01_health.md` la chiede espressamente** («in a coach's voice: *I do
+    """**`.claude/agents/01_health.md` la chiede espressamente** («in a coach's voice: *I do
     not like that one*»), e Claude la usa trentotto volte sul corpus. La prima
     versione del controllo le dava tutte per errori."""
     assert bench_score.wrong_person("Breathing in sleep is the one I like least.") == []
@@ -274,27 +274,40 @@ def test_prose_that_dismisses_a_measure_is_not_scaffolding(health_facts):
     assert not any("parla di se'" in f for f in bench_score.soft_faults(split, text, health_facts))
 
 
-def test_a_split_has_no_length_to_check():
-    """Il conto di parole di una sezione spezzata non sta scritto in nessun
-    file, e inventarlo dava un errore su ogni testo della Recovery."""
-    assert bench_score.wanted_words(REPO_ROOT, ollama.SECTIONS["recovery_split"], claude=False) is None
+def test_the_length_is_not_checked_at_all(health_facts):
+    """**Un controllo che e' andato via, e va detto.** Leggeva «circa N
+    parole» dal prompt della sezione intera e misurava il testo contro quel
+    numero. Senza le intere non c'e' piu' un numero vero da confrontare: una
+    spezzata il totale non lo dice in nessun file, e prendere il conto di un
+    paragrafo per applicarlo a cinque dava un errore su ogni testo della
+    Recovery. Un controllo che non ha un numero non si inventa il numero."""
+    split = ollama.SECTIONS["health_split"]
+    quattro_parole = "Resting heart rate ordinary."
+    assert bench_score.soft_faults(split, quattro_parole, health_facts) == []
+    assert not hasattr(bench_score, "wanted_words")
 
 
-def test_a_whole_section_reads_its_length_from_its_own_prompt():
-    """Due file diversi per la stessa sezione chiedono lunghezze diverse, e
-    misurare un testo contro il conto dell'altro e' un errore inventato."""
-    section = ollama.SECTIONS["load"]
-    assert bench_score.wanted_words(REPO_ROOT, section, claude=True) == 80
-    assert bench_score.wanted_words(REPO_ROOT, section, claude=False) == 180
+def test_numbers_in_one_paragraph_are_one_per_measure(health_facts):
+    """Un paragrafo e' una misura, quindi di numeri ne porta al massimo uno:
+    i prompt dicono «al massimo un numero per paragrafo, e solo se porta il
+    punto», e il controllo lo prende sul paragrafo giusto.
 
-
-def test_numbers_in_one_paragraph_only_count_for_a_split(health_facts):
-    """**Il terzo falso positivo trovato dal corpus**: in una sezione intera un
-    paragrafo copre quattro misure e due o tre numeri ci stanno di diritto.
-    Contarli dava ventisette errori sui testi di Claude."""
-    whole = ollama.SECTIONS["health"]
-    text = "Resting heart rate 50, HRV 45.0, breathing 14.0 and stress 24 — all ordinary."
-    assert not any("stesso paragrafo" in f for f in bench_score.soft_faults(whole, text, health_facts))
+    **Il conto va solo dove un paragrafo e' una misura**, ed e' il terzo falso
+    positivo trovato dal corpus: nelle sezioni intere, che il banco teneva
+    accanto a queste, un paragrafo copriva quattro misure e due o tre numeri
+    ci stavano di diritto. Contarli li' dava ventisette errori sui frammenti
+    di Claude, che e' la regola di un prompt applicata al prompt sbagliato."""
+    split = ollama.SECTIONS["health_split"]
+    pezzi = [piece.key for piece, _ in ollama.asked(split, health_facts)]
+    paragrafi = ["L'apertura, senza numeri."] + [
+        "Questa misura sta dentro la sua fascia." for _ in pezzi[1:]
+    ]
+    # Al paragrafo della frequenza a riposo due numeri: il suo e la fascia.
+    paragrafi[1] = "Resting heart rate at 50, with the quiet end at 47.4."
+    faults = bench_score.soft_faults(split, "\n\n".join(paragrafi), health_facts)
+    assert [f for f in faults if "stesso paragrafo" in f] == [
+        f"numeri nello stesso paragrafo: {pezzi[1]}"
+    ]
 
 
 # --- La distanza e il punteggio ---
@@ -314,8 +327,8 @@ def test_no_target_is_no_distance():
 
 
 def test_a_clean_text_scores_zero(health_facts):
-    whole = ollama.SECTIONS["health"]
-    marks = bench_score.score(whole, health_facts, "Resting heart rate 50, and that is ordinary.")
+    split = ollama.SECTIONS["health_split"]
+    marks = bench_score.score(split, health_facts, "Resting heart rate 50, and that is ordinary.")
     assert marks["faults"] == []
     assert marks["score"] == 0.0
 
@@ -324,9 +337,9 @@ def test_the_distance_is_not_counted_against_a_faulty_target(health_facts):
     """**La riga che impedisce al ciclo di imparare gli sbagli del bersaglio.**
     Se il frammento di Claude ha un errore grave, su quel giorno e quella
     sezione non e' un bersaglio: il termine va a zero."""
-    whole = ollama.SECTIONS["health"]
+    split = ollama.SECTIONS["health_split"]
     marks = bench_score.score(
-        whole,
+        split,
         health_facts,
         "Resting heart rate 50, and that is ordinary.",
         "You woke at 81, which nobody measured.",
@@ -345,9 +358,9 @@ def test_the_distance_is_measured_but_not_scored(health_facts):
     Col peso che le avevo dato il confronto con Claude era impossibile da
     vincere: nel punteggio di llama c'erano 0,246 di distanza che il bersaglio,
     contro se stesso, per costruzione non ha."""
-    whole = ollama.SECTIONS["health"]
+    split = ollama.SECTIONS["health_split"]
     marks = bench_score.score(
-        whole,
+        split,
         health_facts,
         "Resting heart rate 50, and that is ordinary.",
         "Your resting heart rate sits at 50 and there is nothing in it.",

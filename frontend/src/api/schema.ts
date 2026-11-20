@@ -375,51 +375,42 @@ export interface paths {
         /**
          * A section's text, written on this machine
          * @description One section of the daily report written by the **Ollama model running on this
-         *     machine**, for the Test page — the same prompt as the Claude agent, a different writer.
+         *     machine**, for the Test page — written now, on this call, and not read from anywhere.
          *
-         *     `section` is `health`, `load`, `recovery` or `fitness`, the same keys the Day page uses
-         *     for its cards. The other three are not wired up: each one needs its own slice of the facts
-         *     and its own trial, and they are added one at a time.
-         *
-         *     `recovery` is the one that answers the first question — can the local model write this
-         *     section at all? — because the Test page puts it beside the fragment the Claude agent
-         *     actually wrote, over the same four numbers, so the only thing that differs is who wrote
-         *     it. The first night said no three times over, and in the three ways that had already
-         *     forced the other two sections apart: a verdict the next line contradicted, the night in
-         *     the wrong spelling, and the two body battery numbers folded into one sentence. So the
-         *     page now shows `recovery_split` on that side — four writers, one per measure, and a fifth
-         *     that reads their readings and says how ready the body was — and `recovery` stays here as
-         *     the thing it has to beat.
-         *
-         *     `fitness` and `fitness_split` are the same pair over the most varied section there is:
-         *     three scores read the other way round (above the band is good), a threshold with no band
-         *     at all, and two acclimatisations that are zero most of the year. In the split those two
-         *     are **pieces that are not asked for** when the figure is zero, so the section comes back
-         *     as five paragraphs in winter and six or seven in a week spent high up — a shape the whole
-         *     prompt has to remember to leave out, and on the first night did not.
-         *
-         *     `health_split` and `load_split` are those **same** two sections asked a different way:
-         *     one small writer per paragraph instead of one for the lot. `health_split` is five — a
+         *     `section` is `health_split`, `load_split`, `recovery_split` or `fitness_split`: the four
+         *     sections the local model can write, each of them **in pieces**. One small writer per
+         *     paragraph instead of one for the lot, and Python joins them in order, so the shape of the
+         *     section stops being something the prompt has to ask for. `health_split` is five — a
          *     paragraph each for the resting heart rate, the HRV, the breathing and the stress, none of
          *     which is given the other three, plus one that reads those four readings and opens the
          *     section. `load_split` is six, and they are not the same job six times: one for each of
          *     the three kinds of work (each given its own load and what the week asked for, and neither
          *     of the other two), one for how much of it you are carrying, one for what the week still
-         *     asks, and one that writes the opening word. The section's shape stops being something the
-         *     prompt has to ask for and becomes answers joined in order — and a paragraph with nothing
-         *     to say is not asked for at all, which is how a week with no plan comes back as five
-         *     paragraphs instead of six with a hole in it.
+         *     asks, and one that writes the opening word. A paragraph with nothing to say is not asked
+         *     for at all, which is how a week with no plan comes back as five paragraphs instead of six
+         *     with a hole in it, and a winter day as five instead of seven.
+         *
+         *     **The four whole sections are gone.** `health`, `load`, `recovery` and `fitness` — one
+         *     prompt, one question, one answer — used to live here beside the split ones so the Test
+         *     page could show each section twice over the same numbers and settle which way of asking
+         *     was better. The split is the way that stayed. The comparison, though, was closed rather
+         *     than won: measured level, before any tuning, the whole sections had fewer hard faults and
+         *     came closer to what the Claude agent wrote, in 76 words against 153. The 50 rows that say
+         *     so are still in the bench notebook under the old keys; the prompts are not.
          *
          *     The split costs one call per paragraph, all of them at once, and the `seconds` of the
-         *     answer is what the whole thing took: the Test page shows each section beside itself, on
-         *     the same day and the same numbers, because that comparison is the only way to tell which
-         *     way of asking is better.
+         *     answer is what the whole thing took.
          *
          *     It is a bench, not a report. Nothing is written to `summary/`: the text is made when this
          *     is called and lives only in the answer, so the cards of the Day go on showing what the
-         *     Claude agents wrote and this cannot overwrite them. The prompt is the section's file in
-         *     `.ollama/agents/` plus the house rules beside it, and the facts are only what that
-         *     section owns, put in the message because a local model has no tools to read a file with.
+         *     Claude agents wrote and this cannot overwrite them. The Test page itself does not call
+         *     this any more — it reads the notebook (`GET /api/test/bench`), where both texts already
+         *     sit side by side — and this stays for asking one card by hand. The prompt is the
+         *     section's folder in `.ollama/agents/` plus the house rules beside it, and the facts are
+         *     only what that section owns, put in the message because a local model has no tools to
+         *     read a file with.
+         *
+         *     404 for a section that is not one of the four, which includes the four that went away.
          *
          *     503 when Ollama is not answering (`ollama serve` down, or the model not pulled): the page
          *     says so instead of showing an empty card.

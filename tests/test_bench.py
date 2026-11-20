@@ -18,10 +18,17 @@ from training.api import bench, bench_tune, ollama
 from training.api.context import REPO_ROOT
 
 
-def a_row(day="2026-10-26", section="health_split", iteration=0, text="un testo", **extra):
+def a_row(
+    day="2026-10-26",
+    section="health_split",
+    iteration=0,
+    text="un testo",
+    run="prova",
+    **extra,
+):
     return {
         **bench.row(
-            run="prova",
+            run=run,
             iteration=iteration,
             day=date.fromisoformat(day),
             section_key=section,
@@ -174,17 +181,84 @@ def test_the_fingerprint_follows_the_prompt_files(tmp_path):
 
 def test_the_fingerprint_ignores_the_front_matter(tmp_path):
     """Il front matter non arriva al modello — `_system_prompt` lo toglie —
-    quindi una descrizione cambiata non deve far rigenerare niente."""
-    (tmp_path / ".ollama" / "agents").mkdir(parents=True)
-    style = tmp_path / ".ollama" / "agents" / "_style.md"
-    style.write_text("House rules")
-    agent = tmp_path / ".ollama" / "agents" / "01_health.md"
-    agent.write_text("---\nname: uno\n---\n\nIl compito.")
-    first = bench.fingerprint(tmp_path, ollama.SECTIONS["health"])
-    agent.write_text("---\nname: due\ndescription: altro\n---\n\nIl compito.")
-    assert bench.fingerprint(tmp_path, ollama.SECTIONS["health"]) == first
-    agent.write_text("---\nname: uno\n---\n\nIl compito, cambiato.")
-    assert bench.fingerprint(tmp_path, ollama.SECTIONS["health"]) != first
+    quindi una descrizione cambiata non deve far rigenerare niente.
+
+    I file sono quelli che quella sezione legge davvero, presi da
+    `prompt_files`: una spezzata ne ha nove o dieci, e scriverne uno a caso
+    darebbe un `FileNotFoundError` invece di una risposta."""
+    section = ollama.SECTIONS["health_split"]
+    agents = tmp_path / ".ollama" / "agents"
+    agents.mkdir(parents=True)
+    (agents / "_style.md").write_text("House rules")
+    for name in bench.prompt_files(section):
+        file = agents / name
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text("---\nname: uno\n---\n\nIl compito.")
+    uno = agents / bench.prompt_files(section)[0]
+    first = bench.fingerprint(tmp_path, section)
+    uno.write_text("---\nname: due\ndescription: altro\n---\n\nIl compito.")
+    assert bench.fingerprint(tmp_path, section) == first
+    uno.write_text("---\nname: uno\n---\n\nIl compito, cambiato.")
+    assert bench.fingerprint(tmp_path, section) != first
+
+
+def test_a_row_of_a_section_that_no_longer_exists_still_reads(tmp_path):
+    """**Le righe delle sezioni intere restano, e sono dati veri.** Il banco
+    teneva accanto a ogni spezzata la stessa sezione chiesta in un blocco, e
+    nel quaderno ci sono 50 righe misurate sotto le chiavi `health` e `load`:
+    sono l'unica traccia del confronto, perche' i quattro prompt non ci sono
+    piu'.
+
+    Niente qui cerca la sezione di una riga nel registro di `ollama` — chi
+    genera parte dalle chiavi che gli si chiedono, non da quelle che trova —
+    quindi una chiave che il registro non conosce piu' si rilegge invece di
+    alzare un `KeyError`."""
+    assert "health" not in ollama.SECTIONS
+    bench.store(
+        tmp_path,
+        [a_row(section="health", score=0.546), a_row(section="health_split", score=0.092)],
+    )
+    back = bench.load(tmp_path)
+    assert {r["section"] for r in back} == {"health", "health_split"}
+    # E il punteggio di quella riga e' quello che il ciclo le aveva dato: si
+    # rilegge, non si ricalcola, che per ricalcolarlo servirebbe la sezione.
+    intera = next(r for r in back if r["section"] == "health")
+    assert intera["score"] == 0.546 and intera["ollama"] == "un testo"
+
+
+def test_the_newest_row_wins_even_for_a_section_that_went_away(tmp_path):
+    """E la pagina ne mostra una per card: `latest` guarda (giorno, sezione) e
+    non sa niente del registro, quindi la riga di una sezione intera convive
+    con quella della spezzata senza coprirla."""
+    bench.store(
+        tmp_path,
+        [
+            a_row(section="health", text="il testo dell'intera"),
+            a_row(section="health_split", text="il testo della spezzata"),
+        ],
+    )
+    got = {r["section"]: r["ollama"] for r in bench.latest(tmp_path)}
+    assert got == {
+        "health": "il testo dell'intera",
+        "health_split": "il testo della spezzata",
+    }
+
+
+def test_the_newest_row_is_the_one_written_last(tmp_path):
+    """**Il nome del giro non e' un orologio**, ed e' una trappola in cui sono
+    caduto: i giri si chiamano con l'ora in cui partono, quindi in ordine di
+    stringa si mettono in fila da se' — finche' uno lo si chiama a mano.
+    Scrivendo quattro righe con il giro `2026-11-20-leaning`, `l` e' finito
+    sopra ogni cifra: quelle righe avrebbero vinto contro ogni giro successivo
+    e la pagina Test si sarebbe fermata su di loro senza dirlo a nessuno."""
+    bench.store(
+        tmp_path,
+        [
+            a_row(text="il vecchio", run="2026-11-20-leaning", written_at="2026-11-20 10:00:00"),
+            a_row(text="il nuovo", run="2026-11-20-2340", written_at="2026-11-20 23:41:00"),
+        ],
+    )
+    assert [r["ollama"] for r in bench.latest(tmp_path)] == ["il nuovo"]
 
 
 def test_a_row_is_reused_only_when_everything_matches():
@@ -198,14 +272,22 @@ def test_a_row_is_reused_only_when_everything_matches():
 
 
 def test_the_claude_fragment_comes_from_the_section_title(tmp_path):
-    """`health` e `health_split` sono la stessa sezione chiesta in due modi, e
-    il frammento di Claude e' uno: il nome del file viene dal titolo."""
+    """**Il nome del file viene dal titolo, non dalla chiave.** La chiave e'
+    `health_split` e il frammento di Claude e' `health.md`: lo stesso di
+    quando accanto c'era una chiave `health`, perche' Claude di sezioni ne
+    scrive quattro e di modi di chiederle non sa niente."""
     folder = tmp_path / "01.daily" / "2026-10-26"
     folder.mkdir(parents=True)
-    (folder / "health.md").write_text("il bersaglio della Health")
-    for key in ("health", "health_split"):
+    for title in ("health", "load", "recovery", "fitness"):
+        (folder / f"{title}.md").write_text(f"il bersaglio della {title}")
+    for key, title in (
+        ("health_split", "health"),
+        ("load_split", "load"),
+        ("recovery_split", "recovery"),
+        ("fitness_split", "fitness"),
+    ):
         got = bench.claude_text(tmp_path, date(2026, 10, 26), ollama.SECTIONS[key])
-        assert got == "il bersaglio della Health"
+        assert got == f"il bersaglio della {title}"
 
 
 def test_an_empty_fragment_is_no_fragment(tmp_path):
@@ -213,7 +295,7 @@ def test_an_empty_fragment_is_no_fragment(tmp_path):
     folder = tmp_path / "01.daily" / "2026-10-26"
     folder.mkdir(parents=True)
     (folder / "health.md").write_text("   \n")
-    assert bench.claude_text(tmp_path, date(2026, 10, 26), ollama.SECTIONS["health"]) is None
+    assert bench.claude_text(tmp_path, date(2026, 10, 26), ollama.SECTIONS["health_split"]) is None
 
 
 # --- Il corpus e i giorni tenuti da parte ---
@@ -244,7 +326,7 @@ def agents(tmp_path):
     folder = tmp_path / ".ollama" / "agents"
     (folder / "01_health_split").mkdir(parents=True)
     (folder / "_style.md").write_text("le regole di casa")
-    (folder / "01_health.md").write_text("il compito della Health")
+    (folder / "01_health_split" / "_measure.md").write_text("il compito di una misura")
     (folder / "01_health_split" / "_verdict.md").write_text("il verdetto")
     return tmp_path
 
@@ -253,10 +335,12 @@ def test_a_snapshot_and_a_restore_put_everything_back(agents, tmp_path):
     where = tmp_path / "scatto"
     bench_tune.snapshot(agents, where)
     live = agents / ".ollama" / "agents"
-    (live / "01_health.md").write_text("ROVINATO dall'editor")
-    assert bench_tune.changed_since(agents, where) == ["01_health.md"]
+    (live / "01_health_split" / "_measure.md").write_text("ROVINATO dall'editor")
+    assert bench_tune.changed_since(agents, where) == ["01_health_split/_measure.md"]
     bench_tune.restore(where, agents)
-    assert (live / "01_health.md").read_text() == "il compito della Health"
+    assert (live / "01_health_split" / "_measure.md").read_text() == (
+        "il compito di una misura"
+    )
     assert bench_tune.changed_since(agents, where) == []
 
 
@@ -388,6 +472,13 @@ def bench_world(tmp_path, monkeypatch):
     return repo, data, summary
 
 
+# Un testo senza errori gravi e con uno leggero: "the verdict is" e' una
+# frase che parla della propria impalcatura (`bench_score.SCAFFOLD`). Vale 0.3,
+# che e' quanto basta a stare sopra un pavimento a zero: un ciclo che parte
+# gia' sotto Claude si ferma al giro 0, e un test che non lo sa sembra rotto.
+QUASI_PULITO = "Resting heart rate ordinary. The verdict is ordinary."
+
+
 def _run(bench_world, monkeypatch, *, text_after: str, text_before: str, iterations=1):
     repo, data, summary = bench_world
     state = {"edited": False}
@@ -397,14 +488,14 @@ def _run(bench_world, monkeypatch, *, text_after: str, text_before: str, iterati
 
     def fake_editor(repo_root, data_dir, prompt, say=print):
         state["edited"] = True
-        (repo / ".ollama" / "agents" / "01_health.md").write_text("IL PROMPT NUOVO")
-        return True, "ho cambiato 01_health.md"
+        (repo / ".ollama" / "agents" / "01_health_split" / "_verdict.md").write_text("IL PROMPT NUOVO")
+        return True, "ho cambiato 01_health_split/_verdict.md"
 
     monkeypatch.setattr(ollama, "section_text", fake_ollama)
     monkeypatch.setattr(bench_tune, "edit", fake_editor)
     tally = bench_tune.tune(
         days=[date(2026, 10, 26)],
-        sections=("health",),
+        sections=("health_split",),
         iterations=iterations,
         repo_root=repo,
         data_dir=data,
@@ -412,7 +503,7 @@ def _run(bench_world, monkeypatch, *, text_after: str, text_before: str, iterati
         model="finto:1b",
         say=lambda message: None,
     )
-    return tally, (repo / ".ollama" / "agents" / "01_health.md").read_text()
+    return tally, (repo / ".ollama" / "agents" / "01_health_split" / "_verdict.md").read_text()
 
 
 def test_an_improvement_survives_to_the_end(bench_world, monkeypatch):
@@ -435,11 +526,11 @@ def test_a_regression_is_rejected_and_the_prompts_go_back(bench_world, monkeypat
     contrario dei fatti, e l'ho ripristinata io. Il ciclo lo deve fare da
     se'."""
     repo, _, _ = bench_world
-    before = (repo / ".ollama" / "agents" / "01_health.md").read_text()
+    before = (repo / ".ollama" / "agents" / "01_health_split" / "_verdict.md").read_text()
     tally, prompt = _run(
         bench_world,
         monkeypatch,
-        text_before="Resting heart rate ordinary.",
+        text_before=QUASI_PULITO,
         text_after="my body came back and yesterday cost him 999",
     )
     assert tally["best"] == 0
@@ -452,7 +543,7 @@ def test_the_loop_stops_when_nothing_improves(bench_world, monkeypatch):
     tally, _ = _run(
         bench_world,
         monkeypatch,
-        text_before="Resting heart rate ordinary.",
+        text_before=QUASI_PULITO,
         text_after="my body came back and yesterday cost him 999",
         iterations=9,
     )
@@ -465,11 +556,11 @@ def test_an_editor_that_changes_nothing_stops_the_loop(bench_world, monkeypatch)
     rigenerare sarebbe venti minuti per lo stesso risultato."""
     repo, data, summary = bench_world
     monkeypatch.setattr(
-        ollama, "section_text", lambda *a, **k: ("Resting heart rate ordinary.", "finto:1b")
+        ollama, "section_text", lambda *a, **k: (QUASI_PULITO, "finto:1b")
     )
     monkeypatch.setattr(bench_tune, "edit", lambda *a, **k: (True, "non ho toccato niente"))
     tally = bench_tune.tune(
-        days=[date(2026, 10, 26)], sections=("health",), iterations=3, repo_root=repo,
+        days=[date(2026, 10, 26)], sections=("health_split",), iterations=3, repo_root=repo,
         data_dir=data, summary_dir=summary, model="finto:1b", say=lambda m: None,
     )
     assert tally["stopped"] == "l'editor non ha cambiato niente"
@@ -513,7 +604,7 @@ def test_the_loop_stops_when_it_beats_claude(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(bench_tune, "edit", lambda *a, **k: (True, "non dovrebbe servire"))
     tally = bench_tune.tune(
-        days=[date(2026, 10, 26)], sections=("health",), iterations=5, repo_root=repo,
+        days=[date(2026, 10, 26)], sections=("health_split",), iterations=5, repo_root=repo,
         data_dir=data, summary_dir=summary, model="finto:1b", say=lambda m: None,
     )
     assert tally["floor"]["score"] > 0
@@ -541,13 +632,13 @@ def test_the_first_iteration_does_not_reuse_another_runs_rows(tmp_path, monkeypa
     data, summary = tmp_path / "data", tmp_path / "summary"
     (summary / "01.daily" / "2026-10-26").mkdir(parents=True)
     (summary / "01.daily" / "2026-10-26" / "health.md").write_text("Il bersaglio.")
-    section = ollama.SECTIONS["health"]
+    section = ollama.SECTIONS["health_split"]
     # Una riga gia' nel quaderno, con l'impronta dei prompt di adesso.
     bench.store(
         data,
         [
             bench.row(
-                run="prima", iteration=0, day=date(2026, 10, 26), section_key="health",
+                run="prima", iteration=0, day=date(2026, 10, 26), section_key="health_split",
                 model="finto:1b", prompts=bench.fingerprint(repo, section),
                 seconds=9.9, ollama_text="il testo di prima", claude="Il bersaglio.",
                 held_out=False,
@@ -561,7 +652,7 @@ def test_the_first_iteration_does_not_reuse_another_runs_rows(tmp_path, monkeypa
     )
     monkeypatch.setattr(bench_tune, "edit", lambda *a, **k: (True, "non serve"))
     bench_tune.tune(
-        days=[date(2026, 10, 26)], sections=("health",), iterations=0, repo_root=repo,
+        days=[date(2026, 10, 26)], sections=("health_split",), iterations=0, repo_root=repo,
         data_dir=data, summary_dir=summary, model="finto:1b", say=lambda m: None,
     )
     assert chiamate, "il giro 0 ha riusato la riga di un altro giro"
@@ -679,11 +770,11 @@ def test_the_stopping_threshold_can_be_asked_for(tmp_path, monkeypatch):
     # l'altro motivo giusto: niente cambiato, niente da rimisurare.
     tocchi = iter(range(99))
     def editor(*a, **k):
-        (repo / ".ollama" / "agents" / "01_health.md").write_text(f"versione {next(tocchi)}")
+        (repo / ".ollama" / "agents" / "01_health_split" / "_verdict.md").write_text(f"versione {next(tocchi)}")
         return True, "cambiato"
     monkeypatch.setattr(bench_tune, "edit", editor)
     comune = dict(
-        days=[date(2026, 10, 26)], sections=("health",), repo_root=repo, data_dir=data,
+        days=[date(2026, 10, 26)], sections=("health_split",), repo_root=repo, data_dir=data,
         summary_dir=summary, model="finto:1b", say=lambda m: None,
     )
     # Col pavimento si ferma subito: il testo e' pulito e Claude no.

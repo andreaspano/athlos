@@ -66,7 +66,7 @@ def test_other_sections_stay_out(payload):
 
 def test_only_the_two_alerts(payload):
     """`hrv_below_baseline` e' di un'altra domanda — la media della settimana
-    contro la fascia di Garmin — e `01_health.md` dice espressamente di
+    contro la fascia di Garmin — e `.claude/agents/01_health.md` dice espressamente di
     lasciarlo stare."""
     facts = ollama.health_facts(payload)
     assert facts["alerts"] == ["resting_hr_up"]
@@ -154,30 +154,45 @@ def test_a_file_without_front_matter_survives():
 
 
 def test_the_prompt_comes_from_the_ollama_directory():
-    """Il prompt di sistema e' davvero i due file di `.ollama/agents/`, non
-    una copia scritta qui che poi invecchia per conto suo."""
-    system = ollama._system_prompt(REPO_ROOT, ollama.HEALTH.agent)
-    assert "You write the **Health** section" in system
+    """Il prompt di sistema e' davvero i file di `.ollama/agents/`, non una
+    copia scritta qui che poi invecchia per conto suo."""
+    system = ollama._system_prompt(REPO_ROOT, *ollama.HEALTH_SPLIT.opening.agent)
+    assert "You write the **opening paragraph** of the Health section" in system
     assert "House rules" in system
-    assert "name: 01_health" not in system
+    assert "name: 01_health_split/_verdict" not in system
 
 
 def test_llama_has_its_own_files():
     """La cartella esiste e non e' vuota: se tornasse a pescare da
     `.claude/agents/` il prompt di llama tornerebbe a essere quello di
-    Claude, e nessuno se ne accorgerebbe fino a leggere la card."""
-    for name in (ollama.HEALTH.agent, ollama.LOAD.agent, ollama.STYLE_FILE):
-        assert ollama._prompt_file(REPO_ROOT, name).parent.name == "agents"
-        assert ollama._prompt_file(REPO_ROOT, name).parent.parent.name == ".ollama"
+    Claude, e nessuno se ne accorgerebbe fino a leggere la card.
+
+    **Tutti i file di tutte e quattro**, e non due a campione: ogni sezione
+    ha la sua cartella e un file che manca si pesca da `.claude/agents/`
+    senza dire niente a nessuno."""
+    names = [ollama.STYLE_FILE]
+    for split in ollama.SECTIONS.values():
+        for piece in (split.opening, *split.parts):
+            names.extend(piece.agent)
+    for name in names:
+        file = ollama._prompt_file(REPO_ROOT, name)
+        assert file.parent.parent.name == ".ollama" or file.parent.parent.parent.name == (
+            ".ollama"
+        )
 
 
-def test_the_example_is_not_in_llamas_copy():
+def test_no_prompt_of_llamas_carries_an_example():
     """L'esempio in fondo al file di Claude llama lo ricopiava invece di
     guardare i numeri — l'HRV "al bordo basso" con un valore in mezzo alla
-    fascia. La copia di `.ollama/agents/` non ce l'ha, ed e' il motivo per
-    cui le due cartelle sono due."""
+    fascia. **Nessun file di `.ollama/agents/` ce l'ha**, ed e' il motivo per
+    cui le due cartelle sono due.
+
+    E non vale solo per l'esempio lungo: un esempio di tre parole non e' piu'
+    innocente di uno di sei righe — due parole messe per far sentire la
+    persona sono finite nei due paragrafi sbagliati, ognuna nell'altro."""
     assert "## Example" in (REPO_ROOT / ".claude/agents/01_health.md").read_text()
-    assert "## Example" not in (REPO_ROOT / ".ollama/agents/01_health.md").read_text()
+    for file in sorted((REPO_ROOT / ".ollama/agents").rglob("*.md")):
+        assert "## Example" not in file.read_text(), file
 
 
 def test_a_missing_file_falls_back_to_claude(tmp_path):
@@ -199,11 +214,23 @@ def test_a_file_in_neither_place_is_an_error(tmp_path):
 
 def test_the_facts_are_in_the_message(payload):
     """L'agente di Claude i fatti li legge con Read; qui non c'e' nessun
-    attrezzo, quindi devono stare nel messaggio."""
-    text = ollama._user_prompt(ollama.HEALTH, date(2026, 11, 13), ollama.health_facts(payload))
-    assert "hrv_last_night" in text
+    attrezzo, quindi devono stare nel messaggio.
+
+    E ci sta **solo quello che tocca a quel pezzo**: il paragrafo dell'HRV ha
+    l'HRV e non le altre tre misure, che e' il recinto dentro al recinto."""
+    facts = ollama.health_facts(payload)
+    piece = next(p for p in ollama.HEALTH_SPLIT.parts if p.key == "hrv_last_night")
+    owned = piece.cut(ollama.HEALTH_SPLIT, piece, facts)
+    text = piece.asks(ollama.HEALTH_SPLIT, piece, date(2026, 11, 13), owned)
+    assert f'"value": {payload["morning"]["hrv_last_night"]["value"]}' in text
     assert "inside its band" in text
-    assert "sleep_hours" not in text
+    # **Il nome detto, non il campo.** Nel messaggio la misura si chiama come
+    # la chiama la card: un campo scritto li' il modello lo legge ad alta voce.
+    assert "HRV of last night" in text
+    assert "hrv_last_night" not in text
+    # E le altre tre non ci sono: il recinto dentro al recinto.
+    assert "resting heart rate" not in text.lower()
+    assert "sleep" not in text.lower()
 
 
 # --- La Load: stessa pagina, un mestiere piu' difficile ---
@@ -377,9 +404,9 @@ def test_the_load_prompt_is_the_load_prompt():
     """Ogni sezione prende il **suo** file: con una chiave sbagliata nel
     registro le due card direbbero la stessa cosa, e guardando solo la Health
     non si vedrebbe."""
-    system = ollama._system_prompt(REPO_ROOT, ollama.LOAD.agent)
-    assert "You write the **Load** section" in system
-    assert "You write the **Health** section" not in system
+    system = ollama._system_prompt(REPO_ROOT, *ollama.LOAD_SPLIT.parts[0].agent)
+    assert "One kind of work in the Load section" in system
+    assert "One measure of the Recovery section" not in system
 
 
 # --- La Health in cinque pezzi ---
@@ -730,11 +757,13 @@ def test_a_quiet_morning_has_no_second_sentence(payload):
     assert facts["how_they_read"] == []
 
 
-def test_the_split_uses_the_same_fence_as_the_whole():
-    """Lo stesso ritaglio della sezione intera, e non una copia: due ritagli
-    vorrebbero dire due recinti che divergono da soli, e il confronto fra le
-    due card non direbbe piu' niente."""
-    assert ollama.HEALTH_SPLIT.facts is ollama.HEALTH.facts
+def test_the_split_has_one_fence_for_all_its_pieces():
+    """Un ritaglio solo per tutti i pezzi, e non una copia per ognuno: due
+    ritagli vorrebbero dire due recinti che divergono da soli. E' la stessa
+    funzione che usava la sezione intera finche' c'era, che e' il motivo per
+    cui il confronto fra le due card misurava il modo di chiedere e non i
+    fatti."""
+    assert ollama.HEALTH_SPLIT.facts is ollama.health_facts
 
 
 @pytest.mark.parametrize(
@@ -845,7 +874,7 @@ def test_a_kind_of_work_has_no_reading(load_payload):
 
 def test_a_kind_of_work_gets_the_shape_of_the_week(load_payload):
     """Il carico si giudica contro quello che la settimana aveva chiesto: e'
-    la prima riga in grassetto di `02_load.md`, ed e' il motivo per cui ai
+    la prima riga in grassetto di `.claude/agents/02_load.md`, ed e' il motivo per cui ai
     tre carichi il foglio arriva."""
     week = load_owned(load_part("load_anaerobic"), load_payload, WEEK)["week"]
     assert week["phase"] == "base"
@@ -967,11 +996,13 @@ def test_garmins_codes_reach_nobody(load_payload):
         assert code not in said
 
 
-def test_the_load_split_uses_the_same_fence_as_the_whole():
-    """Lo stesso ritaglio della sezione intera, e non una copia: due ritagli
-    vorrebbero dire due recinti che divergono da soli, e il confronto fra le
-    due card non direbbe piu' niente."""
-    assert ollama.LOAD_SPLIT.facts is ollama.LOAD.facts
+def test_the_load_split_has_one_fence_for_all_its_pieces():
+    """Un ritaglio solo per tutti i pezzi, e non una copia per ognuno: due
+    ritagli vorrebbero dire due recinti che divergono da soli. E' la stessa
+    funzione che usava la sezione intera finche' c'era, che e' il motivo per
+    cui il confronto fra le due card misurava il modo di chiedere e non i
+    fatti."""
+    assert ollama.LOAD_SPLIT.facts is ollama.load_facts
 
 
 def test_each_load_piece_has_its_own_prompt():
@@ -1009,7 +1040,7 @@ def test_six_paragraphs_whatever_the_model_answers(load_payload, monkeypatch):
     """**La forma non e' piu' una preghiera.** Qualunque cosa rispondano i
     sei, il testo e' il verdetto piu' i cinque paragrafi nell'ordine della
     card. Il prompt intero quella forma la deve chiedere, e in fondo a
-    `02_load.md` ci sono tre righe che la chiedono perche' tre volte non e'
+    `.claude/agents/02_load.md` ci sono tre righe che la chiedono perche' tre volte non e'
     arrivata: tutti e sei scritti, il primo e' il verdetto, gli ultimi due
     non si uniscono. Qui sono sei risposte attaccate da Python."""
     monkeypatch.setattr(ollama, "_ask", fake_load_answers)
@@ -1100,7 +1131,7 @@ def test_health_stays_out_of_recovery(recovery_payload):
 
 
 def test_only_the_sleep_alert(recovery_payload):
-    """`short_sleep` e' suo e lo dice `03_recovery.md`; `resting_hr_up` e' di
+    """`short_sleep` e' suo e lo dice `.claude/agents/03_recovery.md`; `resting_hr_up` e' di
     Health, e un allarme in mano a chi non lo possiede finisce nel testo."""
     assert ollama.recovery_facts(recovery_payload)["alerts"] == ["short_sleep"]
 
@@ -1138,51 +1169,35 @@ def test_recovery_ignores_the_week(recovery_payload):
     )
 
 
-def test_the_whole_recovery_stays_in_the_registry():
-    """La sezione intera resta chiedibile anche da quando la pagina mostra
-    quella spezzata: e' il termine di paragone della prima sera — la storia sta
-    in `recovery_facts` — e una strada che si butta prima di aver deciso non si
-    puo' piu' riguardare."""
-    assert not isinstance(ollama.SECTIONS["recovery"], ollama.Split)
-    assert isinstance(ollama.SECTIONS["recovery_split"], ollama.Split)
+def test_the_registry_is_the_four_splits():
+    """**Sono tutte spezzate, e per un po' non lo erano.** Accanto a ognuna
+    stava la stessa sezione chiesta intera — un prompt, una domanda — e le due
+    si guardavano affiancate sulla pagina Test per decidere quale strada
+    restava.
 
-
-def test_llama_has_its_own_copy_of_the_recovery_prompt():
-    """La copia sta in `.ollama/agents/`: se tornasse a pescare da
-    `.claude/agents/` il prompt di llama tornerebbe a essere quello di Claude,
-    e nessuno se ne accorgerebbe fino a leggere la card."""
-    assert ollama._prompt_file(REPO_ROOT, ollama.RECOVERY.agent).parent.parent.name == (
-        ".ollama"
-    )
-
-
-def test_the_recovery_copy_is_the_same_question_as_claudes():
-    """**Fra le due card cambia chi scrive e nient'altro**, quindi la copia di
-    llama deve restare la stessa domanda: la forma di Claude — il verdetto e
-    poi le quattro misure in una clausola o due — e non i cinque paragrafi a
-    cui le altre due sezioni sono state portate. Quello che va via e' solo
-    cio' che a un modello senza attrezzi non vuol dire niente."""
-    mine = ollama._prompt_file(REPO_ROOT, ollama.RECOVERY.agent).read_text()
-    theirs = (REPO_ROOT / ".claude/agents/03_recovery.md").read_text()
-    for shape in ("Open with the verdict", "each in a clause or two"):
-        assert shape in mine and shape in theirs
-    # L'esempio llama lo ricopia invece di guardare i numeri, ed e' il motivo
-    # per cui le due cartelle sono due.
-    assert "## Example" in theirs
-    assert "## Example" not in mine
-    # Gli attrezzi non ce li ha: i fatti stanno nel messaggio.
-    assert "tools:" not in mine
-    assert "facts file" not in mine
+    Il confronto non e' stato vinto, e' stato chiuso: alla pari, prima che il
+    ciclo tarasse qualcosa, le intere avevano meno errori gravi e stavano piu'
+    vicine ai testi di Claude, in 76 parole contro 153. Le 50 righe che lo
+    dicono sono nel quaderno sotto le chiavi vecchie; i quattro prompt non ci
+    sono piu'."""
+    assert sorted(ollama.SECTIONS) == [
+        "fitness_split",
+        "health_split",
+        "load_split",
+        "recovery_split",
+    ]
+    assert all(isinstance(s, ollama.Split) for s in ollama.SECTIONS.values())
 
 
 def test_the_recovery_facts_are_in_the_message(recovery_payload):
     """I fatti nel messaggio, che di attrezzi per leggere un file non ce n'e'
-    nessuno — e solo i suoi."""
-    text = ollama._user_prompt(
-        ollama.RECOVERY, date(2026, 11, 19), ollama.recovery_facts(recovery_payload)
-    )
-    assert "Write the Recovery section" in text
-    assert "body_battery_low_yesterday" in text
+    nessuno — e solo quelli del pezzo che li chiede."""
+    facts = ollama.recovery_facts(recovery_payload)
+    piece = next(p for p in ollama.RECOVERY_SPLIT.parts if p.key == "readiness")
+    owned = piece.cut(ollama.RECOVERY_SPLIT, piece, facts)
+    text = piece.asks(ollama.RECOVERY_SPLIT, piece, date(2026, 11, 19), owned)
+    assert "readiness" in text
+    assert "body_battery_low_yesterday" not in text
     assert "hrv_last_night" not in text
 
 
@@ -1422,10 +1437,10 @@ def test_a_quiet_recovery_morning_has_no_second_sentence(recovery_payload):
     assert facts["verdict"] == ollama.RECOVERY_VERDICT_WORDS["ready"]
 
 
-def test_the_recovery_split_uses_the_same_fence_as_the_whole():
-    """Lo stesso ritaglio della sezione intera: due ritagli vorrebbero dire
-    due recinti che divergono, e il confronto non direbbe piu' niente."""
-    assert ollama.RECOVERY_SPLIT.facts is ollama.RECOVERY.facts
+def test_the_recovery_split_has_one_fence_for_all_its_pieces():
+    """Un ritaglio solo per tutti i pezzi: due ritagli vorrebbero dire due
+    recinti che divergono da soli."""
+    assert ollama.RECOVERY_SPLIT.facts is ollama.recovery_facts
 
 
 def test_five_paragraphs_whatever_the_model_answers(recovery_payload, monkeypatch):
@@ -1689,10 +1704,10 @@ def test_the_fitness_opening_names_worst_first(fitness_payload):
     assert facts["about"] == "this one reads badly this morning"
 
 
-def test_the_fitness_split_uses_the_same_fence_as_the_whole():
-    """Lo stesso ritaglio della sezione intera: due ritagli vorrebbero dire
-    due recinti che divergono, e il confronto non direbbe piu' niente."""
-    assert ollama.FITNESS_SPLIT.facts is ollama.FITNESS.facts
+def test_the_fitness_split_has_one_fence_for_all_its_pieces():
+    """Un ritaglio solo per tutti i pezzi: due ritagli vorrebbero dire due
+    recinti che divergono da soli."""
+    assert ollama.FITNESS_SPLIT.facts is ollama.fitness_facts
 
 
 def test_the_scores_do_not_live_under_morning():
@@ -1742,20 +1757,13 @@ def test_five_paragraphs_in_winter_and_seven_up_a_mountain(fitness_payload, monk
     ]
 
 
-def test_llama_has_its_own_copy_of_the_fitness_prompt():
-    """La copia sta in `.ollama/agents/`, e l'esempio non ce l'ha: llama lo
-    ricopia invece di guardare i numeri, ed e' il motivo per cui le due
-    cartelle sono due."""
-    path = ollama._prompt_file(REPO_ROOT, ollama.FITNESS.agent)
-    assert path.parent.parent.name == ".ollama"
-    mine = path.read_text()
+def test_claudes_fitness_prompt_carries_an_example():
+    """Quello di llama non ce l'ha, e lo prova
+    `test_no_prompt_of_llamas_carries_an_example` su tutti i file. Qui resta
+    il lato di Claude, che e' il motivo per cui le due cartelle sono due: il
+    suo esempio llama lo ricopiava invece di guardare i numeri."""
     theirs = (REPO_ROOT / ".claude/agents/04_fitness.md").read_text()
     assert "## Example" in theirs
-    assert "## Example" not in mine
-    assert "tools:" not in mine
-    assert "facts file" not in mine
-    # La forma resta quella di Claude: il verdetto e poi le misure.
-    assert "Open with the verdict" in mine
 
 
 # --- Il gradino delle misure che pendono ---

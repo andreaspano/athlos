@@ -10,8 +10,9 @@ pagina Test la chiede e muore con la risposta HTTP. Nessun frammento, nessun
 file, niente che il report possa poi leggere per sbaglio.
 
 **Il prompt sta in `.ollama/agents/`**, accanto a quello di Claude e non
-dentro: `01_health.md` per la sezione e `_style.md` per le regole di casa,
-nello stesso ordine in cui li legge un agente. Senza `_style.md` il modello
+dentro: una cartella per sezione — `01_health_split/` e le altre tre, un
+file per paragrafo — e `_style.md` per le regole di casa, nello stesso
+ordine in cui li legge un agente. Senza `_style.md` il modello
 non saprebbe come si leggono le fasce, e il file della sezione glielo da' per
 letto ("the house rules say how bands work"). Quello che li' non c'e' si
 pesca da `.claude/agents/`, cosi' una differenza di una riga costa una riga.
@@ -66,7 +67,7 @@ from pathlib import Path
 HEALTH_MEASURES = ("resting_hr", "hrv_last_night", "resp_sleep", "stress_avg_yesterday")
 
 # I due allarmi che parlano di queste quattro misure. Gli altri sono di altre
-# sezioni, e `01_health.md` dice espressamente di lasciarli stare.
+# sezioni, e `.claude/agents/01_health.md` dice espressamente di lasciarli stare.
 HEALTH_ALERTS = ("resting_hr_up", "sleep_breathing_up")
 
 # **Il prompt di llama sta per conto suo**, in `.ollama/agents/`. Il nome
@@ -78,7 +79,7 @@ HEALTH_ALERTS = ("resting_hr_up", "sleep_breathing_up")
 # Prima questi due file erano quelli dell'agente di Claude, letti direttamente
 # da `.claude/agents/`, e una cartella sola voleva dire che non si poteva
 # aggiustare il prompt di llama senza cambiare quello che Claude scrive sulla
-# Day. E da aggiustare c'era: l'esempio in fondo a `01_health.md` llama lo
+# Day. E da aggiustare c'era: l'esempio in fondo a `.claude/agents/01_health.md` llama lo
 # ricopiava — l'HRV "down at the low edge of its own range" con un 46 in
 # mezzo alla fascia — e la copia di qui l'esempio non ce l'ha. Il resto e'
 # lo stesso testo, voce compresa: i due devono restare confrontabili, che e'
@@ -145,34 +146,13 @@ def _prompt_file(repo_root: Path, name: str) -> Path:
     raise FileNotFoundError(f"No prompt called {name} in {AGENT_DIR} nor in {FALLBACK_DIR}.")
 
 
-@dataclass(frozen=True)
-class Section:
-    """Una sezione che il modello di casa sa scrivere.
-
-    Il registro e' piccolo apposta: la pagina Test non vuole essere il
-    report, vuole far vedere **la stessa card scritta da un altro**. Ogni
-    sezione porta il suo file di prompt e la funzione che le ritaglia i fatti,
-    che e' tutto quello per cui due sezioni sono diverse."""
-
-    key: str
-    """Il nome nell'URL e nello stato, lo stesso con cui la Day chiama la sua
-    sezione (`health`, `load`)."""
-    title: str
-    """Il titolo della sezione, come lo scrive il prompt."""
-    agent: str
-    """Il file in `.ollama/agents/`, col numero davanti come in `.claude/`."""
-    facts: "Callable[[dict, dict | None], dict]"
-    """Che cosa arriva al modello: dai fatti del giorno e dal piano della
-    settimana (che puo' non esserci), quello che questa sezione possiede."""
-
-
-# **La stessa sezione scritta in cinque pezzi.** Una `Section` e' una domanda
-# sola: tutto il prompt, tutti i fatti, tutta la risposta. Uno `Split` e' la
-# stessa sezione chiesta a cinque modelli piccoli — uno per misura, piu' uno
-# che legge i quattro paragrafi e scrive il verdetto in cima.
+# **La stessa sezione scritta in cinque pezzi.** Chiederla intera era una
+# domanda sola: tutto il prompt, tutti i fatti, tutta la risposta. Uno `Split`
+# e' la stessa sezione chiesta a cinque modelli piccoli — uno per misura, piu'
+# uno che legge i quattro paragrafi e scrive il verdetto in cima.
 #
-# Il motivo e' che `01_health.md` **e' gia' cinque paragrafi**: il verdetto e
-# le quattro misure, in quest'ordine. Spezzarlo rende strutturale quello che
+# Il motivo e' che `.claude/agents/01_health.md` **e' gia' cinque paragrafi**:
+# il verdetto e le quattro misure, in quest'ordine. Spezzarlo rende strutturale quello che
 # li' dentro e' una preghiera, e sono le tre righe in grassetto del file:
 # *ognuna delle quattro ha il suo paragrafo, nessuna si salta, nessuna sesta*
 # diventa una `join` di quattro risposte; *il sonno e la batteria sono di
@@ -185,10 +165,16 @@ class Section:
 # scrive lo stesso il contrario. Quattro prompt da una misura l'uno saturi non
 # sono.
 #
-# Vive **accanto** alla `Section`, non al suo posto: le due si guardano una
-# accanto all'altra sulla pagina Test, sullo stesso giorno e con gli stessi
-# numeri, che e' il mestiere di quella pagina. Se vince lo `Split`, l'altra va
-# via allora e non adesso.
+# **Per un po' ha vissuto accanto alla sezione intera**, non al suo posto: le
+# due si guardavano una accanto all'altra sulla pagina Test, sullo stesso
+# giorno e con gli stessi numeri, che e' il mestiere di quella pagina. Lo
+# `Split` e' la strada che e' restata, e l'intera e' andata via — con una
+# riserva che va detta, perche' il quaderno la dice: alla pari, prima che
+# il ciclo tarasse qualcosa, l'intera aveva **zero errori gravi** contro 1 e
+# 9, era piu' vicina ai testi di Claude e ci arrivava in 76 parole contro
+# 153. Lo `Split` l'ha superata **dopo** quattro giri di taratura, che
+# all'intera non sono mai stati dati. Chi riaprisse la questione parta da
+# li': le righe del giro `2026-11-20-1638` nel quaderno del banco.
 
 
 @dataclass(frozen=True)
@@ -323,7 +309,7 @@ def _where(measure: dict) -> str:
     la barra, scritta a parole per chi i numeri non li confronta bene.
 
     Serve perche' senza, llama3.1 ricopiava l'esempio in fondo a
-    `01_health.md` invece di guardare i numeri: diceva l'HRV "sotto la
+    `.claude/agents/01_health.md` invece di guardare i numeri: diceva l'HRV "sotto la
     fascia" con un 46 dentro una fascia 38.8-53.6, e lo diceva anche dopo
     che il messaggio gli aveva chiesto di controllare. Con questo campo le
     quattro misure tornano al loro posto. L'agente di Claude il campo ce
@@ -458,7 +444,7 @@ def _verdict_word(carrying: str | None, parts: dict) -> str | None:
     """La parola con cui la Load apre, decisa qui.
 
     **Questa e' la riga che mi fa dire che il prompt e' saturo.** La regola e'
-    scritta in `02_load.md` — *`carrying` ordinario piu' una parte fuori
+    scritta in `.claude/agents/02_load.md` — *`carrying` ordinario piu' una parte fuori
     fascia fa lopsided, se no la parola la da' `carrying`* — e il modello la
     legge e scrive lo stesso "heavy" con un rapporto che lui stesso, due
     paragrafi piu' sotto, chiama ordinario. Contarla qui la raddrizza; il
@@ -596,7 +582,7 @@ RECOVERY_MEASURES = (
 )
 
 # L'unico allarme che parla di queste quattro. Gli altri tre sono di Health o
-# di nessuno, e `03_recovery.md` dice che questo e' suo.
+# di nessuno, e `.claude/agents/03_recovery.md` dice che questo e' suo.
 RECOVERY_ALERTS = ("short_sleep",)
 
 
@@ -640,7 +626,7 @@ def recovery_facts(payload: dict, week: dict | None = None) -> dict:
     sopra, e pure dalla parte sbagliata. E ha impastato i due body battery in
     una frase — *"body battery this morning is also within its band, but only
     just: it was down to 14.0 yesterday"* — che e' il paragrafo in grassetto
-    di `03_recovery.md` letto e non applicato. Tre righe per tre buchi:
+    di `.claude/agents/03_recovery.md` letto e non applicato. Tre righe per tre buchi:
     **sono i tre che, nelle altre due sezioni, hanno portato a spezzare.**
 
     **E hanno portato a spezzare anche questa**, il giro dopo: la card di
@@ -684,7 +670,7 @@ def _pace_label(seconds_per_km: object) -> str | None:
 
     **E' una delle poche cifre che la card non mostra e che si possono
     dare**, perche' il senso pratico di una frequenza di soglia e' il passo a
-    cui corrisponde: lo dice `04_fitness.md`, ed e' l'eccezione che quel
+    cui corrisponde: lo dice `.claude/agents/04_fitness.md`, ed e' l'eccezione che quel
     prompt si concede. Il conto lo fa qui, come tutti gli altri: 343 secondi
     diviso 60 e il resto, che a un modello che non sa contare non si chiede."""
     if not isinstance(seconds_per_km, (int, float)) or seconds_per_km <= 0:
@@ -803,45 +789,6 @@ def _alert_key(alert: object) -> str:
     return ""
 
 
-HEALTH = Section(key="health", title="Health", agent="01_health.md", facts=health_facts)
-LOAD = Section(key="load", title="Load", agent="02_load.md", facts=load_facts)
-RECOVERY = Section(
-    key="recovery", title="Recovery", agent="03_recovery.md", facts=recovery_facts
-)
-FITNESS = Section(
-    key="fitness", title="Fitness", agent="04_fitness.md", facts=fitness_facts
-)
-
-
-def _user_prompt(section: Section, day: date, facts: dict) -> str:
-    """Il messaggio: la stessa frase dell'orchestratore, con i fatti dentro
-    invece che il percorso di un file, e la richiesta di rispondere col solo
-    corpo invece che di scriverlo.
-
-    Della forma e della lunghezza qui non si dice niente: sono cose della
-    sezione, e stanno nel suo file in `.ollama/agents/` dove si possono
-    cambiare senza toccare il codice. Qui resta quello che vale per tutte.
-
-    Le due righe in fondo all'agente di Claude non servono: *l'esempio e'
-    solo il tono* e *guarda `where`*. Un modello da otto miliardi di parametri
-    l'esempio lo ricopia — alla prima prova ha detto l'HRV "sotto la fascia",
-    che e' quello che dice l'esempio, con un 46 che stava dentro una fascia
-    38.8-53.6 — e la fascia da solo la legge male. Non cambiano il compito,
-    ricordano come si leggono le cose a chi non se le ricorda da solo."""
-    return (
-        f"Write the {section.title} section of the daily report "
-        f"for {day:%A %-d %B %Y}. "
-        "The facts are here, below: they are what your section owns, and nothing "
-        "that belongs to another one is in them.\n\n"
-        f"{json.dumps(facts, indent=2, default=str)}\n\n"
-        "Any example in your instructions is tone and length only: do not reuse its "
-        "judgements. Each measure carries `where`, which says where its value falls "
-        "against its own band: say what you make of that, and never contradict it. "
-        "Answer with the body of the section and nothing else: no heading, no preamble, "
-        "no sign-off, no quotes around it."
-    )
-
-
 def _measure_facts(split: "Split", part: Part, facts: dict) -> dict:
     """Quello che tocca a una delle quattro misure della Health: **la sua
     misura e nient'altro.**
@@ -884,7 +831,7 @@ def _measure_facts(split: "Split", part: Part, facts: dict) -> dict:
     della Health ce l'hanno tutte; il minimo del body battery di ieri no, e
     per la stessa ragione dei tre carichi della Load: piu' giu' del solito
     vuol dire che ieri e' costata, che e' un fatto sull'allenamento e non un
-    difetto del recupero (`03_recovery.md` lo dice in grassetto). Dargli una
+    difetto del recupero (`.claude/agents/03_recovery.md` lo dice in grassetto). Dargli una
     direzione vorrebbe dire far contare una giornata dura come una cattiva
     notizia sul corpo. Senza `bad_when` il campo non c'e', e il prompt di quel
     pezzo non lo nomina."""
@@ -966,10 +913,10 @@ MEASURE_READS = (
 # giro dopo il paragrafo del sonno ha aperto con *"your readiness was
 # comfortably normal last night"* e quello della readiness ha infilato *"you
 # slept well enough"*: **i due esempi sono finiti nei due paragrafi
-# sbagliati**, ognuno nell'altro. E' la ragione per cui `## Example` non sta
-# nella copia di llama di `01_health.md`, e un esempio di tre parole non e'
-# piu' innocente di uno di sei righe: se nomina una misura, quella misura
-# ricompare. La persona si chiede senza dare un esempio.
+# sbagliati**, ognuno nell'altro. E' la ragione per cui **nessun file di
+# `.ollama/agents/` ha un `## Example`**, che quello di Claude invece ce
+# l'ha, e un esempio di tre parole non e' piu' innocente di uno di sei
+# righe: se nomina una misura, quella misura ricompare. La persona si chiede senza dare un esempio.
 RECOVERY_TAIL = (
     "**The reader is spoken to as *you***, in every sentence: *your* readiness, "
     "*your* night, what *you* can be asked for. And say nothing about what to train "
@@ -1392,7 +1339,7 @@ def _readings_of(split: "Split", facts: dict) -> "list[dict]":
     cattiva non e' una misura che va male o che va bene, quindi in un conto
     non entra. Alla Health non toglie niente, che le sue quattro ce l'hanno
     tutte; alla Recovery toglie il minimo del body battery di ieri, che e'
-    esattamente quello che `03_recovery.md` chiede — una giornata che e'
+    esattamente quello che `.claude/agents/03_recovery.md` chiede — una giornata che e'
     costata e' un fatto sull'allenamento, e non deve poter spostare il
     verdetto sul corpo."""
     measures = facts.get(split.measures_in, {})
@@ -1640,7 +1587,7 @@ def _load_part_facts(split: "Split", part: Part, facts: dict) -> dict:
     differenza che conta: li' il pezzo aveva bisogno della sua misura e
     basta, qui ha bisogno anche di che settimana era. Un carico si giudica
     contro quello che la settimana aveva chiesto — e' la prima riga in
-    grassetto di `02_load.md` — e un pezzo che quel foglio non ce l'ha non
+    grassetto di `.claude/agents/02_load.md` — e un pezzo che quel foglio non ce l'ha non
     sta scrivendo un paragrafo piu' stretto, sta tirando a indovinare.
 
     **Quello che non arriva e' `reading`**, e non c'e' niente da ritagliare al
@@ -1807,7 +1754,7 @@ def _week_asks_prompt(split: "Split", part: Part, day: date, facts: dict) -> str
 # sbagliato tre cose e sono le tre che hanno portato a spezzare le altre due:
 # ha aperto con un verdetto che due righe sotto contraddiceva da se', ha
 # scritto la notte nella scrittura sbagliata, e ha impastato i due body
-# battery in una frase — che e' il paragrafo in grassetto di `03_recovery.md`
+# battery in una frase — che e' il paragrafo in grassetto di `.claude/agents/03_recovery.md`
 # letto e non applicato. La storia per intero sta in `recovery_facts`. Qui il
 # verdetto lo conta Python, la scrittura la dice la riga del pezzo
 # (`SLEEP_READS`), e i due body battery sono due modelli che l'uno dell'altro
@@ -1815,7 +1762,7 @@ def _week_asks_prompt(split: "Split", part: Part, day: date, facts: dict) -> str
 # succedere.
 
 # Come si legge il verdetto della Recovery. **Sono le tre frasi che
-# `03_recovery.md` da' come esempi di prendere posizione**, e per la ragione
+# `.claude/agents/03_recovery.md` da' come esempi di prendere posizione**, e per la ragione
 # di `VERDICT_WORDS`: un valore che in inglese sta in piedi da solo non ha
 # bisogno di essere vietato, e ricopiato di peso resta una frase e non
 # l'etichetta di un campo.
@@ -1888,7 +1835,7 @@ def _recovery_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
 
     **La terza cosa e' sua.** Il minimo del body battery di ieri nel verdetto
     non entra, ma nel paragrafo di apertura ci deve entrare: la frase che
-    `03_recovery.md` chiede e' proprio quella — *la giornata ti ha svuotato
+    `.claude/agents/03_recovery.md` chiede e' proprio quella — *la giornata ti ha svuotato
     piu' del solito, e la mattina e' tornata su comunque* — e senza il costo
     di ieri in mano quella frase non si puo' scrivere. Arriva per quello che
     e': una cosa da dire, non un termine del conto. La riga che glielo dice
@@ -1962,7 +1909,7 @@ def _recovery_opening_prompt(split: "Split", part: Part, day: date, facts: dict)
 
 # I sei file della Health spezzata stanno in una cartella loro dentro
 # `.ollama/agents/`: sono tanti e sono pezzi di una cosa sola, e sparsi
-# accanto a `01_health.md` si leggerebbero come sei sezioni nuove.
+# nella cartella si leggerebbero come sei sezioni nuove.
 HEALTH_SPLIT_DIR = "01_health_split"
 
 HEALTH_PARTS = (
@@ -2045,7 +1992,7 @@ def _recovery_measure(key: str, label: str, **extra) -> Part:
 # notte e body battery al risveglio sono *below* tutte e tre, che e' la riga
 # delle regole di casa: poco riposo, poco sonno, poca batteria. Il minimo di
 # ieri no, e non e' una dimenticanza — `_readings_of` e `_measure_facts`
-# dicono perche', ed e' la riga in grassetto di `03_recovery.md`: un minimo
+# dicono perche', ed e' la riga in grassetto di `.claude/agents/03_recovery.md`: un minimo
 # piu' basso del solito e' quanto e' costata la giornata, non un difetto del
 # recupero.
 #
@@ -2241,7 +2188,7 @@ def _threshold_piece_facts(split: "Split", part: Part, facts: dict) -> dict | No
 def _threshold_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
     """Il messaggio della soglia: **il pezzo che vale piu' parole di tutti.**
 
-    E' la riga di `04_fitness.md`: la soglia e' la sola di queste misure che
+    E' la riga di `.claude/agents/04_fitness.md`: la soglia e' la sola di queste misure che
     cambi quello che si fa in allenamento, e percio' merita piu' spazio dei
     punteggi. Nei prompt in pezzi quella frase diventa un pezzo che ha il suo
     paragrafo e non deve dividerlo con nessuno."""
@@ -2300,7 +2247,7 @@ def _acclimation_prompt(split: "Split", part: Part, day: date, facts: dict) -> s
 
 
 # Come si legge il verdetto della Fitness. **Sono le tre frasi che
-# `04_fitness.md` da' come esempi di prendere posizione**, e per la ragione di
+# `.claude/agents/04_fitness.md` da' come esempi di prendere posizione**, e per la ragione di
 # `VERDICT_WORDS`: un valore che in inglese sta in piedi da solo, ricopiato di
 # peso, resta una frase e non l'etichetta di un campo.
 FITNESS_VERDICT_WORDS = {
@@ -2387,7 +2334,8 @@ def _fitness_opening_prompt(split: "Split", part: Part, day: date, facts: dict) 
         "today and not about the month**, and it is not about a morning either: these "
         "scores are months of work, so no story of the last four weeks and no *this "
         "morning*. You are writing to the person whose body it is, about what that body "
-        "can do, not a report on how it was assembled: **no field is named in it, and no sentence of it is "
+        "can do, not a report on how it was assembled: **no field is named in "
+        "it, and no sentence of it is "
         "about the card**. Write it to the person whose body it is. "
         "Answer with the paragraph and nothing else: no number in it, no band in it, "
         "no heading, no list, no quotes around it."
@@ -2473,13 +2421,9 @@ FITNESS_SPLIT = Split(
 )
 
 
-SECTIONS: "dict[str, Section | Split]" = {
+SECTIONS: "dict[str, Split]" = {
     section.key: section
     for section in (
-        HEALTH,
-        LOAD,
-        RECOVERY,
-        FITNESS,
         HEALTH_SPLIT,
         LOAD_SPLIT,
         RECOVERY_SPLIT,
@@ -2490,17 +2434,22 @@ SECTIONS: "dict[str, Section | Split]" = {
 ci sono: si aggiungono quando servono, una alla volta, che ognuna vuole il
 suo ritaglio dei fatti e la sua prova.
 
-**Non tutte sono li' per la stessa domanda**, e la pagina le accoppia di
-conseguenza. `health` e `load` stanno accanto a `health_split` e `load_split`:
-la stessa sezione chiesta allo stesso modello in due modi — un prompt, o un
-prompt per paragrafo — e il confronto decide quale delle due strade resta.
+**Sono tutte spezzate, e per un po' non lo erano.** Accanto a ognuna stava la
+stessa sezione chiesta in un modo solo — un prompt, una domanda, un file in
+`.ollama/agents/` — e le due si guardavano affiancate sulla pagina per
+decidere quale delle due strade restava. La spezzata e' quella che e' restata:
+e' quella che la pagina mostra, l'unica che il ciclo di taratura sappia tarare
+(`bench_tune.DEFAULT_SECTIONS`), e dopo quattro giri sta a 0.092 sulla Health
+e a 0.000 sulla Load contro gli 0.546 e 0.586 delle intere.
 
-`recovery` sta accanto a **quello che Claude ha scritto davvero**, letto dal
-frammento della Day. E' la domanda di prima di quell'altra, e per una sezione
-nuova e' quella che conta: non *come* chiederlo al modello di casa, ma se il
-modello di casa questa sezione la sappia scrivere. Finche' la risposta non e'
-si', spezzarla non vuol dire niente — ed e' per questo che un `recovery_split`
-qui non c'e'."""
+**Il confronto, pero', non e' stato vinto: e' stato chiuso.** Alla pari — il
+giro `2026-11-20-1638`, prima che il ciclo tarasse qualcosa — le intere
+avevano zero errori gravi contro 1 e 9, stavano piu' vicine ai testi di Claude
+(0.900 contro 0.957) e ci arrivavano in 76 parole contro 153, che e' la
+lunghezza di Claude e non quella della spezzata. Su `recovery` e `fitness`
+l'intera non e' mai salita sul banco. Chi volesse riaprire la questione trova
+le 50 righe misurate nel quaderno, sotto le chiavi `health` e `load`: sono
+l'unica traccia che resta, perche' i quattro prompt non ci sono piu'."""
 
 
 def _one_paragraph(text: str) -> str:
@@ -2533,7 +2482,7 @@ def _ask(system: str, user: str) -> tuple[str, str]:
             # **Temperatura zero**, e non e' un gusto: a 0,3 due risposte su
             # otto contraddicevano il `where` che avevano in mano — l'HRV
             # "sotto la fascia" con un valore dentro — perche' il modello
-            # ricadeva sull'esempio in fondo a `01_health.md` invece di
+            # ricadeva sull'esempio in fondo a `.claude/agents/01_health.md` invece di
             # guardare i numeri. A zero, zero su otto, due volte (con
             # l'esempio e senza). Un verdetto sbagliato su una card non e'
             # varieta', e la stessa mattina con gli stessi numeri puo' avere
@@ -2577,7 +2526,7 @@ def _ask(system: str, user: str) -> tuple[str, str]:
 
 
 def section_text(
-    section: "Section | Split",
+    section: Split,
     day: date,
     payload: dict,
     repo_root: Path,
@@ -2587,15 +2536,12 @@ def section_text(
     modello che l'ha scritto. Alza `OllamaError` se la macchina non
     risponde.
 
-    Una porta sola per tutte e due le strade: all'endpoint della pagina Test
-    che una sezione sia una domanda o cinque non interessa — chiede il testo
-    di una chiave e lo mette nella card."""
-    if isinstance(section, Split):
-        return _split_text(section, day, payload, repo_root, week)
-    return _ask(
-        _system_prompt(repo_root, section.agent),
-        _user_prompt(section, day, section.facts(payload, week)),
-    )
+    Una porta sola, che per un po' ne smistava due: finche' la pagina Test
+    teneva accanto la sezione intera — un prompt, una domanda — qui c'era un
+    `isinstance` e due strade. Resta la firma, che all'endpoint non e' mai
+    interessato quale fosse: chiede il testo di una chiave e lo mette nella
+    card."""
+    return _split_text(section, day, payload, repo_root, week)
 
 
 def asked(split: Split, facts: dict) -> "list[tuple[Part, dict]]":
