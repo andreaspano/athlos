@@ -25,7 +25,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, isAbort, type Activity, type BodyComposition, type DailyData, type DayPlan, type RefreshStatus, type Report, type SportList } from "../api/client";
 import { addDays, dayOf, today } from "../format";
 import { preamble, sectionBody, sectionIcon, sectionVerdict, sectionWrittenAt } from "../markdown";
-import { ETICHETTE, daysFromUrl, type View } from "../navigation";
+import { ETICHETTE, dayFromUrl, daysFromUrl, type View } from "../navigation";
 import { useColorScheme } from "../useColorScheme";
 import { BodyCard } from "./BodyCard";
 import { CacheWarning } from "./CacheWarning";
@@ -48,15 +48,6 @@ import { WeekStrip } from "./WeekStrip";
 // si vede anche cosa e' venuto dopo.
 const STRIP_DAYS = 8;
 const STRIP_AFTER = 3;
-
-const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Il giorno dell'URL, se e' una data valida e non nel futuro; se no oggi. */
-function dayFromUrl(now: string): string {
-  const day = new URLSearchParams(window.location.search).get("day");
-  if (!day || !DAY_PATTERN.test(day) || Number.isNaN(Date.parse(day)) || day > now) return now;
-  return day;
-}
 
 function stripRange(day: string, now: string): [string, string] {
   const end = day >= addDays(now, -(STRIP_DAYS - 1)) ? now : addDays(day, STRIP_AFTER);

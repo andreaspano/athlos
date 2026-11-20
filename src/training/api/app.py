@@ -11,6 +11,7 @@ codice bloccante, e FastAPI li serve su un pool di thread."""
 
 import math
 import re
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -20,7 +21,7 @@ import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 
-from training.api import refresh
+from training.api import ollama, refresh
 from training.api.cache import (
     invalidate,
     load_activities,
@@ -30,6 +31,7 @@ from training.api.cache import (
 )
 from training.api.context import DIST_DIR, ICONS_DIR, REPO_ROOT, UserContext, get_user_context
 from training.api.daily import daily_payload
+from training.api.ollama import OllamaError
 from training.api.plans import (
     delete_plan,
     load_day_plan,
@@ -64,6 +66,7 @@ from training.api.models import (
     EffectSeconds,
     Lap,
     LapList,
+    LocalText,
     Pause,
     Plan,
     PlanList,
@@ -487,6 +490,72 @@ def get_day_plan(day: date, ctx: Context) -> DayPlan:
     if plan is None:
         raise HTTPException(status_code=404, detail=f"No plan for {day}.")
     return DayPlan(**{name: plan[name] for name in DayPlan.model_fields})
+
+
+@app.get(
+    "/api/test/local/{section}/{day}",
+    response_model=LocalText,
+    summary="A section's text, written on this machine",
+)
+def get_local_section(section: str, day: date, ctx: Context) -> LocalText:
+    """One section of the daily report written by the **Ollama model running on this
+    machine**, for the Test page — the same prompt as the Claude agent, a different writer.
+
+    `section` is `health` or `load`, the same keys the Day page uses for its cards. The other
+    five are not wired up: each one needs its own slice of the facts and its own trial, and
+    they are added one at a time.
+
+    `health_split` and `load_split` are those **same** two sections asked a different way:
+    one small writer per paragraph instead of one for the lot. `health_split` is five — a
+    paragraph each for the resting heart rate, the HRV, the breathing and the stress, none of
+    which is given the other three, plus one that reads those four readings and opens the
+    section. `load_split` is six, and they are not the same job six times: one for each of
+    the three kinds of work (each given its own load and what the week asked for, and neither
+    of the other two), one for how much of it you are carrying, one for what the week still
+    asks, and one that writes the opening word. The section's shape stops being something the
+    prompt has to ask for and becomes answers joined in order — and a paragraph with nothing
+    to say is not asked for at all, which is how a week with no plan comes back as five
+    paragraphs instead of six with a hole in it.
+
+    The split costs one call per paragraph, all of them at once, and the `seconds` of the
+    answer is what the whole thing took: the Test page shows each section beside itself, on
+    the same day and the same numbers, because that comparison is the only way to tell which
+    way of asking is better.
+
+    It is a bench, not a report. Nothing is written to `summary/`: the text is made when this
+    is called and lives only in the answer, so the cards of the Day go on showing what the
+    Claude agents wrote and this cannot overwrite them. The prompt is the section's file in
+    `.ollama/agents/` plus the house rules beside it, and the facts are only what that
+    section owns, put in the message because a local model has no tools to read a file with.
+
+    503 when Ollama is not answering (`ollama serve` down, or the model not pulled): the page
+    says so instead of showing an empty card."""
+    wanted = ollama.SECTIONS.get(section)
+    if wanted is None:
+        known = ", ".join(sorted(ollama.SECTIONS))
+        raise HTTPException(status_code=404, detail=f"No local section {section!r}. Known: {known}.")
+    if day > date.today():
+        raise HTTPException(status_code=422, detail=f"{day} is in the future.")
+    payload = daily_payload(day, ctx.data_dir)
+    # Il piano della settimana di quel giorno, se quella settimana ne ha uno:
+    # la Load ci giudica contro il carico, le altre sezioni lo ignorano. Un
+    # giorno fuori da un blocco rende `None`, che e' il caso normale e non un
+    # guasto.
+    week = load_week_plan(ctx.summary_dir, day)
+    began = time.monotonic()
+    try:
+        text, model = ollama.section_text(wanted, day, payload, REPO_ROOT, week)
+    except OllamaError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=503, detail=f"Could not read the prompt: {exc}") from exc
+    return LocalText(
+        day=day,
+        section=wanted.key,
+        model=model,
+        seconds=round(time.monotonic() - began, 1),
+        text=text,
+    )
 
 
 def _week_monday(monday: date) -> None:

@@ -1,7 +1,7 @@
 // La barra di navigazione, **a sinistra** (todo 34, su due righe in alto dal
 // todo 55, in colonna da qui).
 //
-// Gli assi sono sempre due — la **pagina** (Day, Week, Goal) e **cosa
+// Gli assi sono sempre due — la **pagina** (Day, Week, Goal, Test) e **cosa
 // se ne guarda** (Snap, Training, Trend) — ma in verticale non sono due righe:
 // sono un albero. Le viste stanno **sotto la pagina a cui appartengono**,
 // rientrate, e si vedono solo per quella aperta; in orizzontale quel legame lo
@@ -18,6 +18,10 @@
 // sotto di lui non si apre niente. La **Result**, che diceva come sta andando
 // il blocco, e' durata due giorni: quel grafico e' tornato nella Training
 // della Week, dove la domanda si fa.
+//
+// Il **Test** sta per ultimo, dopo il Goal: e' il banco di prova, una pagina
+// vuota dove guardare una cosa nuova prima di metterla dove va. Neanche lui
+// ha viste.
 //
 // Il **logo** sta in cima alla colonna: `icons/athlos.png`, servito da
 // `/icons` come tutte le altre icone — in sviluppo il proxy di Vite, in
@@ -57,6 +61,7 @@ const PAGINE: { page: Page; label: string }[] = [
   { page: "day", label: "Day" },
   { page: "week", label: "Week" },
   { page: "plan", label: "Goal" },
+  { page: "test", label: "Test" },
 ];
 
 /** Il tasto a tre linee: disegnato qui come il cestino della Goal, che

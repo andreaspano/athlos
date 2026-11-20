@@ -3,8 +3,8 @@
 // settimana, e in fondo alla striscia il tasto Refresh (todo 41).
 import { useEffect, useState, type ReactNode } from "react";
 
-import { addDays, longDayLabel } from "../format";
-import { DatePick } from "./DatePick";
+import { longDayLabel } from "../format";
+import { DayNav } from "./DayNav";
 
 /** Il tempo da `started` (ora locale dell'API, sulla stessa macchina), "m:ss". */
 function elapsed(started: string, now: number): string {
@@ -86,60 +86,7 @@ export function DayHeader({
     <section className="day-header">
       <div className="day-title">
         <h1>{longDayLabel(day)}</h1>
-        <div className="day-nav">
-          <button
-            type="button"
-            className="btn icon-btn"
-            onClick={() => onChange(addDays(day, -1))}
-            aria-label="Previous day"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            className="btn icon-btn"
-            onClick={() => onChange(addDays(day, 1))}
-            disabled={day >= maxDay}
-            aria-label="Next day"
-          >
-            ›
-          </button>
-          {/* Il salto all'ultimo giorno: la freccia contro la sbarra, come
-              il "vai in fondo" dei lettori. Oggi e' sempre il giorno piu'
-              recente, quindi la sbarra e' la fine della fila. */}
-          <button
-            type="button"
-            className="btn icon-btn"
-            onClick={() => onChange(maxDay)}
-            disabled={day === maxDay}
-            aria-label="Today"
-            title="Today"
-          >
-            <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
-              <path
-                d="M4.5 3.5 9 8l-4.5 4.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M11.5 3.5v9"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-          <DatePick
-            value={day}
-            max={maxDay}
-            onPick={onChange}
-            label="Pick a date"
-          />
-        </div>
+        <DayNav day={day} maxDay={maxDay} onChange={onChange} />
       </div>
       <div className="day-strip">
         {children}
