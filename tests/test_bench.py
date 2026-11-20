@@ -9,7 +9,7 @@ data root e' sempre un `tmp_path`.
 import json
 import shutil
 import threading
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -804,3 +804,36 @@ def test_the_range_reaches_today():
     # E il corpus, con `end` a oggi, arriva a oggi.
     days = bt.corpus(date(2026, 11, 18), date(2026, 11, 20))
     assert days[-1] == date(2026, 11, 20)
+
+
+def test_the_corpus_stops_where_claude_stopped():
+    """**Il bersaglio finisce il 20 novembre, e il ciclo lo dice.**
+
+    Dal 21 le quattro card del corpo le scrive il modello di casa
+    (`sections.LOCAL_FROM`), quindi `summary/01.daily/<giorno>/health.md` —
+    che `claude_text` legge come bersaglio — da quel giorno e' di llama.
+    Chiedendo un giorno dopo, il ciclo misurerebbe ollama contro se stesso:
+    distanza zero, nessun errore nel bersaglio, e un punteggio che scende da
+    solo."""
+    detto = []
+    dentro = bench_tune.CORPUS_TO - timedelta(days=5)
+    assert bench_tune.bounded(dentro, say=detto.append) == dentro
+    assert detto == [], "un giorno dentro il corpus non si commenta"
+
+    oltre = bench_tune.CORPUS_TO + timedelta(days=5)
+    assert bench_tune.bounded(oltre, say=detto.append) == bench_tune.CORPUS_TO
+    # **E quando taglia lo dice.** Un corpus che si accorcia in silenzio
+    # sembra il corpus che hai chiesto, e i numeri che ne escono sembrano di
+    # venticinque giorni quando sono di venti.
+    assert len(detto) == 1 and str(bench_tune.CORPUS_TO) in detto[0]
+
+
+def test_the_two_dates_are_the_same_decision():
+    """Le due righe — fin dove arriva il bersaglio e da dove scrive il modello
+    di casa — sono la stessa decisione scritta in due moduli, e devono
+    combaciare: `CORPUS_TO` e' il giorno prima di `LOCAL_FROM`."""
+    from datetime import timedelta
+
+    from training.api import sections
+
+    assert bench_tune.CORPUS_TO == sections.LOCAL_FROM - timedelta(days=1)

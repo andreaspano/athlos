@@ -32,7 +32,10 @@ def harness(tmp_path, monkeypatch):
     """
 
     def build(prepare=lambda *a, **k: (True, None, {"ok": True, "message": None}), write=None):
-        def default_write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+        def default_write(
+            kind, section, subject, moment, repo_root, facts, folder, began,
+            summary_dir, data_dir,
+        ):
             (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
             return True, None
 
@@ -78,7 +81,10 @@ class TestTerminalState:
         assert "OSError" in state["message"]
 
     def test_a_failed_section_is_reported(self, harness):
-        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+        def write(
+            kind, section, subject, moment, repo_root, facts, folder, began,
+            summary_dir, data_dir,
+        ):
             if section.key == DAILY.run_order[0].key:
                 return False, "02_load exited with 1."
             (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
@@ -139,7 +145,7 @@ def test_write_section_refuses_an_empty_file(tmp_path, monkeypatch):
     # `datetime.now()`, perche' i due orologi hanno grana diversa.)
     good, problem = R._write_section(
         DAILY, section, DAY, "morning", tmp_path, tmp_path / "facts.json",
-        folder, datetime.now() - timedelta(seconds=1), tmp_path,
+        folder, datetime.now() - timedelta(seconds=1), tmp_path, tmp_path,
     )
     assert good is False
     assert "empty" in problem
@@ -157,7 +163,10 @@ class TestBackfill:
                 return False, "i fatti non si preparano", None
             return True, None, None
 
-        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+        def write(
+            kind, section, subject, moment, repo_root, facts, folder, began,
+            summary_dir, data_dir,
+        ):
             (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
             return True, None
 
@@ -217,7 +226,10 @@ class TestSummaryGate:
     def test_the_summary_does_not_run_after_a_failure(self, harness, tmp_path):
         ran: list[str] = []
 
-        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+        def write(
+            kind, section, subject, moment, repo_root, facts, folder, began,
+            summary_dir, data_dir,
+        ):
             ran.append(section.key)
             if section.key == "health":
                 return False, "01_health exited with 1."
@@ -237,7 +249,10 @@ class TestSummaryGate:
     def test_the_summary_runs_when_the_others_are_fine(self, harness):
         ran: list[str] = []
 
-        def write(kind, section, subject, moment, repo_root, facts, folder, began, summary_dir):
+        def write(
+            kind, section, subject, moment, repo_root, facts, folder, began,
+            summary_dir, data_dir,
+        ):
             ran.append(section.key)
             (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
             return True, None
@@ -318,3 +333,182 @@ class TestCliExitCode:
     def test_a_run_that_never_started_exits_one(self, monkeypatch):
         code = self.run_cli(monkeypatch, None)
         assert code == 1
+
+
+# --- Chi scrive le quattro card del corpo (dal 21 novembre 2026) ---
+#
+# Dal giorno di `LOCAL_FROM` Health, Load, Recovery e Fitness le scrive il
+# modello di casa, in pezzi, e Claude per quelle quattro non gira piu'. Il
+# confronto fra i due, durato dal 26 ottobre sui 104 testi del banco, finisce
+# li': `bench_tune.CORPUS_TO` lo dice dall'altra parte.
+#
+# Qui non si parla con ollama: si sostituisce `ollama.section_text`, come fa
+# `tests/test_bench.py`. Quello che questi test difendono non e' il testo —
+# quello si legge sul banco — ma **chi** lo scrive e **in che giorni**.
+
+
+class TestWhoWrites:
+    def test_the_four_body_cards_are_local_and_the_rest_is_not(self):
+        """Le quattro del corpo del giorno portano la chiave della spezzata;
+        il Training e il Summary no, e la settimana nemmeno una."""
+        from training.api.sections import SECTIONS, WEEK_SECTIONS
+
+        local = {s.key: s.local for s in SECTIONS if s.local}
+        assert local == {
+            "health": "health_split",
+            "load": "load_split",
+            "recovery": "recovery_split",
+            "fitness": "fitness_split",
+        }
+        assert all(s.local is None for s in SECTIONS if s.key in ("training", "summary"))
+        assert all(s.local is None for s in WEEK_SECTIONS)
+
+    def test_every_local_key_exists(self):
+        """**Il campo e' scritto a mano, quindi si controlla.** Una chiave che
+        in `ollama.SECTIONS` non c'e' alzerebbe un `KeyError` alle 8:15; una
+        che c'e' ma e' di un'altra sezione metterebbe nella card il testo di
+        un'altra misura senza che niente lo dica."""
+        from training.api import ollama
+        from training.api.sections import SECTIONS
+
+        for section in SECTIONS:
+            if not section.local:
+                continue
+            assert section.local in ollama.SECTIONS
+            # E la spezzata e' della sua sezione, non di un'altra.
+            assert ollama.SECTIONS[section.local].title == section.title
+
+    def test_a_local_section_runs_no_subprocess(self, tmp_path, monkeypatch):
+        """**Il cuore del cambio**: la card si scrive senza lanciare
+        `claude`. Se un giorno il bivio si rompesse, il giro continuerebbe a
+        funzionare pagando gettoni e scrivendo il testo dell'altro."""
+        from training.api import ollama
+
+        section = next(s for s in DAILY.run_order if s.key == "health")
+        folder = tmp_path / "day"
+        folder.mkdir()
+        chiesto = {}
+
+        def fake_ollama(wanted, day, payload, repo_root, week=None):
+            chiesto["key"] = wanted.key
+            chiesto["day"] = day
+            return "Il verdetto.\n\nLa prima misura.\n\nLa seconda.", "finto:1b"
+
+        def no_subprocess(*args, **kwargs):
+            raise AssertionError("ha lanciato un sottoprocesso")
+
+        monkeypatch.setattr(ollama, "section_text", fake_ollama)
+        monkeypatch.setattr(R.subprocess, "run", no_subprocess)
+        monkeypatch.setattr(R, "_prepare", lambda *a, **k: (True, None, None))
+
+        good, problem = R._write_section(
+            DAILY, section, date(2026, 11, 21), "morning", tmp_path,
+            tmp_path / "facts.json", folder, datetime.now() - timedelta(seconds=1),
+            tmp_path, tmp_path,
+        )
+        assert good is True
+        assert problem == "written by finto:1b"
+        assert chiesto == {"key": "health_split", "day": date(2026, 11, 21)}
+        assert (folder / "health.md").read_text(encoding="utf-8").startswith("Il verdetto.")
+
+    def test_the_fragment_keeps_its_paragraphs(self, tmp_path, monkeypatch):
+        """La forma e' quella della spezzata: un paragrafo per misura, e non
+        un blocco cucito. **L'ordine e il numero li decide Python**, ed e' il
+        punto di tutta questa strada — attaccarli in uno butterebbe via la
+        cosa per cui la sezione e' stata spezzata."""
+        from training.api import ollama
+
+        section = next(s for s in DAILY.run_order if s.key == "recovery")
+        folder = tmp_path / "day"
+        folder.mkdir()
+        cinque = "\n\n".join(f"Il paragrafo numero {n}." for n in range(1, 6))
+        monkeypatch.setattr(ollama, "section_text", lambda *a, **k: (cinque, "finto:1b"))
+
+        R._write_section(
+            DAILY, section, date(2026, 11, 21), "morning", tmp_path,
+            tmp_path / "facts.json", folder, datetime.now(), tmp_path, tmp_path,
+        )
+        written = (folder / "recovery.md").read_text(encoding="utf-8")
+        assert len([p for p in written.strip().split("\n\n") if p.strip()]) == 5
+
+    def test_a_day_before_the_switch_still_goes_to_claude(self, tmp_path, monkeypatch):
+        """**Il test che difende i frammenti di ottobre.**
+        `make backfill_reports` rifa' giorni passati: senza il confronto con
+        `LOCAL_FROM` riscriverebbe con llama le card che Claude ha scritto,
+        cambiando il report a posteriori e cancellando dal disco i 104
+        frammenti che sono il bersaglio del banco."""
+        from training.api import ollama
+
+        section = next(s for s in DAILY.run_order if s.key == "health")
+        folder = tmp_path / "day"
+        folder.mkdir()
+        lanciati = []
+
+        def fake_run(command, **kwargs):
+            lanciati.append(command[0])
+            (folder / f"{section.key}.md").write_text("di Claude", encoding="utf-8")
+            return R.subprocess.CompletedProcess(command, 0, "", "")
+
+        def no_ollama(*args, **kwargs):
+            raise AssertionError("ha chiesto al modello di casa un giorno di Claude")
+
+        monkeypatch.setattr(ollama, "section_text", no_ollama)
+        monkeypatch.setattr(R.shutil, "which", lambda name: "/usr/bin/claude")
+        monkeypatch.setattr(R.subprocess, "run", fake_run)
+        monkeypatch.setattr(R, "_prompt", lambda *a, **k: "prompt")
+        monkeypatch.setattr(R, "_allowed_tools", lambda *a, **k: ["Read"])
+
+        good, _ = R._write_section(
+            DAILY, section, date(2026, 10, 26), "morning", tmp_path,
+            tmp_path / "facts.json", folder, datetime.now() - timedelta(seconds=1),
+            tmp_path, tmp_path,
+        )
+        assert good is True
+        assert lanciati == ["/usr/bin/claude"]
+        assert (folder / "health.md").read_text(encoding="utf-8") == "di Claude"
+
+    def test_a_silent_ollama_fails_the_section(self, tmp_path, monkeypatch):
+        """**Nessuna ricaduta su Claude.** La sezione fallisce, il motivo
+        finisce nello stato della pagina, `_cli` esce 1 e il timer manda la
+        notifica. La card di quel giorno resta vuota, che e' meglio di un
+        report completo in cui non si sa chi ha scritto cosa."""
+        from training.api import ollama
+
+        section = next(s for s in DAILY.run_order if s.key == "fitness")
+        folder = tmp_path / "day"
+        folder.mkdir()
+
+        def muto(*args, **kwargs):
+            raise ollama.OllamaError("Cannot reach Ollama at 127.0.0.1:11434")
+
+        monkeypatch.setattr(ollama, "section_text", muto)
+        monkeypatch.setattr(R.subprocess, "run", lambda *a, **k: 1 / 0)
+
+        good, problem = R._write_section(
+            DAILY, section, date(2026, 11, 21), "morning", tmp_path,
+            tmp_path / "facts.json", folder, datetime.now(), tmp_path, tmp_path,
+        )
+        assert good is False
+        assert "fitness" in problem and "Cannot reach Ollama" in problem
+        assert not (folder / "fitness.md").exists()
+
+    def test_an_empty_answer_does_not_cover_the_old_text(self, tmp_path, monkeypatch):
+        """Un frammento vuoto passava per scritto, contava come sezione fatta
+        e copriva quello col nome vecchio, lasciando la card bianca e il testo
+        di prima irraggiungibile (`_write_section`, e `_written`). Scrivere da
+        Python invece che da un sottoprocesso lo rende improbabile, non
+        impossibile."""
+        from training.api import ollama
+
+        section = next(s for s in DAILY.run_order if s.key == "load")
+        folder = tmp_path / "day"
+        folder.mkdir()
+        monkeypatch.setattr(ollama, "section_text", lambda *a, **k: ("   \n\n  ", "finto:1b"))
+
+        good, problem = R._write_section(
+            DAILY, section, date(2026, 11, 21), "morning", tmp_path,
+            tmp_path / "facts.json", folder, datetime.now(), tmp_path, tmp_path,
+        )
+        assert good is False
+        assert "empty" in problem
+        assert not (folder / "load.md").exists()

@@ -4,6 +4,15 @@
 Description=athlos: il report del mattino
 Documentation=file://__REPO__/README.md
 OnFailure=athlos-alert@%n.service
+# Dal 21 novembre 2026 le quattro card del corpo le scrive il modello di casa
+# (`sections.LOCAL_FROM`), quindi questo giro ha bisogno di ollama acceso.
+#
+# `Wants` e non `Requires`: se ollama non c'e' la decisione e' **fallire e
+# dirlo** — la sezione risulta `failed`, il processo esce 1 e scatta
+# `athlos-alert@` — non rimandare il giro. Alle 08:15 la macchina e' accesa da
+# ore e queste due righe servono solo al caso di un riavvio alle 08:14.
+Wants=ollama.service
+After=ollama.service
 
 [Service]
 Type=oneshot
