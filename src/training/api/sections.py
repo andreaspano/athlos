@@ -40,6 +40,16 @@ class Section:
     # serviva solo perche' la bandiera era una stringa condivisa fra i due
     # registri.
     reads_plan: bool = False
+    # La chiave in `ollama.SECTIONS` per le sezioni che **non le scrive
+    # Claude**: le quattro card del corpo, dal giorno di `LOCAL_FROM`, le
+    # scrive il modello di casa in pezzi e questo campo dice quali.
+    #
+    # **Scritta e non costruita.** Da `key` si ricaverebbe con un
+    # `f"{key}_split"`, e sarebbe un nome che sbaglia in silenzio: una chiave
+    # che in `ollama.SECTIONS` non c'e' alzerebbe un `KeyError` alle 8:15, e
+    # una che c'e' ma e' di un'altra sezione metterebbe nella card del corpo
+    # il testo di un'altra misura senza che niente lo dica.
+    local: str | None = None
 
 
 # Nell'ordine in cui si leggono nella pagina.
@@ -55,11 +65,25 @@ class Section:
 SECTIONS: tuple[Section, ...] = (
     Section("summary", "Summary", "07_summary", True),
     Section("training", "Training", "05_training", False, writes_verdict=True, reads_plan=True),
-    Section("recovery", "Recovery", "03_recovery", False),
-    Section("health", "Health", "01_health", False),
-    Section("load", "Load", "02_load", False),
-    Section("fitness", "Fitness", "04_fitness", False),
+    Section("recovery", "Recovery", "03_recovery", False, local="recovery_split"),
+    Section("health", "Health", "01_health", False, local="health_split"),
+    Section("load", "Load", "02_load", False, local="load_split"),
+    Section("fitness", "Fitness", "04_fitness", False, local="fitness_split"),
 )
+
+# **Il giorno da cui le quattro card del corpo le scrive il modello di casa**
+# e non piu' un agente di Claude.
+#
+# E' una data e non una bandiera per una ragione sola: `backfill_reports`
+# rifa' giorni passati. Senza questa riga un backfill di ottobre riscriverebbe
+# con llama card che Claude ha scritto — cambiando il report a posteriori — e
+# cancellerebbe dal disco i 104 frammenti che sono il bersaglio del banco di
+# prova. Prima di qui quelle quattro sezioni restano di Claude, che e' anche
+# la verita' storica: quelle card le ha scritte lui.
+#
+# Il confronto fra i due, che su quei 104 testi e' durato dal 26 ottobre,
+# finisce qui: `bench_tune.CORPUS_TO` dice la stessa cosa dall'altra parte.
+LOCAL_FROM = date(2026, 11, 21)
 
 # La settimana (todo 53), sulla linea del giorno dal todo 68: le quattro card
 # del corpo con il Summary che le riassume, il Training, e il Next.
@@ -153,6 +177,13 @@ assert all(
 assert all(
     set(keys) <= {s.key for s in WEEK_SECTIONS} for keys in WEEK_MOMENT_SECTIONS.values()
 )
+
+# Le sezioni che scrive il modello di casa sono tutte del giro del mattino: la
+# sera gira la Training, che e' di Claude. Che le quattro chiavi esistano
+# davvero in `ollama.SECTIONS` lo controlla un test — importare `ollama` qui
+# vorrebbe dire tirarsi dietro mezzo modulo per un'asserzione.
+assert {s.key for s in SECTIONS if s.local} <= set(MOMENT_SECTIONS["morning"])
+assert not any(s.local for s in WEEK_SECTIONS)
 
 # Come si dice all'agente a che punto siamo. Non e' un fatto del periodo ma
 # del giro (todo 47). Dal todo 66 ogni giro del giorno ha una sezione sola a

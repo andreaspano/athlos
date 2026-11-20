@@ -122,6 +122,21 @@ DEFAULT_SECTIONS = ("health_split", "load_split", "recovery_split", "fitness_spl
 # un bersaglio che si muove non e' un bersaglio.
 CORPUS_FROM = date(2026, 10, 26)
 
+# **E l'ultimo.** Dal 21 novembre le quattro card del corpo le scrive il
+# modello di casa (`sections.LOCAL_FROM`), quindi da quel giorno il file
+# `summary/01.daily/<giorno>/health.md` — che `bench.claude_text` legge come
+# bersaglio — non e' piu' di Claude: e' di llama.
+#
+# Senza questa riga il primo giro di domani prenderebbe il 21 novembre e
+# metterebbe come bersaglio il testo del modello stesso: distanza zero, nessun
+# errore nel bersaglio, e un pavimento che non vuol dire niente. Il ciclo
+# starebbe tarando ollama contro ollama e il punteggio migliorerebbe da solo.
+#
+# Il confronto, quindi, e' chiuso e il corpus e' quello che e': 26 giorni e
+# 104 testi bersaglio, che restano sul disco e dentro ogni riga del quaderno.
+# Il ciclo ci gira sopra quanto si vuole; di giorni nuovi non ne arrivano.
+CORPUS_TO = date(2026, 11, 20)
+
 # Un giorno su tre sta fuori dalla taratura. Deterministico e non gli ultimi
 # otto: in coda ci sarebbe dentro l'andamento del tempo, e il ciclo imparerebbe
 # il novembre invece del mestiere.
@@ -168,6 +183,27 @@ def _say(message: str) -> None:
     rimasto vuoto fino alla fine, che su un lavoro da notte vuol dire non
     sapere se sta girando o se e' morto."""
     print(message, flush=True)
+
+
+def bounded(end: date, say=_say) -> date:
+    """L'ultimo giorno che si puo' misurare, che non e' sempre quello chiesto.
+
+    Il bersaglio finisce dove Claude ha smesso di scrivere quelle quattro
+    sezioni (`CORPUS_TO`). Chiedendo un giorno dopo, il ciclo leggerebbe come
+    bersaglio il testo del modello di casa e starebbe misurando ollama contro
+    se stesso: distanza zero, nessun errore nel bersaglio, e un punteggio che
+    scende da solo.
+
+    **E quando taglia lo dice.** Un corpus che si accorcia in silenzio sembra
+    il corpus che hai chiesto, e tutti i numeri che ne escono sembrano di
+    venticinque giorni quando sono di venti."""
+    if end <= CORPUS_TO:
+        return end
+    say(
+        f"il bersaglio finisce il {CORPUS_TO}: da li' in poi quei frammenti "
+        f"li scrive il modello di casa, non Claude. Mi fermo a {CORPUS_TO}."
+    )
+    return CORPUS_TO
 
 
 def corpus(start: date, end: date) -> "list[date]":
@@ -727,7 +763,9 @@ def main() -> None:
     # Un giorno il cui frammento non c'e' ancora non e' un guasto: `claude_text`
     # rende `None`, la riga resta col solo testo del modello di casa, e il
     # termine di distanza va a zero perche' non c'e' un bersaglio.
-    end = args.end or date.today()
+    end = bounded(args.end or date.today())
+    if args.start > end:
+        parser.error(f"non c'e' nessun giorno fra {args.start} e {end}")
     days = corpus(args.start, end)
     sections = tuple(s.strip() for s in args.sections.split(",") if s.strip())
     unknown = [s for s in sections if s not in ollama.SECTIONS]

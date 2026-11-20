@@ -718,6 +718,28 @@ sessione invece di sette quando si vuole ritoccare un testo. Una sezione che
 fallisce tiene il testo che aveva e le altre si riscrivono lo stesso; il
 tasto di quella sezione lo segnala.
 
+**Dal 21 novembre 2026 le quattro card del corpo non le scrive Claude**
+(`LOCAL_FROM` in `api/sections.py`). Health, Load, Recovery e Fitness le
+scrive il modello di casa — `llama3.1:8b` su ollama — e non con una domanda
+sola: ogni sezione e' spezzata in un paragrafo per misura, i pezzi si chiedono
+insieme e **la cucitura la fa Python** (`api/ollama.py`, i prompt in
+`.ollama/agents/<sezione>_split/`). L'ordine e il numero dei paragrafi non
+sono una riga di prompt che il modello puo' saltare: sono la lista dei pezzi
+che hanno fatti da raccontare. Di Claude restano il **Summary** — che legge i
+quattro frammenti appena scritti e da' il verdetto — e il **Training** della
+sera.
+
+E' una data e non una bandiera perche' `make backfill_reports` rifa' giorni
+passati: prima del 21 novembre quelle quattro sezioni restano di Claude, che
+e' la verita' storica e anche il bersaglio del banco di prova
+(`bench_tune.CORPUS_TO`, il giorno prima).
+
+**Se ollama tace, la sezione fallisce e si vede**: nessuna ricaduta su Claude,
+la card resta vuota, il giro esce 1 e scatta `athlos-alert@`. Una ricaduta
+silenziosa darebbe un report completo in cui non si sa chi ha scritto cosa,
+che e' peggio di una card che manca. Per questo il giro del mattino ha
+`Wants=ollama.service`.
+
 Lo stesso lavoro si fa da terminale, senza l'API:
 
 ```bash

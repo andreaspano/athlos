@@ -53,9 +53,10 @@ from typing import Any
 
 from training.api.cache import invalidate
 from training.api.plans import week_plan_path
-from training.garmin.files import write_json
+from training.garmin.files import write_json, write_text
 from training.api.sections import (
     DAILY,
+    LOCAL_FROM,
     WEEKLY,
     Report,
     Section,
@@ -346,7 +347,7 @@ def _run(
                         )
                         good, problem = _write_section(
                             kind, section, subject, moment, repo_root, facts, folder,
-                            began, Path(summary_dir),
+                            began, Path(summary_dir), Path(data_dir),
                         )
                         _set(
                             section.key,
@@ -549,6 +550,66 @@ def _prompt(
     )
 
 
+def _write_local_section(
+    section: Section,
+    subject: date,
+    repo_root: Path,
+    folder: Path,
+    summary_dir: Path,
+    data_dir: Path,
+) -> tuple[bool, str | None]:
+    """Il frammento scritto **dal modello di casa**, in pezzi: un paragrafo
+    per misura e uno in cima che li apre, cuciti da Python.
+
+    I fatti e il piano della settimana si prendono con le stesse due chiamate
+    dell'endpoint della pagina Test (`app.get_local_section`), che e' il
+    percorso provato da settimane. **Non si rilegge il JSON temporaneo** che
+    `_prepare` scrive per l'agente di Claude: la' ci passa `_jsonable`, quindi
+    le date diventano stringhe, e il ritaglio della soglia una data se
+    l'aspetta.
+
+    **Se ollama non risponde la sezione fallisce, e si vede.** Nessuna
+    ricaduta su Claude: `_cli` esce 1 per qualunque sezione non `done` e il
+    timer ha `OnFailure=athlos-alert@`, quindi la notifica parte e la card di
+    quel giorno resta vuota. Una ricaduta silenziosa darebbe un report
+    completo in cui non si sa chi ha scritto cosa, che e' peggio di una card
+    che manca.
+
+    La forma e' quella che la spezzata produce: cinque-sette paragrafi, il
+    verdetto in cima. Non si attaccano in un blocco — l'ordine e il numero li
+    decide Python, ed e' il punto di tutta questa strada."""
+    # Importati qui e non in testa: il modulo lo carica anche il CLI del
+    # backfill, e `ollama` si tira dietro la macchina delle sezioni spezzate.
+    from training.api import ollama
+    from training.api.daily import daily_payload
+    from training.api.plans import load_week_plan
+
+    try:
+        wanted = ollama.SECTIONS[section.local]
+    except KeyError:
+        return False, f"No local section {section.local!r} for {section.key}."
+    try:
+        payload = daily_payload(subject, data_dir)
+        # Il piano della settimana lo guarda la Load; le altre tre lo
+        # ignorano. Un giorno fuori da un blocco rende `None`, che e' il caso
+        # normale e non un guasto.
+        week = load_week_plan(summary_dir, subject)
+        text, model = ollama.section_text(wanted, subject, payload, repo_root, week)
+    except ollama.OllamaError as exc:
+        return False, f"The local model did not write {section.key}: {exc}"
+    except OSError as exc:
+        return False, f"Could not write {section.key} with the local model: {exc}"
+    fragment = folder / f"{section.key}.md"
+    body = text.strip()
+    if not body:
+        return False, f"{model} wrote {fragment.name} empty."
+    try:
+        write_text(fragment, body + "\n")
+    except OSError as exc:
+        return False, f"Could not write {fragment.name}: {exc}"
+    return True, f"written by {model}"
+
+
 def _write_section(
     kind: Report,
     section: Section,
@@ -559,7 +620,20 @@ def _write_section(
     folder: Path,
     began: datetime,
     summary_dir: Path,
+    data_dir: Path,
 ) -> tuple[bool, str | None]:
+    """Il frammento di una sezione, scritto da chi lo scrive, e com'e' andata.
+
+    **Due scrittori, e la sezione dice qual e' il suo.** Le quattro card del
+    corpo del giorno — Health, Load, Recovery e Fitness — dal giorno di
+    `LOCAL_FROM` le scrive il modello di casa (`section.local`); tutto il
+    resto, e tutti i giorni prima di quello, un agente di Claude.
+
+    La data non e' un dettaglio: `backfill_reports` rifa' giorni passati, e
+    senza il confronto riscriverebbe con llama le card che Claude ha scritto
+    in ottobre. Il perche' per esteso sta accanto a `LOCAL_FROM`."""
+    if section.local and subject >= LOCAL_FROM:
+        return _write_local_section(section, subject, repo_root, folder, summary_dir, data_dir)
     claude = shutil.which("claude")
     if claude is None:
         return False, "The claude command is not on the PATH of the API."
