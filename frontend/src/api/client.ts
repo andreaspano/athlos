@@ -36,7 +36,7 @@ export type Scores = Schemas["Scores"];
 export type Verdict = NonNullable<Scores["health"]>;
 export type DayPlan = Schemas["DayPlan"];
 export type BodyComposition = Schemas["BodyComposition"];
-export type LocalText = Schemas["LocalText"];
+export type BenchText = Schemas["BenchText"];
 export type BodyMeasure = Schemas["BodyMeasure"];
 export type PlannedSession = Schemas["PlannedSession"];
 export type Terrain = NonNullable<Activity["terrain"]>;
@@ -201,14 +201,22 @@ export const api = {
   dailyReport: (day: string, signal?: AbortSignal) =>
     getOrNull<Report>(`/api/reports/daily/${day}`, signal),
 
-  // Il testo di una sezione scritto dal modello locale, per la pagina Test:
-  // lo stesso prompt dell'agente, un altro che scrive. `section` e' la
-  // chiave della card (`health`, `load`), la stessa che usa la Day. Non e'
-  // un report e non tocca `summary/` — nasce qui e muore con la risposta. Ci
-  // mette qualche secondo, e il primo di tutti un po' di piu': il modello si
-  // carica in memoria. Un 503 vuol dire che Ollama non risponde.
-  localText: (section: string, day: string, signal?: AbortSignal) =>
-    getJson<LocalText>(`/api/test/local/${section}/${day}`, signal),
+  // `GET /api/test/local/<sezione>/<giorno>` qui non c'e' piu'. L'endpoint
+  // resta — genera un testo al volo e si chiede a mano, che su un banco di
+  // prova serve — ma la pagina non lo usa: legge il quaderno, e un metodo del
+  // client che nessuno chiama e' una seconda verita' da tenere d'accordo con
+  // la prima.
+
+  // Il quaderno del banco: per ogni (giorno, sezione) la versione piu'
+  // recente di quello che ha scritto il modello di casa, **col frammento di
+  // Claude di quel giorno accanto**. E' quello che legge la pagina Test, che
+  // da qui non genera piu' niente: i testi sono stati scritti quando il ciclo
+  // di taratura ha girato, quindi una richiesta sola serve venticinque giorni
+  // e un giorno di tre settimane fa si rilegge uguale a com'era.
+  bench: (start?: string, end?: string, signal?: AbortSignal) => {
+    const range = [start && `start=${start}`, end && `end=${end}`].filter(Boolean).join("&");
+    return getJson<BenchText[]>(`/api/test/bench${range ? `?${range}` : ""}`, signal);
+  },
 
   // Aggiorna i dati e riscrive il report del giorno, in background: lo stato
   // si segue con `refresh()`.

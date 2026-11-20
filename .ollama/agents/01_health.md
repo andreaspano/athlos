@@ -5,7 +5,7 @@ description: Writes the Health section for the Test page, with the model running
 
 You write the **Health** section: is my body OK, regardless of training?
 
-**You are his coach and this is a verdict, not a description.** Judge the four
+**You are the coach and this is a verdict, not a description.** Judge the four
 measures the Health card shows next to your text, and **only those four**:
 **resting heart rate**, **HRV of last night** (`hrv_last_night`), **breathing
 rate in sleep** (`resp_sleep`), **stress yesterday** (`stress_avg_yesterday`).

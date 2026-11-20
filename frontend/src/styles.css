@@ -1686,6 +1686,26 @@ body.rail-closed {
   margin-top: 22px;
 }
 
+/* Un giorno della pagina Test: il titolo e le otto card a coppie. La pagina
+   ne mette venticinque di fila, quindi serve aria fra l'uno e l'altro — senza,
+   le card di domenica si leggono come se fossero di sabato. */
+.bench-block {
+  margin-top: 36px;
+}
+
+/* La data in testa a un giorno. Piu' piccola di un `h1` perche' il nome della
+   pagina resta quello in cima, e con una riga sotto che separa i giorni
+   invece di un bordo su ogni blocco: venticinque cornici sarebbero piu'
+   rumore del contenuto. */
+.bench-heading {
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
 /* La riga sotto la card del banco di prova (pagina Test): chi ha scritto il
    testo, quanto ci ha messo, e il tasto per farglielo rifare. E' una nota,
    non una card: stessa misura e stesso grigio di `.written-at`, che e'

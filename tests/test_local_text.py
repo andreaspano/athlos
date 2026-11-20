@@ -674,26 +674,37 @@ def test_the_verdict_word_reaches_the_fifth(payload):
     ha bisogno di una riga che ne vieti la copia."""
     payload["morning"]["resting_hr"]["value"] = 54.0  # sopra la sua fascia
     assert verdict_facts(payload)["verdict"] == "broadly fine, with one measure out"
-    assert set(ollama.VERDICT_WORDS) == {"good", "niggle", "off", "fatigue"}
+    assert set(ollama.VERDICT_WORDS) == {"good", "leaning", "niggle", "off", "fatigue"}
 
 
 @pytest.mark.parametrize(
-    "bad, good, about, named",
+    "bad, leaning, good, about, named",
     [
-        (["a"], ["b"], "this one reads badly this morning", ["a"]),
-        (["a", "b"], [], "these read badly this morning", ["a", "b"]),
-        ([], ["b"], "nothing reads badly, and this one reads better than usual", ["b"]),
+        (["a"], [], ["b"], "this one reads badly this morning", ["a"]),
+        (["a", "b"], [], [], "these read badly this morning", ["a", "b"]),
+        ([], [], ["b"], "nothing reads badly, and this one reads better than usual", ["b"]),
         (
+            [],
             [],
             ["a", "b"],
             "nothing reads badly, and these read better than usual",
             ["a", "b"],
         ),
+        # **Il gruppo di mezzo**: niente fuori fascia, ma due appoggiate al
+        # loro lato cattivo. Vince sulla buona notizia, perche' e' la cosa da
+        # dire (`_leans_bad`).
+        (
+            [],
+            ["a", "b"],
+            ["c"],
+            "nothing is out of range, and these are leaning the tired way",
+            ["a", "b"],
+        ),
         # Niente su cui appoggiarsi: `about` nullo, e la seconda frase non c'e'.
-        ([], [], None, []),
+        ([], [], [], None, []),
     ],
 )
-def test_the_second_sentence_knows_what_it_is_about(bad, good, about, named):
+def test_the_second_sentence_knows_what_it_is_about(bad, leaning, good, about, named):
     """Erano tre casi scritti come tre regole nel prompt, e il quinto le
     mescolava: una mattina con due misure in cattivo stato chiusa con *"the
     morning is quiet, with nothing standing out as particularly positive or
@@ -702,7 +713,7 @@ def test_the_second_sentence_knows_what_it_is_about(bad, good, about, named):
     Il singolare e il plurale si contano qui per la stessa ragione: con una
     misura sola, *these read badly* gli ha fatto scrivere *"like the others
     that read badly this morning"*, e le altre non c'erano."""
-    assert ollama._rests_on(bad, good) == about
+    assert ollama._rests_on(bad, leaning, good) == about
 
 
 def test_a_quiet_morning_has_no_second_sentence(payload):
@@ -971,7 +982,7 @@ def test_each_load_piece_has_its_own_prompt():
     assert "efforts above threshold" in anaerobic
     assert "conversation" not in anaerobic
     week = ollama._system_prompt(REPO_ROOT, *load_part("week").agent)
-    assert "still asks of him" in week
+    assert "still asks of you" in week
 
 
 def test_the_shared_rules_come_after_the_kind_of_work():
@@ -1295,7 +1306,7 @@ def test_each_recovery_piece_has_its_own_prompt():
     due paragrafi racconterebbero la stessa misura, e guardandone uno solo non
     si vedrebbe."""
     wake = ollama._system_prompt(REPO_ROOT, *rec_part("body_battery_morning").agent)
-    assert "how far the system refilled overnight" in wake
+    assert "how far the system recharged" in wake
     low = ollama._system_prompt(REPO_ROOT, *rec_part("body_battery_low_yesterday").agent)
     assert "what yesterday cost you" in low
     assert "refilled overnight" not in low
@@ -1745,3 +1756,60 @@ def test_llama_has_its_own_copy_of_the_fitness_prompt():
     assert "facts file" not in mine
     # La forma resta quella di Claude: il verdetto e poi le misure.
     assert "Open with the verdict" in mine
+
+
+# --- Il gradino delle misure che pendono ---
+#
+# La mattina del 20 novembre: tutte e quattro dentro la fascia, quindi
+# verdetto «il corpo sta bene» e niente da nominare — ma la frequenza a riposo
+# all'88% della sua fascia e l'HRV al 5% della sua, **entrambe appoggiate al
+# loro lato cattivo**. Il frammento di Claude di quel giorno apriva con
+# *«slightly off — nothing wrong, but a body that has not quite put yesterday
+# behind it»*, che e' la lettura giusta, e la nostra diceva che andava tutto
+# bene.
+
+
+@pytest.mark.parametrize(
+    "readings, expected",
+    [
+        (["comfortably normal"] * 4, "good"),
+        # Una sola appoggiata **non** e' una notizia: era la ragione per cui
+        # `_sits` non doveva pesare, e vale ancora.
+        (["normal, but high in its range", "comfortably normal", "normal", "normal"], "good"),
+        # Due dalla parte cattiva lo sono.
+        (
+            ["normal, but high in its range", "normal, but low in its range", "normal", "normal"],
+            "leaning",
+        ),
+        # E una fuori fascia conta piu' di due appoggiate: resta `niggle`.
+        (
+            ["worse than usual", "normal, but low in its range", "normal, but high in its range", "normal"],
+            "niggle",
+        ),
+    ],
+)
+def test_two_measures_leaning_are_not_a_quiet_morning(readings, expected):
+    assert ollama._health_verdict(readings) == expected
+
+
+def test_the_recovery_has_the_same_step():
+    assert (
+        ollama._recovery_verdict(["normal, but low in its range", "normal, but low in its range", "normal"])
+        == "leaning"
+    )
+    assert ollama._recovery_verdict(["normal, but low in its range", "normal", "normal"]) == "ready"
+
+
+def test_the_fifth_hears_the_lean_without_the_band(payload):
+    """**Il posto dentro la fascia conta per il verdetto e non si dice.** Il
+    paragrafo di apertura di fasce non parla — sta nel suo compito in due righe
+    — quindi passargli *«normal, but high in its range»* sarebbe metterglielo
+    in mano. `_spoken_of` lo traduce prima."""
+    payload["morning"]["resting_hr"]["value"] = 52.4  # dentro, in cima
+    payload["morning"]["hrv_last_night"]["value"] = 39.5  # dentro, in fondo
+    facts = verdict_facts(payload)
+    assert facts["verdict"] == "fine, but leaning tired"
+    assert all(m["reading"] == "leaning the tired way" for m in facts["how_they_read"])
+    said = json.dumps(facts)
+    assert "in its range" not in said
+    assert "band" not in said

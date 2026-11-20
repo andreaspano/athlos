@@ -17,5 +17,5 @@ settled which side this morning's value is on. Trust it.
 
 The alert `sleep_breathing_up` is yours when you are given it.
 
-How long he slept and how the night was scored are not yours: they belong to
+How long the night was and how it was scored are not yours: they belong to
 Recovery, and you were not given them.

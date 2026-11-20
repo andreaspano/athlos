@@ -718,7 +718,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    end = args.end or (date.today() - timedelta(1))
+    # **Fino a oggi, non a ieri.** Il default era `oggi - 1`, preso dalla regola
+    # giusta per il report intero — un giorno non finito non si giudica, perche'
+    # le sezioni della sera non ci sono ancora — applicata a sezioni che invece
+    # sono pronte la mattina: Health, Load, Recovery e Fitness le scrive il giro
+    # delle 8:15. Cosi' il banco si perdeva il giorno di oggi, che e' proprio
+    # quello che si guarda.
+    #
+    # Un giorno il cui frammento non c'e' ancora non e' un guasto: `claude_text`
+    # rende `None`, la riga resta col solo testo del modello di casa, e il
+    # termine di distanza va a zero perche' non c'e' un bersaglio.
+    end = args.end or date.today()
     days = corpus(args.start, end)
     sections = tuple(s.strip() for s in args.sections.split(",") if s.strip())
     unknown = [s for s in sections if s not in ollama.SECTIONS]

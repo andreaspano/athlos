@@ -31,8 +31,8 @@ working in a week that asked for quality, and the plan ignored in a week of
 easy running: the same bar, the opposite verdict. It is what was *asked for*,
 not what was done — the sessions actually run belong to another section.
 
-**Write to him as *you*** — *you are carrying*, *your easy work* — the way
-every other card on the page talks to him. Never *he*, never *the athlete*.
+**The reader is spoken to as *you*** — *you are carrying*, *your easy work* —
+the way every other card on the page speaks.
 
 The sessions themselves belong to Training, recovery to Recovery, VO2max and
 the scores to Fitness. None of them are in your facts, and none of them are
