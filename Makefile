@@ -1,4 +1,4 @@
-.PHONY: test rebuild install_services uninstall_services frontend_build install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data week_plans
+.PHONY: bench_tune test rebuild install_services uninstall_services frontend_build install_cron uninstall_cron daily_report weekly_report backfill_zones backfill_reports backfill_weeks update_activity backfill_activity_names backfill_health backfill fitness_status api frontend frontend_types weekly_data daily_data week_plans
 
 # I test: non toccano Garmin ne' il data root vero — le chiamate passano da
 # doppi e i file stanno in cartelle temporanee — quindi si lanciano sempre,
@@ -123,6 +123,33 @@ backfill_reports:
 backfill_weeks:
 	@test -n "$(FROM)" || { echo "serve FROM=YYYY-MM-DD (un lunedi')"; exit 1; }
 	uv run training-weekly-report --from $(FROM) $(if $(TO),--to $(TO))
+
+# Tara i prompt del modello di casa contro i frammenti di Claude: genera il
+# corpus con ollama, misura quanto si discosta, fa cambiare una cosa a un
+# agente Claude, rigenera, e tiene la versione migliore.
+#
+# **E' un lavoro da notte, ma meno di quanto sembri**: il giro 0 genera tutto
+# (una ventina di minuti per ventisei giorni), e i giri dopo rigenerano solo la
+# sezione il cui prompt e' cambiato, che sono tre minuti. Dodici giri stanno
+# sotto l'ora.
+#
+# L'editor e' un agente Claude e consuma gli stessi gettoni del report: prende
+# il lock di `refresh`, quindi non pesta i giri delle 8:15 e delle 21 — se lo
+# trova occupato aspetta invece di andarsene, che di notte non ha fretta.
+#
+# **Tocca `.ollama/agents/` e nient'altro**, e non per buona volonta': e' la
+# regola dei permessi di `claude -p`. Al mattino si guarda il `git diff` di
+# quella cartella.
+#   make bench_tune                       (26/10 -> ieri, dodici giri)
+#   make bench_tune ITERATIONS=0          (solo la misura di partenza)
+#   make bench_tune DRY=1                 (la misura e il messaggio all'editor)
+#   make bench_tune FROM=2026-11-01 ITERATIONS=3
+bench_tune:
+	uv run training-bench-tune \
+	  $(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) \
+	  $(if $(ITERATIONS),--iterations $(ITERATIONS)) \
+	  $(if $(SECTIONS),--sections $(SECTIONS)) \
+	  $(if $(DRY),--dry-run)
 
 # Ricalcola i minuti per zona delle sedute (todo 54), dai record gia' in
 # tabella: nessuna chiamata a Garmin, nessun file FIT riletto. Lo fa da se'

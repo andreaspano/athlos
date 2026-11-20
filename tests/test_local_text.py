@@ -1444,3 +1444,304 @@ def test_five_paragraphs_whatever_the_model_answers(recovery_payload, monkeypatc
         "About body battery at wake-up. And a second paragraph.",
         "About yesterday's body battery low. And a second paragraph.",
     ]
+
+
+# --- La Fitness, intera e in pezzi ---
+#
+# La quarta sezione, e quella con i pezzi piu' diversi fra loro: tre punteggi
+# con la loro fascia, una soglia che fascia non ha, e due acclimatamenti che
+# per quasi tutto l'anno sono zero. Si prova il recinto come per le altre, e
+# poi le tre cose che di questa sezione sono solo sue — i punteggi letti al
+# contrario, la soglia con due nomi possibili, e il paragrafo che a zero non
+# esiste.
+
+
+@pytest.fixture
+def fitness_payload():
+    """Un giorno finto con la Fitness, e dentro la roba che non le va data: il
+    racconto del mese (`change`, `days_ago_28`) e le misure delle altre
+    sezioni."""
+    return {
+        "day": "2026-11-19",
+        "fitness": {
+            "vo2max": {
+                "now": 42.9,
+                "as_of": "2026-11-19",
+                "days_ago_28": 42.2,
+                "change": 0.7,
+                "band": {"low": 42.4, "high": 43.0, "outer_low": 42.1, "outer_high": 43.3},
+            },
+            "endurance": {
+                "now": 5156,
+                "days_ago_28": 5033,
+                "change": 123,
+                "band": {"low": 5056, "high": 5140, "outer_low": 5014, "outer_high": 5182},
+                "level": "Trained",
+            },
+            "hill": {
+                "now": 56,
+                "days_ago_28": 55,
+                "change": 1,
+                "band": {"low": 57, "high": 59, "outer_low": 56, "outer_high": 60},
+            },
+            "altitude_acclimation": {"metres": 0, "trend": None},
+            "heat_acclimation": {"percent": 0, "trend": None},
+            "threshold_hr": {"value": 151, "as_of": "2026-11-19"},
+            "lactate_threshold": {
+                "heart_rate": 151,
+                "speed_kmh": 10.5,
+                "pace_s_per_km": 343,
+                "as_of": "2026-11-12",
+            },
+        },
+        # Di Health, di Recovery e di Load: non devono arrivare al modello.
+        "morning": {"resting_hr": measure(49.0, 47.4, 52.5, 44.8, 55.1)},
+        "load": {"now": {"acwr": 0.8}},
+        "alerts": ["resting_hr_up"],
+    }
+
+
+def fit_part(key):
+    return next(p for p in ollama.FITNESS_PARTS if p.key == key)
+
+
+def fit_owned(piece, payload):
+    return owned(piece, ollama.fitness_facts(payload), ollama.FITNESS_SPLIT)
+
+
+def test_the_three_scores_are_normalised(fitness_payload):
+    """Nei fatti del giorno il valore di oggi si chiama `now`, e `_where` legge
+    `value`: rinominarlo nel ritaglio fa funzionare per questa sezione tutta
+    la macchina delle misure, com'e' per i carichi della Load."""
+    scores = ollama.fitness_facts(fitness_payload)["scores"]
+    assert tuple(scores) == ollama.FITNESS_SCORES
+    assert scores["vo2max"]["value"] == 42.9
+    assert scores["vo2max"]["where"] == "inside its band"
+
+
+def test_the_month_stays_out_of_fitness(fitness_payload):
+    """`change` e `days_ago_28` il prompt li nomina per dire di non usarli, e
+    la card non li disegna: darglieli e poi chiedergli di non guardarli e' il
+    modo piu' sicuro di vederli comparire."""
+    said = json.dumps(ollama.fitness_facts(fitness_payload), default=str)
+    for stranger in ("change", "days_ago_28", "42.2", "5033", "level", "Trained"):
+        assert stranger not in said
+
+
+def test_other_sections_stay_out_of_fitness(fitness_payload):
+    """La seduta, il carico e il recupero sono di altri, e il prompt dice di
+    non cercarli nemmeno per spiegare un punteggio che si e' mosso."""
+    said = json.dumps(ollama.fitness_facts(fitness_payload), default=str)
+    for stranger in ("resting_hr", "acwr", "alerts", "morning"):
+        assert stranger not in said
+
+
+def test_the_scores_are_read_the_other_way_round():
+    """**L'eccezione delle regole di casa.** Questi punteggi si muovono in
+    settimane: sopra la fascia vuol dire che stanno ancora salendo, ed e' una
+    buona notizia. Le quattro misure della Health e tre della Recovery si
+    leggono al contrario."""
+    counted = [p for p in ollama.FITNESS_PARTS if p.bad_when]
+    assert [p.key for p in counted] == list(ollama.FITNESS_SCORES)
+    assert {p.bad_when for p in counted} == {"below"}
+    assert ollama._reading("above its band", "below") == "better than usual"
+    assert ollama._reading("below its band", "below") == "worse than usual"
+
+
+def test_a_score_gets_only_its_own(fitness_payload):
+    """Il recinto dentro al recinto: gli altri due punteggi non ci sono, e
+    nemmeno la soglia."""
+    facts = fit_owned(fit_part("hill"), fitness_payload)
+    assert facts["value"] == 56
+    assert facts["measure"] == "the hill score"
+    assert facts["reading"] == "worse than usual"
+    for stranger in ("42.9", "5156", "151", "vo2", "endurance", "threshold"):
+        assert stranger not in json.dumps(facts)
+
+
+def test_the_threshold_says_which_of_the_two_it_is(fitness_payload):
+    """Garmin una soglia del lattato la rileva di rado, e finche' non lo fa la
+    card mostra quella dell'orologio: due misure diverse nello stesso posto, e
+    chi scrive deve sapere quale ha in mano."""
+    facts = fit_owned(fit_part("threshold"), fitness_payload)
+    assert facts["measure"] == "the lactate threshold"
+    assert facts["detected"] is True
+    assert facts["heart_rate"] == 151
+    assert facts["read_on"] == "2026-11-12"
+
+
+def test_without_a_lactate_threshold_the_watch_answers(fitness_payload):
+    """Senza quella di Garmin si mostra la stima dell'orologio, come fa la
+    card — e si dice che e' una stima, che vale di meno."""
+    del fitness_payload["fitness"]["lactate_threshold"]
+    facts = fit_owned(fit_part("threshold"), fitness_payload)
+    assert facts["measure"] == "the threshold heart rate"
+    assert facts["detected"] is False
+    assert facts["pace"] is None
+
+
+def test_no_threshold_at_all_is_no_paragraph(fitness_payload):
+    """Sulla card quella casella e' un trattino, e il paragrafo non si
+    scrive."""
+    del fitness_payload["fitness"]["lactate_threshold"]
+    del fitness_payload["fitness"]["threshold_hr"]
+    assert fit_owned(fit_part("threshold"), fitness_payload) is None
+
+
+@pytest.mark.parametrize(
+    "seconds, expected",
+    [(343, "5:43 per kilometre"), (300, "5:00 per kilometre"), (0, None), (None, None)],
+)
+def test_the_threshold_pace_is_counted_here(seconds, expected):
+    """Il passo e' il senso pratico di una frequenza, ed e' una delle poche
+    cifre che la card non mostra e che si possono dare. Il conto lo fa questo
+    modulo, come tutti gli altri."""
+    assert ollama._pace_label(seconds) == expected
+
+
+def test_an_acclimation_at_zero_is_not_a_paragraph(fitness_payload):
+    """**Qui il paragrafo che non c'e' e' la regola, non l'eccezione.** Zero e'
+    il valore di casa per quasi tutto l'anno, e il prompt intero quel buco lo
+    deve chiedere a parole: qui i due pezzi non si chiedono."""
+    assert fit_owned(fit_part("altitude_acclimation"), fitness_payload) is None
+    assert fit_owned(fit_part("heat_acclimation"), fitness_payload) is None
+
+
+def test_an_acclimation_that_is_there_gets_its_paragraph(fitness_payload):
+    """Nelle settimane in montagna quella cifra c'e' e conta: a quella quota lo
+    stesso sforzo costa piu' battiti finche' il corpo non si adegua."""
+    fitness_payload["fitness"]["altitude_acclimation"] = {
+        "metres": 1400,
+        "trend": "ACCLIMATIZING",
+    }
+    facts = fit_owned(fit_part("altitude_acclimation"), fitness_payload)
+    assert facts["metres"] == 1400
+    assert facts["trend"] == "ACCLIMATIZING"
+    # E il caldo resta zero, quindi resta senza paragrafo.
+    assert fit_owned(fit_part("heat_acclimation"), fitness_payload) is None
+
+
+@pytest.mark.parametrize(
+    "readings, expected",
+    [
+        (["comfortably normal"] * 3, "steady"),
+        (["better than usual", "normal", "normal"], "strong"),
+        (["much better than usual", "better than usual", "normal"], "strong"),
+        (["worse than usual", "normal", "normal"], "slipping"),
+        (["worse than usual", "much worse than usual", "normal"], "slipping"),
+        # La parita' e' *steady*, che e' la verita' di quel giorno e non un
+        # modo di non prendere posizione.
+        (["better than usual", "worse than usual", "normal"], "steady"),
+        (["not measured", "normal", "normal"], "steady"),
+    ],
+)
+def test_the_fitness_verdict_weighs_both_sides(readings, expected):
+    """**Qui il conto non e' quante vanno male ma da che parte penda la
+    bilancia**, e la differenza con le altre due sezioni e' il senso delle
+    misure: un punteggio sopra la sua fascia e' una buona notizia vera, e un
+    verdetto che la ignorasse direbbe *sei dove eri* di una giornata in cui il
+    motore e' il piu' forte da settimane."""
+    assert ollama._fitness_verdict(readings) == expected
+
+
+def test_the_fitness_opening_counts_only_the_scores(fitness_payload):
+    """La soglia e gli acclimatamenti una fascia non ce l'hanno, quindi una
+    direzione non ce l'hanno, quindi nel verdetto non entrano: un numero di
+    soglia non dice che forma ha il motore."""
+    facts = in_the_message(
+        asked(
+            ollama.FITNESS_SPLIT.opening,
+            ollama.fitness_facts(fitness_payload),
+            ollama.FITNESS_SPLIT,
+            date(2026, 11, 19),
+        )
+    )
+    # Endurance sopra la sua fascia, hill sotto la sua: parita'.
+    assert facts["verdict"] == ollama.FITNESS_VERDICT_WORDS["steady"]
+    said = json.dumps(facts)
+    for stranger in ("threshold", "151", "acclimation", "band", "42.9"):
+        assert stranger not in said
+
+
+def test_the_fitness_opening_names_worst_first(fitness_payload):
+    """Le peggiori per prime, come per le altre due aperture: la misura che
+    porta il verdetto va nominata per prima."""
+    facts = in_the_message(
+        asked(
+            ollama.FITNESS_SPLIT.opening,
+            ollama.fitness_facts(fitness_payload),
+            ollama.FITNESS_SPLIT,
+            date(2026, 11, 19),
+        )
+    )
+    assert [m["measure"] for m in facts["how_they_read"]] == ["the hill score"]
+    assert facts["about"] == "this one reads badly this morning"
+
+
+def test_the_fitness_split_uses_the_same_fence_as_the_whole():
+    """Lo stesso ritaglio della sezione intera: due ritagli vorrebbero dire
+    due recinti che divergono, e il confronto non direbbe piu' niente."""
+    assert ollama.FITNESS_SPLIT.facts is ollama.FITNESS.facts
+
+
+def test_the_scores_do_not_live_under_morning():
+    """`measures_in` e' la sola cosa che impediva alla macchina delle misure di
+    servire anche questa sezione: un punteggio di Garmin sotto una chiave che
+    si chiama *mattina* non ci starebbe, che quei numeri non sono di stamattina
+    ma di mesi."""
+    assert ollama.FITNESS_SPLIT.measures_in == "scores"
+    assert ollama.HEALTH_SPLIT.measures_in == "morning"
+    assert ollama.RECOVERY_SPLIT.measures_in == "morning"
+
+
+def test_five_paragraphs_in_winter_and_seven_up_a_mountain(fitness_payload, monkeypatch):
+    """**La forma segue i fatti, e la decide Python.** Con gli acclimatamenti a
+    zero i loro paragrafi non esistono; con una quota in mano ci sono. Il
+    prompt intero quel buco lo deve chiedere a parole, e la prima sera ha
+    scritto "non sei acclimatato a nessuna quota ne' al caldo" — la frase che
+    quel prompt dice di non scrivere."""
+
+    def answer(system, user):
+        if user.startswith("Write the opening paragraph"):
+            return "You are where you were.", "fake"
+        piece = next(
+            p.label for p in ollama.FITNESS_PARTS if f"paragraph about {p.label}" in user
+        )
+        return f"About {piece}.", "fake"
+
+    monkeypatch.setattr(ollama, "_ask", answer)
+    winter, _ = ollama._split_text(
+        ollama.FITNESS_SPLIT, date(2026, 11, 19), fitness_payload, REPO_ROOT
+    )
+    assert winter.split("\n\n") == [
+        "You are where you were.",
+        "About VO2max.",
+        "About the endurance score.",
+        "About the hill score.",
+        "About the threshold.",
+    ]
+    fitness_payload["fitness"]["altitude_acclimation"] = {"metres": 1400, "trend": None}
+    fitness_payload["fitness"]["heat_acclimation"] = {"percent": 58, "trend": None}
+    mountain, _ = ollama._split_text(
+        ollama.FITNESS_SPLIT, date(2026, 11, 19), fitness_payload, REPO_ROOT
+    )
+    assert mountain.split("\n\n")[-2:] == [
+        "About the altitude acclimatisation.",
+        "About the heat acclimatisation.",
+    ]
+
+
+def test_llama_has_its_own_copy_of_the_fitness_prompt():
+    """La copia sta in `.ollama/agents/`, e l'esempio non ce l'ha: llama lo
+    ricopia invece di guardare i numeri, ed e' il motivo per cui le due
+    cartelle sono due."""
+    path = ollama._prompt_file(REPO_ROOT, ollama.FITNESS.agent)
+    assert path.parent.parent.name == ".ollama"
+    mine = path.read_text()
+    theirs = (REPO_ROOT / ".claude/agents/04_fitness.md").read_text()
+    assert "## Example" in theirs
+    assert "## Example" not in mine
+    assert "tools:" not in mine
+    assert "facts file" not in mine
+    # La forma resta quella di Claude: il verdetto e poi le misure.
+    assert "Open with the verdict" in mine

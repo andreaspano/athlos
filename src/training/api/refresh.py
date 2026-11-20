@@ -41,6 +41,7 @@ import contextlib
 import fcntl
 import json
 import math
+import os
 import shutil
 import subprocess
 import tempfile
@@ -568,10 +569,20 @@ def _write_section(
         "--allowedTools", *_allowed_tools(kind, summary_dir),
         "--", _prompt(kind, section, subject, moment, facts, folder, summary_dir),
     ]
+    # **Via `ANTHROPIC_API_KEY` dall'ambiente dell'agente.** `claude` quella
+    # chiave la preferisce al login di claude.ai e lo dice su stderr («takes
+    # precedence over your claude.ai login»): da cron e dal servizio non c'e' e
+    # non si e' mai visto niente, ma lanciando `make daily_report` da una
+    # sessione di Claude Code — che la mette — l'agente va a pescare da un
+    # credito a consumo invece che dal login, e quando quello e' esaurito esce
+    # 1 con «Credit balance is too low». Togliendola, il report gira allo
+    # stesso modo da dovunque lo si lanci. Trovato dal ciclo di taratura, che
+    # fa la stessa chiamata e ci ha sbattuto (`bench_tune.edit`).
+    env = {name: value for name, value in os.environ.items() if name != "ANTHROPIC_API_KEY"}
     try:
         result = subprocess.run(
             command, cwd=repo_root, stdin=subprocess.DEVNULL, capture_output=True,
-            text=True, timeout=TIMEOUT_SECONDS,
+            text=True, timeout=TIMEOUT_SECONDS, env=env,
         )
     except subprocess.TimeoutExpired:
         return False, f"{section.agent} did not finish in {TIMEOUT_SECONDS // 60} minutes."
@@ -592,7 +603,17 @@ def _write_section(
 
 
 def _tail(result: subprocess.CompletedProcess) -> str:
-    lines = (result.stderr.strip() or result.stdout.strip()).splitlines()
+    """Le ultime righe di quello che ha detto il processo, per il messaggio
+    d'errore.
+
+    **Lo stdout per primo**, e prima guardava stderr. `claude` su stderr mette
+    gli avvisi — quello sui connettori di claude.ai, che compare sempre quando
+    c'e' una chiave d'ambiente — e l'errore che conta su stdout: «Credit
+    balance is too low» restava nascosto dietro un avviso che non c'entrava
+    niente, e per un giro il guasto e' sembrato un problema di connettori.
+    Qui si chiama solo quando l'uscita non e' zero, quindi su stdout c'e' un
+    errore e non il lavoro fatto."""
+    lines = (result.stdout.strip() or result.stderr.strip()).splitlines()
     return "\n".join(lines[-MESSAGE_LINES:])
 
 

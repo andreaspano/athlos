@@ -6,9 +6,10 @@ una cosa sola: dove sta la cartella dei dati. Nella cartella dei dati c'e'
 puo' stare in quello che deve trovare, ed e' l'unica cosa che il repo sa dei
 dati.
 
-Sotto la radice stanno sette cartelle — `fit`, `health`, `json`, `db`,
-`user`, `summary`, `plan` — e questo modulo le nomina tutte, una volta sola:
-chi gli serve una di quelle importa la costante invece di ricostruirsela.
+Sotto la radice stanno otto cartelle — `fit`, `health`, `json`, `db`,
+`user`, `summary`, `plan`, `bench` — e questo modulo nomina quelle che
+servono a piu' di uno, una volta sola: chi gli serve una di quelle importa la
+costante invece di ricostruirsela.
 
 E' l'unica fonte: non ci sono default nel codice e nessuna variabile
 d'ambiente la scavalca. Se un file manca, o manca una chiave, il programma si
@@ -238,10 +239,11 @@ def load_config(path: Path) -> Config:
 
 DATA_ROOT = load_data_root(POINTER_PATH)
 
-# Le cartelle della radice (todo 65) che si nominano da qui. Sono sette sul
-# disco — `fit/`, `health/`, `json/`, `db/` e queste tre — ma le prime
-# quattro se le compone chi le usa a partire da `DATA_ROOT`, e una costante
-# che nessuno legge e' una seconda verita' da tenere d'accordo con la prima.
+# Le cartelle della radice (todo 65) che si nominano da qui. Sono otto sul
+# disco — `fit/`, `health/`, `json/`, `db/`, `bench/` e queste tre — ma le
+# altre cinque se le compone chi le usa a partire da `DATA_ROOT`, e una
+# costante che nessuno legge e' una seconda verita' da tenere d'accordo con la
+# prima.
 USER_DIR = DATA_ROOT / "user"
 SUMMARY_DIR = DATA_ROOT / "summary"
 PLAN_DIR = DATA_ROOT / "plan"

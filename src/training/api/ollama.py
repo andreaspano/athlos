@@ -103,6 +103,11 @@ DEFAULT_MODEL = "llama3.1:8b"
 # passa, e per un modello da 5 GB sulla scheda costano poco.
 CONTEXT_TOKENS = 8192
 
+# Quanto il modello resta in memoria fra una domanda e l'altra. Il perche' sta
+# in `_ask`, dove si manda: non e' per fare presto, e' perche' un modello
+# ricaricato non rende lo stesso testo.
+KEEP_ALIVE = "15m"
+
 # Il modello carica da disco alla prima domanda — sette secondi scarsi su
 # questa macchina — e poi scrive cento parole. Due minuti e' largo per tutti e
 # due, e stretto abbastanza da non lasciare la card a girare per sempre.
@@ -277,6 +282,18 @@ class Split:
     parts: "tuple[Part, ...]"
     """Gli altri pezzi, nell'ordine in cui vanno letti nel testo finito, che
     e' quello della card."""
+    measures_in: str = "morning"
+    """Sotto quale chiave dei fatti della sezione stanno le misure dei pezzi.
+
+    `morning` per la Health e per la Recovery, che le loro quattro misure le
+    prendono da li'; `scores` per la Fitness. **E' la sola cosa che impediva
+    alla macchina delle misure di servire anche la terza sezione**: il
+    ritaglio di un pezzo e il conto delle letture leggevano `morning` scritto
+    a mano, e un punteggio di Garmin sotto una chiave che si chiama *mattina*
+    non ci starebbe — quei numeri non sono di stamattina, sono di mesi.
+
+    Un campo e non un ritaglio diverso: il taglio di una misura e' lo stesso
+    per tutte e tre, e cambia solo dove la si va a prendere."""
 def _system_prompt(repo_root: Path, *names: str) -> str:
     """Il prompt di sistema: i file dei prompt piu' le regole di casa, nello
     stesso ordine in cui li mette l'orchestratore degli agenti
@@ -648,6 +665,134 @@ def recovery_facts(payload: dict, week: dict | None = None) -> dict:
     }
 
 
+# I tre punteggi della card Fitness, nell'ordine in cui la card li mostra.
+# Sono i soli che una fascia ce l'hanno, e percio' i soli che il verdetto
+# conta.
+FITNESS_SCORES = ("vo2max", "endurance", "hill")
+
+# Come si chiamano parlando. La chiave non basta: *hill* da solo non e' una
+# cosa, e *vo2max* si scrive in un modo solo.
+FITNESS_LABELS = {
+    "vo2max": "VO2max",
+    "endurance": "the endurance score",
+    "hill": "the hill score",
+}
+
+
+def _pace_label(seconds_per_km: object) -> str | None:
+    """Il passo di soglia come si dice: `343` fa "5:43 per kilometre".
+
+    **E' una delle poche cifre che la card non mostra e che si possono
+    dare**, perche' il senso pratico di una frequenza di soglia e' il passo a
+    cui corrisponde: lo dice `04_fitness.md`, ed e' l'eccezione che quel
+    prompt si concede. Il conto lo fa qui, come tutti gli altri: 343 secondi
+    diviso 60 e il resto, che a un modello che non sa contare non si chiede."""
+    if not isinstance(seconds_per_km, (int, float)) or seconds_per_km <= 0:
+        return None
+    seconds = round(seconds_per_km)
+    return f"{seconds // 60}:{seconds % 60:02d} per kilometre"
+
+
+def _threshold_facts(fitness: dict) -> dict | None:
+    """La soglia, che sulla card e' una casella sola con due nomi possibili.
+
+    Garmin una soglia del lattato la rileva di rado, e finche' non lo fa la
+    card mostra quella dell'orologio: sono due misure diverse con lo stesso
+    posto, e **chi scrive deve sapere quale delle due ha in mano** — una e'
+    stata letta in una seduta e ha un passo attaccato, l'altra e' una stima.
+    Il nome arriva nei fatti e non nel prompt perche' cambia col giorno.
+
+    `None` quando non c'e' ne' l'una ne' l'altra: la casella sulla card e' un
+    trattino, e il paragrafo non si scrive."""
+    lactate = fitness.get("lactate_threshold") or {}
+    watch = fitness.get("threshold_hr") or {}
+    if lactate.get("heart_rate"):
+        return {
+            "measure": "the lactate threshold",
+            "heart_rate": lactate["heart_rate"],
+            "pace": _pace_label(lactate.get("pace_s_per_km")),
+            "read_on": lactate.get("as_of"),
+            "detected": True,
+        }
+    if watch.get("value"):
+        return {
+            "measure": "the threshold heart rate",
+            "heart_rate": watch["value"],
+            "pace": None,
+            "read_on": watch.get("as_of"),
+            "detected": False,
+        }
+    return None
+
+
+def fitness_facts(payload: dict, week: dict | None = None) -> dict:
+    """La parte della Fitness dei fatti del giorno: i tre punteggi con le loro
+    fasce, la soglia, e i due acclimatamenti.
+
+    **I punteggi arrivano normalizzati**, come i carichi della Load: nei fatti
+    del giorno il valore di oggi si chiama `now`, e `_where` e `_sits`
+    leggono `value`. Rinominarlo qui costa una riga e fa funzionare per questa
+    sezione tutta la macchina delle misure; il contrario sarebbe tre funzioni
+    che sanno di Fitness.
+
+    **Quello che resta fuori il prompt lo nomina per dire di non usarlo**, ed
+    e' il solito motivo per cui si taglia: `change` e `days_ago_28` sono il
+    racconto del mese — "non sono roba tua", e la card non li disegna — e
+    darglieli e poi chiedergli di non guardarli e' il modo piu' sicuro di
+    vederli comparire. Via anche `level` dell'endurance, che e' una parola di
+    Garmin che la card non mostra.
+
+    Gli acclimatamenti ci sono **anche a zero**, che e' il loro valore per
+    quasi tutto l'anno: il recinto della sezione e' quello che la card mostra,
+    e se quel paragrafo si scriva o no e' una decisione del pezzo
+    (`_altitude_facts`), non del ritaglio.
+
+    Il piano della settimana non le serve e lo ignora: quello che il corpo sa
+    fare oggi e' il frutto di mesi, non del foglio di questa settimana.
+
+    **La prima sera, e il divario piu' netto del banco.** Col prompt intero,
+    il 19 novembre, llama ha scritto un paragrafo solo cosi': *"Your VO2max is
+    inside its band today, at 42.9. Endurance is above its band, at 5156. The
+    hill score is below its band, at 56. Your lactate threshold heart rate is
+    151... You are not acclimatised to any altitude or heat."* **Quattro
+    regole del suo prompt rotte in cinque righe**: nessun verdetto in testa
+    (la prima riga del compito), tutti e quattro i numeri scritti (la card li
+    mostra due centimetri sopra), nessun giudizio su niente, e in fondo
+    proprio la frase che quel prompt vieta — *"non sei acclimatato a nessuna
+    quota" non vale una parola*.
+
+    Spezzata, la stessa giornata e' tornata cinque paragrafi col verdetto in
+    cima e gli acclimatamenti assenti invece che negati. Il prezzo l'hanno
+    pagato i prompt dei pezzi, e tre volte di fila: **ogni motivazione che ho
+    scritto per spiegare un campo e' finita nella card parola per parola** —
+    *"above its band is the good side, it's at its best in a month"*,
+    *"everything hard is run off this number"*, *"the plainest reason is there
+    hasn't been any climbing"*. Le prime due erano regole mie e sono state
+    riscritte come vincoli (`SCORE_READS`, `THRESHOLD_READS`); la terza viene
+    dal file del punteggio ed e' una frase da allenatore, che in una card ci
+    sta: la differenza fra le due cose e' se la frase parla del corpo o del
+    prompt.
+
+    Quello che resta da decidere guardando la pagina: i punteggi scrivono
+    ancora il loro numero, e l'apertura scivola nel mese e in *this morning* —
+    che per punteggi fatti di settimane e' la parola sbagliata."""
+    fitness = payload.get("fitness", {})
+    scores = {}
+    for key in FITNESS_SCORES:
+        score = fitness.get(key) or {}
+        if score.get("now") is None:
+            continue
+        measure = {"value": score["now"], "band": score.get("band")}
+        scores[key] = {**measure, "where": _where(measure)}
+    return {
+        "day": payload.get("day"),
+        "scores": scores,
+        "threshold": _threshold_facts(fitness),
+        "altitude_acclimation": fitness.get("altitude_acclimation") or {},
+        "heat_acclimation": fitness.get("heat_acclimation") or {},
+    }
+
+
 def _alert_key(alert: object) -> str:
     """Il nome di un allarme, che nei fatti e' una stringa o un oggetto con
     dentro la chiave."""
@@ -662,6 +807,9 @@ HEALTH = Section(key="health", title="Health", agent="01_health.md", facts=healt
 LOAD = Section(key="load", title="Load", agent="02_load.md", facts=load_facts)
 RECOVERY = Section(
     key="recovery", title="Recovery", agent="03_recovery.md", facts=recovery_facts
+)
+FITNESS = Section(
+    key="fitness", title="Fitness", agent="04_fitness.md", facts=fitness_facts
 )
 
 
@@ -740,7 +888,7 @@ def _measure_facts(split: "Split", part: Part, facts: dict) -> dict:
     direzione vorrebbe dire far contare una giornata dura come una cattiva
     notizia sul corpo. Senza `bad_when` il campo non c'e', e il prompt di quel
     pezzo non lo nomina."""
-    measure = facts.get("morning", {}).get(part.key) or {}
+    measure = facts.get(split.measures_in, {}).get(part.key) or {}
     alert = next((a for a in facts.get("alerts", []) if _alert_key(a) == part.alert), None)
     where = measure.get("where", "unknown")
     return {
@@ -1201,12 +1349,12 @@ def _readings_of(split: "Split", facts: dict) -> "list[dict]":
     esattamente quello che `03_recovery.md` chiede — una giornata che e'
     costata e' un fatto sull'allenamento, e non deve poter spostare il
     verdetto sul corpo."""
-    morning = facts.get("morning", {})
+    measures = facts.get(split.measures_in, {})
     return [
         {
             "measure": part.label,
             "reading": _reading(
-                (morning.get(part.key) or {}).get("where", "unknown"), part.bad_when
+                (measures.get(part.key) or {}).get("where", "unknown"), part.bad_when
             ),
         }
         for part in split.parts
@@ -1683,7 +1831,7 @@ def _recovery_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     # arriva il costo della giornata e non il posto nella fascia: dove sta un
     # valore e' del paragrafo che lo possiede, due centimetri piu' sotto.
     cost = next((p for p in split.parts if not p.bad_when), None)
-    low = facts.get("morning", {}).get(cost.key, {}) if cost else {}
+    low = facts.get(split.measures_in, {}).get(cost.key, {}) if cost else {}
     return {
         "verdict": RECOVERY_VERDICT_WORDS[_recovery_verdict([m["reading"] for m in seen])],
         "about": _rests_on(rests_on, good_news),
@@ -1935,9 +2083,335 @@ LOAD_SPLIT = Split(
     parts=LOAD_PARTS,
 )
 
+# **La Fitness spezzata.** La quarta, e quella con i pezzi piu' diversi fra
+# loro: tre punteggi con la loro fascia, una soglia che fascia non ha, e due
+# acclimatamenti che per quasi tutto l'anno sono zero. I tre punteggi usano la
+# macchina delle misure delle altre due sezioni — stesso ritaglio, stessa
+# cornice del messaggio — e gli altri tre pezzi hanno il loro.
+#
+# **E qui il paragrafo che non c'e' e' la regola, non l'eccezione.** Gli
+# acclimatamenti a zero sono il caso normale, e il prompt intero quel buco lo
+# deve chiedere a parole — *"nominane uno solo quando non e' zero, e 'non sei
+# acclimatato a nessuna quota' non vale una parola"*. Qui quei due pezzi non si
+# chiedono: cinque paragrafi d'inverno, sei o sette nelle settimane in
+# montagna, e nessuna riga di prompt che possa sbagliarlo.
+
+# **La persona e il consiglio, per i pezzi della Fitness.** La stessa coda
+# della Recovery e per lo stesso motivo: la prima sera il paragrafo della
+# soglia ha chiuso con *"should be considered in training decisions"*, che e'
+# un consiglio, e i punteggi scivolavano nel *we*.
+FITNESS_TAIL = (
+    "Write it to him as **you**, and never as *I*, *we* or *he*. And say nothing "
+    "about what he should train: that is nobody's business on this card. "
+)
+
+# Le righe che dicono a un punteggio come si leggono i suoi campi.
+#
+# **Della direzione non dicono niente, e non e' una dimenticanza.** La prima
+# versione la spiegava — *sopra la fascia e' la parte buona, cioe' al suo
+# massimo del mese* — e il paragrafo del VO2max ha scritto *"since above its
+# band is the good side - it's at its best in a month"*: la mia spiegazione
+# ricopiata di peso, dentro una card. E' la terza volta in questo file
+# (`RECOVERY_TAIL`, `COST_READS`), e la regola che ne viene e' sempre la
+# stessa: **una motivazione in un prompt e' un esempio.** La direzione del
+# resto `reading` ce l'ha gia' dentro — *better than usual* per un punteggio
+# sopra la fascia — quindi spiegarla era anche inutile: il confronto l'ha
+# fatto `_reading`, e a chi scrive resta da dire che notizia e'.
+SCORE_READS = (
+    "`where` says which side of its own band today's value falls on, and `reading` "
+    "says what that means for this score — it is what decides whether your paragraph "
+    "is good news or bad news, and you never work it out again from the band "
+    "yourself. Say what you make of them and contradict neither. **The band is where "
+    "this score has sat over the last 28 days and it moves on its own: it is not a "
+    "target.** "
+) + FITNESS_TAIL
+
+# La soglia: nessuna fascia, e le due cifre che la card non mostra. Anche qui
+# niente motivazioni — *everything hard is run off this number* era una frase
+# mia, ed e' finita nella card parola per parola.
+THRESHOLD_READS = (
+    "`measure` says which of the two you have — a lactate threshold Garmin read in a "
+    "session, or the watch's own estimate — and they are not the same thing. There is "
+    "no band here and nothing to compare with. **`pace` and `read_on` are the two "
+    "figures the card does not show that you may give.** "
+) + FITNESS_TAIL
+
+# Gli acclimatamenti: una cifra che c'e' solo quando c'e'.
+ACCLIMATION_READS = (
+    "`trend` is Garmin's code for which way it is going: say the meaning in plain "
+    "words and never the code. You are given this paragraph only because the figure "
+    "is not zero, so never a word about what it would mean if it were. "
+) + FITNESS_TAIL
+
+
+def _score_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio di un punteggio: la cornice delle misure, con la riga che
+    dice da che parte della fascia sta la buona notizia.
+
+    La cornice e' quella della Health e della Recovery — una misura, la sua
+    fascia, il suo paragrafo — e dice "le altre tre misure della sezione non
+    sono tue", che qui sono i due punteggi e la soglia."""
+    return _one_measure_prompt(split, part, day, facts, SCORE_READS)
+
+
+def _threshold_piece_facts(split: "Split", part: Part, facts: dict) -> dict | None:
+    """Quello che tocca alla soglia: **il numero, il passo e il giorno.**
+
+    Il ritaglio l'ha gia' fatto `_threshold_facts`, che decide anche quale
+    delle due soglie sia: a questo pezzo arriva quella e nient'altro — nessun
+    punteggio, nessuna fascia, che qui una fascia non c'e'.
+
+    `None` quando Garmin non ha ne' l'una ne' l'altra: sulla card quella
+    casella e' un trattino, e il paragrafo non si scrive."""
+    threshold = facts.get("threshold")
+    return dict(threshold) if threshold else None
+
+
+def _threshold_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio della soglia: **il pezzo che vale piu' parole di tutti.**
+
+    E' la riga di `04_fitness.md`: la soglia e' la sola di queste misure che
+    cambi quello che si fa in allenamento, e percio' merita piu' spazio dei
+    punteggi. Nei prompt in pezzi quella frase diventa un pezzo che ha il suo
+    paragrafo e non deve dividerlo con nessuno."""
+    return (
+        f"Write the paragraph about {part.label} for the {split.title} section of the "
+        f"daily report for {day:%A %-d %B %Y}. "
+        "The facts are here, below, and they are all there is: the scores of the "
+        "section are not yours and are not in them.\n\n"
+        f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        f"{THRESHOLD_READS}"
+        "Two or three sentences, where a score gets one. "
+        "Answer with the one paragraph and nothing else: no heading, no preamble, "
+        "no sign-off, no quotes around it."
+    )
+
+
+def _altitude_facts(split: "Split", part: Part, facts: dict) -> dict | None:
+    """Quello che tocca alla quota: **i metri, e solo quando non sono zero.**
+
+    Zero e' il valore di casa, e per quasi tutto l'anno e' quello: *"non sei
+    acclimatato a nessuna quota" non vale una parola*, dice il prompt intero,
+    e li' quella e' una riga da ricordarsi. Qui e' un pezzo che non si chiede,
+    quindi il paragrafo non c'e' — e non c'e' nemmeno il modo di scriverlo."""
+    altitude = facts.get("altitude_acclimation") or {}
+    metres = altitude.get("metres")
+    if not metres:
+        return None
+    return {"measure": part.label, "metres": metres, "trend": altitude.get("trend")}
+
+
+def _heat_facts(split: "Split", part: Part, facts: dict) -> dict | None:
+    """Quello che tocca al caldo: **la percentuale, e solo quando non e'
+    zero.** Stessa ragione della quota."""
+    heat = facts.get("heat_acclimation") or {}
+    percent = heat.get("percent")
+    if not percent:
+        return None
+    return {"measure": part.label, "percent": percent, "trend": heat.get("trend")}
+
+
+def _acclimation_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio di un acclimatamento: una o due clausole, su una cosa che
+    oggi c'e'."""
+    return (
+        f"Write the paragraph about {part.label} for the {split.title} section of the "
+        f"daily report for {day:%A %-d %B %Y}. "
+        "The facts are here, below, and they are all there is: the scores, the "
+        "threshold and the other acclimatisation are not yours and are not in them."
+        "\n\n"
+        f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        f"{ACCLIMATION_READS}"
+        "One sentence, two at the most. "
+        "Answer with the one paragraph and nothing else: no heading, no preamble, "
+        "no sign-off, no quotes around it."
+    )
+
+
+# Come si legge il verdetto della Fitness. **Sono le tre frasi che
+# `04_fitness.md` da' come esempi di prendere posizione**, e per la ragione di
+# `VERDICT_WORDS`: un valore che in inglese sta in piedi da solo, ricopiato di
+# peso, resta una frase e non l'etichetta di un campo.
+FITNESS_VERDICT_WORDS = {
+    "strong": "this is a strong engine right now",
+    "steady": "you are where you were",
+    "slipping": "the shape is slipping",
+}
+
+
+def _fitness_verdict(readings: "list[str]") -> str:
+    """In che forma e' il corpo, da come stanno i tre punteggi.
+
+    **Qui il conto non e' quante vanno male ma da che parte penda la
+    bilancia**, e la differenza con la Health e con la Recovery e' il senso
+    delle misure. Una frequenza a riposo sopra la sua fascia e' una cattiva
+    notizia e una dentro non e' una notizia: si contano le cattive, e il
+    meglio che una mattina possa fare e' non averne. Un punteggio sopra la sua
+    fascia invece e' una **buona notizia vera** — e' al suo massimo del mese —
+    e un verdetto che la ignorasse direbbe *sei dove eri* di una giornata in
+    cui il motore e' il piu' forte da settimane.
+
+    Quindi si pesano le due parti: piu' punteggi che salgono che non ne
+    scendono fa *strong*, il contrario fa *slipping*, e la parita' — tutti
+    dentro la fascia, o uno su e uno giu' — fa *steady*, che e' la verita' di
+    quel giorno e non un modo di non prendere posizione.
+
+    Tre gradini su tre punteggi, come alla Recovery e per lo stesso motivo:
+    una scala piu' fine avrebbe gradini che nessuna combinazione raggiunge."""
+    up = readings.count("better than usual") + readings.count("much better than usual")
+    down = readings.count("worse than usual") + readings.count("much worse than usual")
+    if down > up:
+        return "slipping"
+    if up > down:
+        return "strong"
+    return "steady"
+
+
+def _fitness_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
+    """Quello che tocca al quinto della Fitness: **come stanno i tre punteggi,
+    e nient'altro.**
+
+    Gli stessi attrezzi dei paragrafi di apertura delle altre due sezioni, e
+    per le stesse ragioni, che in `_health_opening_facts` sono scritte per
+    intero: il verdetto gia' deciso, le sole misure che puo' nominare e come
+    si leggono — non i valori e non le fasce, che sono il mestiere dei
+    paragrafi sotto.
+
+    **La soglia e gli acclimatamenti non ci sono**, e non per dimenticanza.
+    Una fascia non ce l'hanno, quindi una direzione non ce l'hanno
+    (`_readings_of` filtra su `bad_when`), e il verdetto e' una frase su che
+    forma ha il motore: un numero di soglia non la sposta, e una quota a cui
+    il corpo si trova non e' una capacita'. I loro paragrafi se li scrivono
+    da se', sotto."""
+    seen = _readings_of(split, facts)
+    rests_on, good_news = _carried_by(seen)
+    return {
+        "verdict": FITNESS_VERDICT_WORDS[_fitness_verdict([m["reading"] for m in seen])],
+        "about": _rests_on(rests_on, good_news),
+        "how_they_read": _spoken_of(seen, rests_on, good_news),
+    }
+
+
+def _fitness_opening_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio del quinto della Fitness. Il recinto e il perche' stanno in
+    `_fitness_opening_facts`."""
+    return (
+        f"Write the opening paragraph of the {split.title} section of the daily report "
+        f"for {day:%A %-d %B %Y}. "
+        "It goes at the top of the section, above the paragraphs that are already "
+        "written — one for each score, one for the threshold, and one for each "
+        "acclimatisation that is not zero — and it answers one question: what shape is "
+        "this body in?\n\n"
+        f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        "`verdict` is the verdict and you do not reopen it. `how_they_read` names the "
+        "only measures you may name anywhere in the paragraph, worst first, and says "
+        "which way each of them points — it is the same truth the paragraphs below "
+        "were written from, so that yours does not contradict them. The second "
+        "sentence names them and says what they come to, and the third says what that "
+        "shape lets him do; **an empty list is no measure to name and no second "
+        "sentence at all**, so write the first and the third. **Name a score in the "
+        "second sentence only**, and never say twice how one reads. **This is about "
+        "today and not about the month**, and it is not about a morning either: these "
+        "scores are months of work, so no story of the last four weeks and no *this "
+        "morning*. He is reading a card about what his body can do, not a report on "
+        "how it was assembled: **no field is named in it, and no sentence of it is "
+        "about the card**. Write it to him as **you** — never *I*, *we* or *he*. "
+        "Answer with the paragraph and nothing else: no number in it, no band in it, "
+        "no heading, no list, no quotes around it."
+    )
+
+
+# I nove file della Fitness spezzata, nella loro cartella come quelli delle
+# altre tre.
+FITNESS_SPLIT_DIR = "04_fitness_split"
+
+# I pezzi sotto l'apertura, nell'ordine in cui la card li legge: i tre
+# punteggi come li disegna (`FITNESS_SCORES`), poi la soglia, poi i due
+# acclimatamenti.
+#
+# **`bad_when` ce l'hanno solo i tre punteggi**, ed e' `below` per tutti e tre:
+# e' l'eccezione delle regole di casa, dove sopra la fascia e' la buona
+# notizia. La soglia e gli acclimatamenti non ce l'hanno — una fascia non ce
+# l'hanno — quindi `_measure_facts` non li riguarda e il verdetto non li
+# conta.
+FITNESS_PARTS = (
+    Part(
+        key="vo2max",
+        label=FITNESS_LABELS["vo2max"],
+        agent=(f"{FITNESS_SPLIT_DIR}/vo2max.md", f"{FITNESS_SPLIT_DIR}/_score.md"),
+        cut=_measure_facts,
+        asks=_score_prompt,
+        bad_when="below",
+    ),
+    Part(
+        key="endurance",
+        label=FITNESS_LABELS["endurance"],
+        agent=(f"{FITNESS_SPLIT_DIR}/endurance.md", f"{FITNESS_SPLIT_DIR}/_score.md"),
+        cut=_measure_facts,
+        asks=_score_prompt,
+        bad_when="below",
+    ),
+    Part(
+        key="hill",
+        label=FITNESS_LABELS["hill"],
+        agent=(f"{FITNESS_SPLIT_DIR}/hill.md", f"{FITNESS_SPLIT_DIR}/_score.md"),
+        cut=_measure_facts,
+        asks=_score_prompt,
+        bad_when="below",
+    ),
+    Part(
+        key="threshold",
+        label="the threshold",
+        agent=(f"{FITNESS_SPLIT_DIR}/_threshold.md",),
+        cut=_threshold_piece_facts,
+        asks=_threshold_prompt,
+    ),
+    Part(
+        key="altitude_acclimation",
+        label="the altitude acclimatisation",
+        agent=(f"{FITNESS_SPLIT_DIR}/_altitude.md",),
+        cut=_altitude_facts,
+        asks=_acclimation_prompt,
+    ),
+    Part(
+        key="heat_acclimation",
+        label="the heat acclimatisation",
+        agent=(f"{FITNESS_SPLIT_DIR}/_heat.md",),
+        cut=_heat_facts,
+        asks=_acclimation_prompt,
+    ),
+)
+
+FITNESS_SPLIT = Split(
+    key="fitness_split",
+    title="Fitness",
+    facts=fitness_facts,
+    opening=Part(
+        key="verdict",
+        label="the opening",
+        agent=(f"{FITNESS_SPLIT_DIR}/_verdict.md",),
+        cut=_fitness_opening_facts,
+        asks=_fitness_opening_prompt,
+    ),
+    parts=FITNESS_PARTS,
+    # I punteggi stanno sotto `scores` e non sotto `morning`: non sono numeri
+    # di stamattina, sono di mesi.
+    measures_in="scores",
+)
+
+
 SECTIONS: "dict[str, Section | Split]" = {
     section.key: section
-    for section in (HEALTH, LOAD, RECOVERY, HEALTH_SPLIT, LOAD_SPLIT, RECOVERY_SPLIT)
+    for section in (
+        HEALTH,
+        LOAD,
+        RECOVERY,
+        FITNESS,
+        HEALTH_SPLIT,
+        LOAD_SPLIT,
+        RECOVERY_SPLIT,
+        FITNESS_SPLIT,
+    )
 }
 """Le sezioni che la pagina Test sa chiedere. Le altre quattro del giorno non
 ci sono: si aggiungono quando servono, una alla volta, che ognuna vuole il
@@ -1992,6 +2466,22 @@ def _ask(system: str, user: str) -> tuple[str, str]:
             # varieta', e la stessa mattina con gli stessi numeri puo' avere
             # la stessa risposta.
             "options": {"temperature": 0, "num_ctx": CONTEXT_TOKENS},
+            # **Il modello resta in memoria**, e non e' un'ottimizzazione: e'
+            # l'unico modo di avere due risposte confrontabili. Ollama di suo
+            # lo scarica dopo cinque minuti di quiete, e un modello ricaricato
+            # non rende lo stesso testo nemmeno a temperatura zero — provato:
+            # la stessa domanda prima e dopo uno scarico da' due paragrafi
+            # diversi su cinque, perche' il riparto fra scheda e processore
+            # cambia l'ordine delle somme e un argmax quasi in parita' si
+            # ribalta. A modello caldo, tre risposte su tre identiche.
+            #
+            # Conta per il ciclo di taratura (`bench_tune`), che fra un giro e
+            # l'altro aspetta l'editor per minuti: senza questo, una pausa
+            # lunga fa scaricare il modello e la misura del giro dopo non e'
+            # piu' confrontabile con quella del giro prima. Un quarto d'ora
+            # copre il tempo massimo dell'editor (dieci minuti) e lascia
+            # liberare i cinque giga poco dopo.
+            "keep_alive": KEEP_ALIVE,
         }
     ).encode()
     request = urllib.request.Request(
@@ -2035,6 +2525,25 @@ def section_text(
     )
 
 
+def asked(split: Split, facts: dict) -> "list[tuple[Part, dict]]":
+    """I pezzi di una sezione spezzata **che si chiedono davvero**, nell'ordine
+    in cui il testo finito li legge: l'apertura in cima e poi gli altri, col
+    ritaglio di ognuno.
+
+    **L'ordine e' qui e non nel prompt**, che e' il punto di tutta questa
+    strada, e un pezzo il cui `cut` rende `None` non c'e': la settimana senza
+    piano, il rapporto che Garmin non ha, un acclimatamento a zero.
+
+    Sta in una funzione sua perche' la leggono in due. `_split_text` ci chiede
+    le domande da fare; `bench_score` ci chiede **a quale paragrafo del testo
+    finito corrisponde quale pezzo**, che e' il solo modo di controllare un
+    paragrafo contro i fatti che quel paragrafo aveva in mano. Due copie di
+    questa riga sarebbero due allineamenti che divergono, e il secondo
+    darebbe la colpa al paragrafo sbagliato."""
+    mine = [(piece, piece.cut(split, piece, facts)) for piece in (split.opening, *split.parts)]
+    return [(piece, owned) for piece, owned in mine if owned is not None]
+
+
 def _split_text(
     split: Split,
     day: date,
@@ -2074,12 +2583,6 @@ def _split_text(
     sono dal primo istante. Quindi parte con gli altri, e il tempo della
     sezione e' quello della domanda piu' lenta invece della somma di due."""
     facts = split.facts(payload, week)
-    # I pezzi nell'ordine in cui il testo finito li legge: l'apertura in cima
-    # e poi gli altri. **L'ordine e' qui e non nel prompt**, che e' il punto
-    # di tutto.
-    mine = [
-        (piece, piece.cut(split, piece, facts)) for piece in (split.opening, *split.parts)
-    ]
     asks = [
         (
             lambda piece=piece, owned=owned: _ask(
@@ -2087,8 +2590,7 @@ def _split_text(
                 piece.asks(split, piece, day, owned),
             )
         )
-        for piece, owned in mine
-        if owned is not None
+        for piece, owned in asked(split, facts)
     ]
     with ThreadPoolExecutor(max_workers=len(asks)) as pool:
         # `map` tiene l'ordine di `asks` e rilancia la prima eccezione che

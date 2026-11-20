@@ -5,6 +5,13 @@ scaricati** — i FIT delle attivita', i JSON di salute, il database che se ne
 ricava — e **non i report**, che sono scritti dagli agenti e vivono in
 `summary/` (vedi il README e `docs/service.md`).
 
+**E non ci sono nemmeno le prove del banco**, che stanno in `bench/`: non sono
+dati scaricati e non sono un report, sono il registro di un esperimento — cosa
+ha scritto il modello che gira in casa, accanto a quello che ha scritto
+l'agente di Claude, e quanto si discostano. Sta in una cartella sorella di
+`summary/` e non dentro, perche' il modello di casa non deve poter mettere
+niente dove il report va a leggere.
+
 I numeri sono una fotografia del **30 ottobre 2026**: servono a dare l'ordine
 di grandezza, non sono un contratto.
 
@@ -33,6 +40,7 @@ todo 65.
 | `user/` | `config.yaml`, `profile.yaml`, `avatar.jpg` | 48 KB | si' |
 | `summary/` | i report scritti dagli agenti | 27 MB | no |
 | `plan/` | i blocchi di allenamento scritti a mano | 32 KB | no |
+| `bench/` | il quaderno del banco di prova: cosa ha scritto il modello di casa, accanto al frammento di Claude | 1 MB l'anno | no |
 
 C'e' anche `.refresh.lock`, un file vuoto: e' il lucchetto che impedisce a
 due giri di report di sovrapporsi.
