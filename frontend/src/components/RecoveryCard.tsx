@@ -29,6 +29,7 @@ export function RecoveryCard({
   icon,
   face,
   refresh,
+  title = "Recovery",
 }: {
   data: DailyData;
   text: string | null;
@@ -38,6 +39,12 @@ export function RecoveryCard({
   /** La faccia della card (todo 92). */
   face: Verdict | null;
   refresh?: ReactNode;
+  /** Il nome in testa alla card. Sulla Day e' sempre "Recovery", ed e' il
+   * motivo per cui prima era scritto qui dentro. Sul banco di prova le card
+   * della Recovery sono due — gli stessi quattro numeri, il testo di Claude e
+   * quello del modello di casa — e due card con lo stesso nome una accanto
+   * all'altra non si confrontano, si confondono. */
+  title?: string;
 }) {
   const m = data.morning;
   // Sotto ogni numero solo la barra della sua fascia, come in Health: dice da
@@ -45,8 +52,8 @@ export function RecoveryCard({
   // barre del body battery raccontano cose diverse — la prima quanto si e'
   // ricaricato, la seconda quanto gli ha chiesto la giornata di ieri.
   return (
-    <section className="card recovery-card" aria-label="Recovery">
-      <CardHead icon={icon} title="Recovery" face={face} refresh={refresh} />
+    <section className="card recovery-card" aria-label={title}>
+      <CardHead icon={icon} title={title} face={face} refresh={refresh} />
       <div className="stats two">
         <Stat
           label="Readiness"

@@ -1030,3 +1030,417 @@ def test_a_week_without_a_plan_is_a_paragraph_in_less(load_payload, monkeypatch)
     assert len(paragraphs) == 5
     assert "week" not in text
     assert paragraphs[-1].startswith("About how much you are carrying")
+
+
+# --- La Recovery: la domanda di prima ---
+#
+# La terza sezione, e l'unica del banco che non si confronta con se' stessa:
+# a sinistra la pagina mette il frammento che l'agente di Claude ha scritto
+# davvero, a destra llama con lo stesso prompt. Quindi niente `Split` e
+# niente pezzi: si prova **il recinto** — le quattro misure della card e
+# nient'altro, che qui conta piu' che altrove perche' il prompt la tentazione
+# se la nomina da solo — e che la copia di llama sia davvero la stessa
+# domanda di quella di Claude.
+
+
+@pytest.fixture
+def recovery_payload():
+    """Un giorno finto con la mattina della Recovery, e dentro la roba delle
+    altre sezioni: quella di Health e' la tentazione vera, che una readiness
+    bassa con l'HRV si spiega benissimo."""
+    return {
+        "day": "2026-11-19",
+        "sleep_minutes": 489,
+        "morning": {
+            "readiness": measure(88.0, 60.2, 79.3, 50.6, 88.9),
+            "sleep_hours": measure(8.2, 6.9, 8.8, 5.9, 9.8),
+            "body_battery_morning": measure(80.0, 64.1, 96.4, 47.9, 100.0),
+            "body_battery_low_yesterday": measure(14.0, 12.3, 31.9, 2.6, 41.6),
+            # Di Health e di Load: non devono arrivare al modello.
+            "resting_hr": measure(49.0, 47.4, 52.5, 44.8, 55.1),
+            "hrv_last_night": measure(46.0, 38.8, 53.6, 31.4, 61.0),
+            "stress_avg_yesterday": measure(24.0, 20.7, 34.3, 13.9, 41.1),
+        },
+        "fitness": {"vo2max": 52.0},
+        "load": {"now": {"acwr": 0.8}},
+        "recent": {"rest_days_last_7": 2},
+        "alerts": ["short_sleep", "resting_hr_up"],
+        "missing": ["spo2_avg", "body_battery_low_yesterday"],
+    }
+
+
+def test_only_the_four_measures_of_the_card(recovery_payload):
+    """Le quattro della card Recovery, e nessuna delle altre."""
+    facts = ollama.recovery_facts(recovery_payload)
+    assert set(facts["morning"]) == set(ollama.RECOVERY_MEASURES)
+    assert tuple(facts["morning"]) == ollama.RECOVERY_MEASURES
+
+
+def test_health_stays_out_of_recovery(recovery_payload):
+    """**La tentazione che il prompt si nomina da solo**: "non cercarli, nemmeno
+    per spiegare una readiness scarsa, e li' la tentazione e' ovvia". Il modo
+    sicuro di non vederlo fare e' non darglieli."""
+    facts = ollama.recovery_facts(recovery_payload)
+    assert "fitness" not in facts
+    assert "load" not in facts
+    assert "recent" not in facts
+    for stranger in ("resting_hr", "hrv_last_night", "stress_avg_yesterday"):
+        assert stranger not in facts["morning"]
+
+
+def test_only_the_sleep_alert(recovery_payload):
+    """`short_sleep` e' suo e lo dice `03_recovery.md`; `resting_hr_up` e' di
+    Health, e un allarme in mano a chi non lo possiede finisce nel testo."""
+    assert ollama.recovery_facts(recovery_payload)["alerts"] == ["short_sleep"]
+
+
+def test_recovery_missing_keeps_only_its_own(recovery_payload):
+    """`missing` serve — le regole di casa dicono di non commentare una misura
+    che non c'e' — ma solo per le quattro."""
+    assert ollama.recovery_facts(recovery_payload)["missing"] == [
+        "body_battery_low_yesterday"
+    ]
+
+
+def test_the_night_arrives_in_both_spellings(recovery_payload):
+    """La card scrive il sonno in ore e minuti e la fascia e' in ore: sono lo
+    stesso fatto in due lingue, e tutti e due servono — il numero grande e la
+    barra sotto di lui. Quale delle due si scrive lo dice il prompt."""
+    facts = ollama.recovery_facts(recovery_payload)
+    assert facts["sleep_minutes"] == 489
+    assert facts["morning"]["sleep_hours"]["value"] == 8.2
+
+
+def test_recovery_reads_each_measure_against_its_own_band(recovery_payload):
+    """Ogni misura contro la sua fascia, come in Health: la readiness a 88 sta
+    sopra la sua (60.2-79.3), il minimo di ieri a 14 dentro la sua."""
+    facts = ollama.recovery_facts(recovery_payload)
+    assert facts["morning"]["readiness"]["where"] == "above its band"
+    assert facts["morning"]["body_battery_low_yesterday"]["where"] == "inside its band"
+
+
+def test_recovery_ignores_the_week(recovery_payload):
+    """Come il corpo ha dormito stanotte non dipende da che cosa c'era scritto
+    sul foglio: il piano arriva e viene ignorato, come alla Health."""
+    assert ollama.recovery_facts(recovery_payload, WEEK) == ollama.recovery_facts(
+        recovery_payload
+    )
+
+
+def test_the_whole_recovery_stays_in_the_registry():
+    """La sezione intera resta chiedibile anche da quando la pagina mostra
+    quella spezzata: e' il termine di paragone della prima sera — la storia sta
+    in `recovery_facts` — e una strada che si butta prima di aver deciso non si
+    puo' piu' riguardare."""
+    assert not isinstance(ollama.SECTIONS["recovery"], ollama.Split)
+    assert isinstance(ollama.SECTIONS["recovery_split"], ollama.Split)
+
+
+def test_llama_has_its_own_copy_of_the_recovery_prompt():
+    """La copia sta in `.ollama/agents/`: se tornasse a pescare da
+    `.claude/agents/` il prompt di llama tornerebbe a essere quello di Claude,
+    e nessuno se ne accorgerebbe fino a leggere la card."""
+    assert ollama._prompt_file(REPO_ROOT, ollama.RECOVERY.agent).parent.parent.name == (
+        ".ollama"
+    )
+
+
+def test_the_recovery_copy_is_the_same_question_as_claudes():
+    """**Fra le due card cambia chi scrive e nient'altro**, quindi la copia di
+    llama deve restare la stessa domanda: la forma di Claude — il verdetto e
+    poi le quattro misure in una clausola o due — e non i cinque paragrafi a
+    cui le altre due sezioni sono state portate. Quello che va via e' solo
+    cio' che a un modello senza attrezzi non vuol dire niente."""
+    mine = ollama._prompt_file(REPO_ROOT, ollama.RECOVERY.agent).read_text()
+    theirs = (REPO_ROOT / ".claude/agents/03_recovery.md").read_text()
+    for shape in ("Open with the verdict", "each in a clause or two"):
+        assert shape in mine and shape in theirs
+    # L'esempio llama lo ricopia invece di guardare i numeri, ed e' il motivo
+    # per cui le due cartelle sono due.
+    assert "## Example" in theirs
+    assert "## Example" not in mine
+    # Gli attrezzi non ce li ha: i fatti stanno nel messaggio.
+    assert "tools:" not in mine
+    assert "facts file" not in mine
+
+
+def test_the_recovery_facts_are_in_the_message(recovery_payload):
+    """I fatti nel messaggio, che di attrezzi per leggere un file non ce n'e'
+    nessuno — e solo i suoi."""
+    text = ollama._user_prompt(
+        ollama.RECOVERY, date(2026, 11, 19), ollama.recovery_facts(recovery_payload)
+    )
+    assert "Write the Recovery section" in text
+    assert "body_battery_low_yesterday" in text
+    assert "hrv_last_night" not in text
+
+
+# --- La Recovery in cinque pezzi ---
+#
+# La terza spezzata, e quella che somiglia di piu' alla Health: quattro misure
+# della mattina e un quinto che le legge. Si prova il recinto, come per le
+# altre due, e poi le tre cose che di questa sezione sono solo sue — i due
+# body battery che sono due pezzi, la misura senza parte cattiva, e il costo
+# di ieri che entra nel paragrafo di apertura senza entrare nel verdetto.
+
+
+def rec_part(key):
+    return next(p for p in ollama.RECOVERY_PARTS if p.key == key)
+
+
+def rec_owned(piece, payload):
+    return owned(piece, ollama.recovery_facts(payload), ollama.RECOVERY_SPLIT)
+
+
+def rec_opening(payload):
+    """I fatti nel messaggio del quinto della Recovery."""
+    return in_the_message(
+        asked(
+            ollama.RECOVERY_SPLIT.opening,
+            ollama.recovery_facts(payload),
+            ollama.RECOVERY_SPLIT,
+            date(2026, 11, 19),
+        )
+    )
+
+
+def test_the_recovery_pieces_are_the_card_in_order():
+    """Il verdetto e poi le quattro misure nell'ordine della card: il testo
+    finito e' questo ordine, e una card che mostra le misure in un ordine e le
+    racconta in un altro si legge due volte."""
+    assert ollama.RECOVERY_SPLIT.opening.key == "verdict"
+    assert tuple(p.key for p in ollama.RECOVERY_PARTS) == ollama.RECOVERY_MEASURES
+
+
+def test_a_recovery_piece_gets_only_its_own_measure(recovery_payload):
+    """Il recinto dentro al recinto, come per la Health: le altre tre non ci
+    sono, e una cosa che non si ha non si scrive."""
+    facts = rec_owned(rec_part("readiness"), recovery_payload)
+    assert facts["value"] == 88.0
+    assert facts["measure"] == "readiness"
+    for stranger in ("sleep", "body_battery", "hrv", "resting"):
+        assert stranger not in json.dumps(facts)
+
+
+def test_the_two_body_batteries_are_two_pieces(recovery_payload):
+    """**Mezzo motivo per spezzare.** Sono lo stesso numero a due ore diverse,
+    il prompt intero deve chiedere di non confonderli, e la prima sera llama
+    li ha impastati in una frase. Due modelli che l'uno dell'altro non sanno
+    niente non possono farlo."""
+    wake = rec_owned(rec_part("body_battery_morning"), recovery_payload)
+    low = rec_owned(rec_part("body_battery_low_yesterday"), recovery_payload)
+    assert wake["value"] == 80.0
+    assert low["value"] == 14.0
+    assert "14.0" not in json.dumps(wake)
+    assert "80.0" not in json.dumps(low)
+
+
+def test_the_low_of_yesterday_has_no_reading(recovery_payload):
+    """Una giornata che e' costata e' un fatto sull'allenamento e non un
+    difetto del recupero: dargli una direzione vorrebbe dire far contare una
+    seduta dura come una cattiva notizia sul corpo."""
+    low = rec_owned(rec_part("body_battery_low_yesterday"), recovery_payload)
+    assert "reading" not in low
+    assert low["where"] == "inside its band"
+    assert rec_part("body_battery_low_yesterday").bad_when is None
+
+
+def test_the_other_three_are_read_from_below(recovery_payload):
+    """Readiness, notte e batteria al risveglio: la parte cattiva e' in basso
+    per tutte e tre, che e' la riga delle regole di casa."""
+    counted = [p for p in ollama.RECOVERY_PARTS if p.bad_when]
+    assert [p.key for p in counted] == [
+        "readiness",
+        "sleep_hours",
+        "body_battery_morning",
+    ]
+    assert {p.bad_when for p in counted} == {"below"}
+    # La readiness a 88 sta sopra la sua fascia, che per lei e' buona notizia.
+    assert rec_owned(rec_part("readiness"), recovery_payload)["reading"] == (
+        "better than usual"
+    )
+
+
+def test_the_night_piece_gets_the_minutes_of_the_card(recovery_payload):
+    """Il fatto arriva in due scritture e tutte e due servono: i minuti sono
+    il numero grande della card, le ore sono quelle che la fascia confronta."""
+    night = rec_owned(rec_part("sleep_hours"), recovery_payload)
+    assert night["sleep_minutes"] == 489
+    assert night["value"] == 8.2
+
+
+def test_the_night_piece_is_told_which_spelling_to_write(recovery_payload):
+    """Senza questa riga, la prima sera llama ha scritto "almost eight hours"
+    per 8h09: la scrittura sbagliata, e pure dalla parte sbagliata."""
+    text = asked(
+        rec_part("sleep_hours"),
+        ollama.recovery_facts(recovery_payload),
+        ollama.RECOVERY_SPLIT,
+        date(2026, 11, 19),
+    )
+    assert "in hours and minutes" in text
+    assert "never 8.2 hours" in text
+
+
+def test_the_sleep_alert_is_the_night_piece_and_nobody_else(recovery_payload):
+    """`short_sleep` parla della notte: un allarme in mano a chi non lo
+    possiede e' un allarme che finisce nel testo."""
+    assert rec_owned(rec_part("sleep_hours"), recovery_payload)["alert"] == "short_sleep"
+    for other in ("readiness", "body_battery_morning", "body_battery_low_yesterday"):
+        assert rec_owned(rec_part(other), recovery_payload)["alert"] is None
+
+
+def test_each_recovery_piece_has_its_own_prompt():
+    """Ogni misura prende il **suo** file: con un nome sbagliato nel registro
+    due paragrafi racconterebbero la stessa misura, e guardandone uno solo non
+    si vedrebbe."""
+    wake = ollama._system_prompt(REPO_ROOT, *rec_part("body_battery_morning").agent)
+    assert "how far the system refilled overnight" in wake
+    low = ollama._system_prompt(REPO_ROOT, *rec_part("body_battery_low_yesterday").agent)
+    assert "what yesterday cost you" in low
+    assert "refilled overnight" not in low
+
+
+def test_the_recovery_shared_rules_come_after_the_measure():
+    """Dal piu' stretto al piu' largo: la misura, le regole dei quattro
+    paragrafi, le regole di casa."""
+    system = ollama._system_prompt(REPO_ROOT, *rec_part("readiness").agent)
+    assert system.index("Your measure is **readiness**") < system.index(
+        "One measure of the Recovery section"
+    )
+    assert system.index("One measure of the Recovery section") < system.index(
+        "House rules"
+    )
+
+
+def test_the_measure_frame_is_shared_with_health(recovery_payload, payload):
+    """**La cornice e' una.** Scrivi il paragrafo di questa misura della
+    sezione tale, le altre non sono tue, rispondi col solo paragrafo: la
+    stessa domanda per tutte e due le sezioni, e di quale si tratti lo dicono
+    `split.title` e `part.label`. Due copie sarebbero due cose che divergono
+    al primo che ne ritocca una."""
+    mine = asked(
+        rec_part("readiness"),
+        ollama.recovery_facts(recovery_payload),
+        ollama.RECOVERY_SPLIT,
+        date(2026, 11, 19),
+    )
+    theirs = asked(part("resting_hr"), ollama.health_facts(payload))
+    assert "for the Recovery section" in mine
+    assert "for the Health section" in theirs
+    shared = "the other three measures of the section are not yours"
+    assert shared in mine and shared in theirs
+
+
+@pytest.mark.parametrize(
+    "readings, expected",
+    [
+        (["comfortably normal"] * 3, "ready"),
+        (["better than usual", "normal", "normal"], "ready"),
+        (["not measured", "normal", "normal"], "ready"),
+        (["worse than usual", "normal", "normal"], "workable"),
+        (["worse than usual", "worse than usual", "normal"], "workable"),
+        (["much worse than usual", "normal", "normal"], "workable"),
+        (["much worse than usual", "much worse than usual", "normal"], "flat"),
+        (["worse than usual"] * 3, "flat"),
+        (["much worse than usual", "worse than usual", "worse than usual"], "flat"),
+    ],
+)
+def test_the_recovery_verdict_is_decided_here(readings, expected):
+    """Il conto non e' un giudizio, e un modello piccolo lo sbaglia anche con
+    la regola scritta davanti: e' la lezione di `_health_verdict`. Tre gradini
+    e non quattro, che su tre misure il quarto non lo raggiungerebbe
+    nessuno."""
+    assert ollama._recovery_verdict(readings) == expected
+
+
+def test_the_verdict_counts_three_and_not_four(recovery_payload):
+    """Il minimo di ieri non entra nel conto, e si vede dal campo che lo dice:
+    una giornata costata molto non deve poter spostare il verdetto sul
+    corpo."""
+    # Ieri e' costata molto piu' del solito, e la mattina e' buona.
+    recovery_payload["morning"]["body_battery_low_yesterday"] = measure(
+        1.0, 12.3, 31.9, 2.6, 41.6
+    )
+    facts = rec_opening(recovery_payload)
+    assert facts["verdict"] == ollama.RECOVERY_VERDICT_WORDS["ready"]
+    assert facts["what_yesterday_cost"] == (
+        "yesterday took a great deal more out of you than a day usually does"
+    )
+    # E non si fa nominare fra le misure che portano il verdetto.
+    assert "body battery low" not in json.dumps(facts["what_it_rests_on"])
+
+
+@pytest.mark.parametrize(
+    "where, expected",
+    [
+        ("far below its band", "yesterday took a great deal more out of you than a day usually does"),
+        ("below its band", "yesterday took more out of you than a day usually does"),
+        ("inside its band", "yesterday cost you about what a day usually costs"),
+        ("above its band", "yesterday cost you less than a day usually does"),
+        ("far above its band", "yesterday cost you less than a day usually does"),
+        ("unknown", None),
+    ],
+)
+def test_what_yesterday_cost_is_said_in_words(where, expected):
+    """Stessa ragione di `_carrying` per la Load: e' aritmetica detta a parole,
+    non un giudizio. `None` quando la misura non c'e', e la frase non si
+    scrive invece di essere inventata."""
+    assert ollama._cost_of_yesterday(where) == expected
+
+
+def test_the_recovery_verdict_never_sees_a_band(recovery_payload):
+    """Dove sta una misura e' il mestiere dei quattro paragrafi, che gli
+    stanno sotto: dandogliela la ricopiava, ed e' la storia del quinto della
+    Health."""
+    facts = rec_opening(recovery_payload)
+    said = json.dumps(facts)
+    assert "band" not in said
+    assert "88.0" not in said
+    assert "489" not in said
+
+
+def test_a_quiet_recovery_morning_has_no_second_sentence(recovery_payload):
+    """Come per la Health: niente che vada male e niente che vada meglio del
+    solito vuol dire che non c'e' una seconda frase da scrivere, e un campo
+    nullo e' una risposta mentre un campo che manca e' una domanda."""
+    recovery_payload["morning"]["readiness"] = measure(70.0, 60.2, 79.3, 50.6, 88.9)
+    facts = rec_opening(recovery_payload)
+    assert facts["what_it_rests_on"] == {"about": None, "measures": []}
+    assert facts["how_they_read"] == []
+    assert facts["verdict"] == ollama.RECOVERY_VERDICT_WORDS["ready"]
+
+
+def test_the_recovery_split_uses_the_same_fence_as_the_whole():
+    """Lo stesso ritaglio della sezione intera: due ritagli vorrebbero dire
+    due recinti che divergono, e il confronto non direbbe piu' niente."""
+    assert ollama.RECOVERY_SPLIT.facts is ollama.RECOVERY.facts
+
+
+def test_five_paragraphs_whatever_the_model_answers(recovery_payload, monkeypatch):
+    """**La forma non e' piu' una preghiera.** Qualunque cosa rispondano i
+    cinque, il testo e' il verdetto piu' le quattro misure nell'ordine della
+    card. Il prompt intero quella forma la deve chiedere, e la prima sera non
+    e' arrivata: un paragrafo solo, col verdetto contraddetto due righe sotto
+    e i due body battery impastati."""
+
+    def answer(system, user):
+        if user.startswith("Write the opening paragraph"):
+            return "You woke up ready.\n\n## A heading nobody asked for.", "fake"
+        measure_name = next(
+            p.label for p in ollama.RECOVERY_PARTS if f"paragraph about {p.label}" in user
+        )
+        return f"About {measure_name}.\n\nAnd a second paragraph.", "fake"
+
+    monkeypatch.setattr(ollama, "_ask", answer)
+    text, model = ollama._split_text(
+        ollama.RECOVERY_SPLIT, date(2026, 11, 19), recovery_payload, REPO_ROOT
+    )
+    assert model == "fake"
+    assert text.split("\n\n") == [
+        "You woke up ready.",
+        "About readiness. And a second paragraph.",
+        "About last night's sleep. And a second paragraph.",
+        "About body battery at wake-up. And a second paragraph.",
+        "About yesterday's body battery low. And a second paragraph.",
+    ]

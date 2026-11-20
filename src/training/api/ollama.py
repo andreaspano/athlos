@@ -566,6 +566,88 @@ def _week_sessions(week: dict | None, day: date) -> dict | None:
     }
 
 
+# Le quattro misure della card Recovery, nell'ordine in cui la card le mostra.
+# Sono anche le sole che il prompt ha il permesso di giudicare, e qui la
+# tentazione e' nominata nel prompt stesso: una readiness bassa si spiega
+# bene con l'HRV, che e' di Health, e il modo sicuro di non vederlo fare e'
+# non darglielo.
+RECOVERY_MEASURES = (
+    "readiness",
+    "sleep_hours",
+    "body_battery_morning",
+    "body_battery_low_yesterday",
+)
+
+# L'unico allarme che parla di queste quattro. Gli altri tre sono di Health o
+# di nessuno, e `03_recovery.md` dice che questo e' suo.
+RECOVERY_ALERTS = ("short_sleep",)
+
+
+def recovery_facts(payload: dict, week: dict | None = None) -> dict:
+    """La parte della Recovery dei fatti del giorno: le quattro misure con le
+    loro fasce, il suo allarme, e quali misure mancano.
+
+    Stesso ritaglio di `health_facts`, che e' la stessa forma — quattro misure
+    della mattina, ognuna con la sua fascia — con una cosa in piu': **la notte
+    arriva in due scritture**. La card scrive il sonno in ore e minuti
+    (`sleep_minutes`, 489 che fa 8h09) e la fascia e' in ore
+    (`sleep_hours.value`, 8.2): sono lo stesso fatto in due lingue, e tutti e
+    due servono — il numero grande e la barra sotto di lui. Al modello vanno
+    entrambi, come all'agente di Claude, e il prompt dice quale delle due si
+    scrive: quella della card. E' il posto in cui questa sezione puo'
+    sbagliare da sola, e la docstring di `_sits` racconta cosa fa llama con un
+    fatto che ha due scritture.
+
+    Il piano della settimana non le serve e lo ignora, come alla Health: come
+    il corpo ha dormito stanotte non dipende da che cosa c'era scritto sul
+    foglio.
+
+    **La prima sera, e una sorpresa.** Il 19 novembre la readiness stava a 88
+    con la fascia che chiude a 79,3, cioe' sopra. Il frammento dell'agente di
+    Claude, quello che la Day mostra, dice *"readiness sits inside its usual
+    range and near the top of it"*: **la fascia l'ha letta male**, ed e' la
+    sola cosa di quel testo che non torni. llama, con lo stesso prompt, ha
+    scritto *"readiness is above its band"*, che e' giusto — perche' quel
+    confronto gliel'ha fatto `_where` e a lui restava da dirlo. I fatti che
+    l'orchestratore scrive per gli agenti di Claude `where` non ce l'hanno: la
+    fascia la legge da se', ed e' li' che e' scivolato. **Non si tocca niente
+    di la'** — questa pagina non scrive in `summary/` e non e' il suo mestiere
+    — ma e' la cosa che il banco serviva a far vedere, e andava scritta.
+
+    llama di suo ne ha sbagliate tre, e sono le tre che il prompt nomina.
+    Ha aperto con *"the body is not fully rested today"* e due righe sotto ha
+    dato tre buone notizie su quattro, cioe' ha contraddetto il suo stesso
+    verdetto — che e' la riga per cui Health e Load hanno finito per avere
+    `_health_verdict` e `_verdict_word`, e qui quel campo non c'e'. Ha scritto
+    *"almost eight hours"* per 8h09, che e' il fatto in due scritture di cui
+    sopra, e pure dalla parte sbagliata. E ha impastato i due body battery in
+    una frase — *"body battery this morning is also within its band, but only
+    just: it was down to 14.0 yesterday"* — che e' il paragrafo in grassetto
+    di `03_recovery.md` letto e non applicato. Tre righe per tre buchi:
+    **sono i tre che, nelle altre due sezioni, hanno portato a spezzare.**
+
+    **E hanno portato a spezzare anche questa**, il giro dopo: la card di
+    destra adesso e' `recovery_split`, e quei tre buchi sono diventati tre cose
+    che non possono succedere — il verdetto lo conta `_recovery_verdict`, la
+    scrittura della notte la dice `SLEEP_READS`, e i due body battery sono due
+    modelli che l'uno dell'altro non sanno niente. La sezione intera resta nel
+    registro: e' il termine di paragone, ed e' chiedibile a mano."""
+    morning = payload.get("morning", {})
+    alerts = [a for a in payload.get("alerts", []) if _alert_key(a) in RECOVERY_ALERTS]
+    missing = [m for m in payload.get("missing", []) if m in RECOVERY_MEASURES]
+    return {
+        "day": payload.get("day"),
+        "morning": {
+            k: {**morning[k], "where": _where(morning[k])}
+            for k in RECOVERY_MEASURES
+            if k in morning
+        },
+        "sleep_minutes": payload.get("sleep_minutes"),
+        "alerts": alerts,
+        "missing": missing,
+    }
+
+
 def _alert_key(alert: object) -> str:
     """Il nome di un allarme, che nei fatti e' una stringa o un oggetto con
     dentro la chiave."""
@@ -578,6 +660,9 @@ def _alert_key(alert: object) -> str:
 
 HEALTH = Section(key="health", title="Health", agent="01_health.md", facts=health_facts)
 LOAD = Section(key="load", title="Load", agent="02_load.md", facts=load_facts)
+RECOVERY = Section(
+    key="recovery", title="Recovery", agent="03_recovery.md", facts=recovery_facts
+)
 
 
 def _user_prompt(section: Section, day: date, facts: dict) -> str:
@@ -639,7 +724,22 @@ def _measure_facts(split: "Split", part: Part, facts: dict) -> dict:
 
     `missing` e' vero anche quando la misura dai fatti manca del tutto: per
     chi scrive sono la stessa cosa — stanotte non e' stata registrata — e la
-    riga da scrivere e' una sola."""
+    riga da scrivere e' una sola.
+
+    **Lo usa anche la Recovery**, che e' la stessa forma: quattro misure della
+    mattina, una per paragrafo, ognuna con la sua fascia. Il testo che ne esce
+    e' lo stesso perche' di Health non c'e' niente dentro — il titolo lo da'
+    `split.title` e il nome della misura `part.label` — e un secondo ritaglio
+    identico sarebbero due recinti che divergono da soli.
+
+    **E `reading` c'e' solo se la misura ha una parte cattiva.** Le quattro
+    della Health ce l'hanno tutte; il minimo del body battery di ieri no, e
+    per la stessa ragione dei tre carichi della Load: piu' giu' del solito
+    vuol dire che ieri e' costata, che e' un fatto sull'allenamento e non un
+    difetto del recupero (`03_recovery.md` lo dice in grassetto). Dargli una
+    direzione vorrebbe dire far contare una giornata dura come una cattiva
+    notizia sul corpo. Senza `bad_when` il campo non c'e', e il prompt di quel
+    pezzo non lo nomina."""
     measure = facts.get("morning", {}).get(part.key) or {}
     alert = next((a for a in facts.get("alerts", []) if _alert_key(a) == part.alert), None)
     where = measure.get("where", "unknown")
@@ -649,7 +749,11 @@ def _measure_facts(split: "Split", part: Part, facts: dict) -> dict:
         "value": measure.get("value"),
         "band": measure.get("band"),
         "where": where,
-        "reading": _reading(where, part.bad_when, _sits(measure)),
+        **(
+            {"reading": _reading(where, part.bad_when, _sits(measure))}
+            if part.bad_when
+            else {}
+        ),
         "alert": alert,
         "missing": not measure or part.key in facts.get("missing", []),
     }
@@ -660,19 +764,163 @@ def _measure_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
 
     La riga sull'esempio, che c'e' in `_user_prompt`, qui non serve: nei file
     delle misure di esempi non ce n'e' nessuno, ed era quello il motivo per
-    cui serviva."""
+    cui serviva.
+
+    **La cornice sta in `_one_measure_prompt`**, che la Recovery usa con le
+    sue righe: di questa funzione resta la riga che dice come si leggono i
+    campi, perche' e' la sola cosa che fra una misura e l'altra cambia."""
+    return _one_measure_prompt(split, part, day, facts, MEASURE_READS)
+
+
+# Le righe che dicono a un paragrafo come si leggono i campi che ha in mano.
+# **Sono la sola cosa che cambia fra il messaggio di una misura e quello di
+# un'altra**, e stanno fuori dalla cornice per questo: la cornice — scrivi il
+# paragrafo di questa misura della sezione tale, le altre non sono tue,
+# rispondi col solo paragrafo — e' la stessa per tutte, e tenerla in un posto
+# solo vuol dire che non puo' divergere fra una sezione e l'altra mentre si
+# aggiusta una riga.
+#
+# Vanno **in fondo al messaggio**, che e' il posto in cui questo file ha
+# imparato che le regole attaccano: la storia e' nella docstring di
+# `_user_prompt`, e in quella di `_load_part_facts` c'e' la volta in cui la
+# stessa regola scritta nel file del pezzo e' stata letta e non applicata.
+MEASURE_READS = (
+    "`where` says where the value falls against its own band, and `reading` says "
+    "what that means for this measure — down to whereabouts inside the band a "
+    "normal value sits: say what you make of them, and never contradict them. "
+)
+
+# **La persona, e il consiglio.** Le due righe che i quattro paragrafi della
+# Recovery si dividono, e che quelli della Health non hanno: la prima sera in
+# cinque pezzi, il paragrafo della readiness ha scritto *"my body came back
+# further than usual"* e quello del minimo di ieri *"yesterday cost him"* —
+# prima e terza persona sulla stessa card, con le regole di casa che dicono la
+# seconda e `_measure.md` che vieta la prima. E quello della batteria ha
+# chiuso con *"this is good news for today's training session"*, che e' un
+# consiglio.
+#
+# Alla Health non succede con le stesse regole, e non e' un mistero: la
+# readiness e il sonno sono cose che uno *ha*, e in bocca vengono *mie*; una
+# frequenza a riposo no. Quindi la riga sta qui e non in `MEASURE_READS`, che
+# e' condivisa — alla Health un prompt non si cambia per un guaio che non ha.
+#
+# **E la riga parla a lui, non di lui.** Il giro dopo il paragrafo del minimo
+# di ieri chiudeva ancora con "taking neither more nor less out of him than
+# usual", con la coda che gli vietava *he* due righe sotto: `COST_READS`
+# spiegava i tre casi della fascia dicendo *"yesterday took more out of him"*,
+# e lui ha ricopiato la mia frase invece di seguire la mia regola. Le righe che
+# spiegano un campo sono anche un esempio di come si scrive, che si voglia o
+# no, e quindi si scrivono nella persona giusta.
+#
+# **E la riga non nomina nessuna misura**, che e' la lezione piu' vecchia di
+# questo file imparata un'altra volta. La prima versione diceva "scrivigli
+# *your readiness*, *you slept*", due esempi per far sentire la persona, e il
+# giro dopo il paragrafo del sonno ha aperto con *"your readiness was
+# comfortably normal last night"* e quello della readiness ha infilato *"you
+# slept well enough"*: **i due esempi sono finiti nei due paragrafi
+# sbagliati**, ognuno nell'altro. E' la ragione per cui `## Example` non sta
+# nella copia di llama di `01_health.md`, e un esempio di tre parole non e'
+# piu' innocente di uno di sei righe: se nomina una misura, quella misura
+# ricompare. La persona si chiede senza dare un esempio.
+RECOVERY_TAIL = (
+    "Write it to him as **you**, and never as *I*, *we* or *he*: it is his body and "
+    "his night. And say nothing about what he should train today: that is nobody's "
+    "business on this card. "
+)
+
+# Le quattro misure della Recovery: come si legge una misura, piu' le due
+# righe di sopra.
+RECOVERY_READS = MEASURE_READS + RECOVERY_TAIL
+
+# Il sonno: lo stesso, piu' la scrittura da usare. Il fatto arriva in due
+# lingue — i minuti della card e le ore della fascia (`recovery_facts`) — e
+# questa riga dice quale delle due si scrive. Senza, la prima sera llama ha
+# scritto "almost eight hours" per 8h09: la scrittura sbagliata, e pure dalla
+# parte sbagliata.
+SLEEP_READS = (
+    "`where` says where the night falls against its own band, and `reading` says what "
+    "that means: say what you make of them, and never contradict them. **Write the "
+    "night the way `sleep_minutes` reads on the card**, in hours and minutes — eight "
+    "hours nine, never 8.2 hours: the hours in `value` are there to be read against "
+    "the band, not quoted. "
+) + RECOVERY_TAIL
+
+# Il minimo del body battery di ieri, la misura senza parte cattiva: `reading`
+# non ce l'ha, e questa riga non lo nomina — un campo che manca e' una domanda,
+# e a una domanda il modello risponde da se'.
+#
+# **E dice tutti e tre i casi della fascia, non solo quello cattivo.** La prima
+# sera gliene avevo descritto uno — sotto la fascia e' una giornata che e'
+# costata — e con un valore *dentro* la fascia ha scritto comunque "yesterday
+# cost him a deep low, the day took more out of him than usual", che e' il caso
+# che gli era stato spiegato applicato al caso che non era. Un campo con un
+# caso solo descritto e' un campo che ha un caso solo.
+COST_READS = (
+    "`where` says where yesterday's low falls against its own band, and it is the "
+    "truth. **Below its band** is a low that went deeper than usual: yesterday took "
+    "more out of you than a day usually does. **Inside its band** is a day that cost "
+    "about what a day costs, and that is the whole of what to say about it — never a "
+    "deep low, never a day that took a lot. **Above its band** is a day that cost "
+    "less than usual. Whichever it is, **that is a fact about the training and not a "
+    "fault in the recovery** — there is no good or bad side to this one — so say what "
+    "the day cost and stop there. Whether the morning came back anyway is the opening "
+    "paragraph's to say, and not yours. "
+) + RECOVERY_TAIL
+
+
+def _one_measure_prompt(
+    split: "Split", part: Part, day: date, facts: dict, reads: str
+) -> str:
+    """La cornice del messaggio di un paragrafo che parla di una misura della
+    mattina: la stessa per la Health e per la Recovery, che e' la stessa
+    domanda — una misura, la sua fascia, il suo paragrafo.
+
+    Di quale sezione si tratti lo dice `split.title` e di quale misura
+    `part.label`: dentro non c'e' il nome ne' dell'una ne' dell'altra, ed e'
+    il motivo per cui la cornice e' una sola."""
     return (
         f"Write the paragraph about {part.label} for the {split.title} section of the daily "
         f"report for {day:%A %-d %B %Y}. "
         "The facts are here, below, and they are all there is: the other three measures "
         "of the section are not yours and are not in them.\n\n"
         f"{json.dumps(facts, indent=2, default=str)}\n\n"
-        "`where` says where the value falls against its own band, and `reading` says "
-        "what that means for this measure — down to whereabouts inside the band a "
-        "normal value sits: say what you make of them, and never contradict them. "
+        f"{reads}"
         "Answer with the one paragraph and nothing else: no heading, "
         "no preamble, no sign-off, no quotes around it."
     )
+
+
+def _sleep_facts(split: "Split", part: Part, facts: dict) -> dict:
+    """La notte: la sua misura, piu' **i minuti che la card mostra**.
+
+    E' il solo dei quattro pezzi che prende un campo in piu' dai fatti della
+    sezione, e la ragione sta in `recovery_facts`: il sonno e' lo stesso fatto
+    scritto in due lingue, 489 minuti e 8,2 ore, e tutte e due servono — una
+    e' il numero grande della card, l'altra e' quella che la fascia confronta.
+    Darne una sola vorrebbe dire o un paragrafo che scrive una scrittura che
+    sulla card non c'e', o un paragrafo che non puo' leggere la sua fascia."""
+    return {
+        **_measure_facts(split, part, facts),
+        "sleep_minutes": facts.get("sleep_minutes"),
+    }
+
+
+def _sleep_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio della notte: la cornice delle misure, con la riga che dice
+    in che scrittura si scrive."""
+    return _one_measure_prompt(split, part, day, facts, SLEEP_READS)
+
+
+def _recovery_measure_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio di una misura della Recovery: la cornice delle misure, con
+    la riga delle misure e quelle della persona e del consiglio."""
+    return _one_measure_prompt(split, part, day, facts, RECOVERY_READS)
+
+
+def _cost_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio del minimo di ieri: la cornice delle misure, con la riga
+    di una misura che non ha una parte cattiva."""
+    return _one_measure_prompt(split, part, day, facts, COST_READS)
 
 
 # Da che parte della fascia sta la cattiva notizia, detta come la dice
@@ -867,6 +1115,49 @@ def _rests_on(bad: "list[str]", good: "list[str]") -> dict:
     return {"about": None, "measures": []}
 
 
+def _readings_of(split: "Split", facts: dict) -> "list[dict]":
+    """Come si legge ognuna delle misure **che portano il verdetto**: il nome
+    con cui si chiama parlando e la notizia che e'.
+
+    Lo chiamano i paragrafi di apertura della Health e della Recovery, che la
+    stessa domanda se la fanno: che cosa vogliono dire tutte insieme. Il
+    posto, il valore e la fascia qui non passano — sono il mestiere dei
+    paragrafi sotto — e la ragione sta in `_health_opening_facts`, dove la
+    storia di come ci si e' arrivati e' scritta per intero.
+
+    **`bad_when` e' il filtro**, e non e' un dettaglio: una misura senza parte
+    cattiva non e' una misura che va male o che va bene, quindi in un conto
+    non entra. Alla Health non toglie niente, che le sue quattro ce l'hanno
+    tutte; alla Recovery toglie il minimo del body battery di ieri, che e'
+    esattamente quello che `03_recovery.md` chiede — una giornata che e'
+    costata e' un fatto sull'allenamento, e non deve poter spostare il
+    verdetto sul corpo."""
+    morning = facts.get("morning", {})
+    return [
+        {
+            "measure": part.label,
+            "reading": _reading(
+                (morning.get(part.key) or {}).get("where", "unknown"), part.bad_when
+            ),
+        }
+        for part in split.parts
+        if part.bad_when
+    ]
+
+
+def _carried_by(seen: "list[dict]") -> "tuple[list[str], list[str]]":
+    """Quali misure portano il verdetto e quali danno una buona notizia, **le
+    peggiori per prime**.
+
+    L'ordine e' quello con cui `_rests_on` le nomina, e per questo si conta
+    qui una volta per tutte e due le sezioni: due copie di queste quattro
+    righe sarebbero due ordini che divergono al primo che le ritocca."""
+    named = lambda reading: [m["measure"] for m in seen if m["reading"] == reading]
+    bad = named("much worse than usual") + named("worse than usual")
+    good = named("much better than usual") + named("better than usual")
+    return bad, good
+
+
 def _health_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     """Quello che tocca al quinto: **i quattro `reading`, e non i quattro
     paragrafi.**
@@ -919,20 +1210,8 @@ def _health_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
     stesso conto. E' la lezione di `_week_sessions`, un'altra
     volta: contare non e' giudicare, e chi sa contare conti. Quanto pesino
     due misure su quattro resta a lui, e la frase pure."""
-    morning = facts.get("morning", {})
-    seen = [
-        {
-            "measure": measure.label,
-            "where": (morning.get(measure.key) or {}).get("where", "unknown"),
-            "reading": _reading(
-                (morning.get(measure.key) or {}).get("where", "unknown"), measure.bad_when
-            ),
-        }
-        for measure in split.parts
-    ]
-    named = lambda reading: [m["measure"] for m in seen if m["reading"] == reading]
-    rests_on = named("much worse than usual") + named("worse than usual")
-    good_news = named("much better than usual") + named("better than usual")
+    seen = _readings_of(split, facts)
+    rests_on, good_news = _carried_by(seen)
     # **Gli arrivano solo le misure di cui parlera', e di quelle solo come si
     # leggono.** Non il valore e non la fascia — dove sta una misura e' il
     # mestiere dei quattro paragrafi, che gli stanno sotto e che il lettore
@@ -1237,6 +1516,147 @@ def _week_asks_prompt(split: "Split", part: Part, day: date, facts: dict) -> str
     )
 
 
+# **La Recovery spezzata.** La terza, ed e' quella che somiglia di piu' alla
+# Health: quattro misure della mattina, una per paragrafo, e un quinto che
+# legge come si leggono e dice quanto il corpo era pronto. Per questo i suoi
+# pezzi riusano la cornice delle misure (`_one_measure_prompt`) e il conto
+# delle letture (`_readings_of`): la domanda e' la stessa, e due copie
+# sarebbero due cose che divergono.
+#
+# **Perche' spezzarla.** La prima sera, con il prompt intero, llama ha
+# sbagliato tre cose e sono le tre che hanno portato a spezzare le altre due:
+# ha aperto con un verdetto che due righe sotto contraddiceva da se', ha
+# scritto la notte nella scrittura sbagliata, e ha impastato i due body
+# battery in una frase — che e' il paragrafo in grassetto di `03_recovery.md`
+# letto e non applicato. La storia per intero sta in `recovery_facts`. Qui il
+# verdetto lo conta Python, la scrittura la dice la riga del pezzo
+# (`SLEEP_READS`), e i due body battery sono due modelli che l'uno dell'altro
+# non sanno niente: le tre righe diventano tre cose che non possono piu'
+# succedere.
+
+# Come si legge il verdetto della Recovery. **Sono le tre frasi che
+# `03_recovery.md` da' come esempi di prendere posizione**, e per la ragione
+# di `VERDICT_WORDS`: un valore che in inglese sta in piedi da solo non ha
+# bisogno di essere vietato, e ricopiato di peso resta una frase e non
+# l'etichetta di un campo.
+RECOVERY_VERDICT_WORDS = {
+    "ready": "you woke up ready",
+    "workable": "good enough to work, not to race",
+    "flat": "the body is not rested",
+}
+
+
+def _recovery_verdict(readings: "list[str]") -> str:
+    """Quanto il corpo era pronto, da quante delle **tre** misure che portano
+    il verdetto vanno male.
+
+    Stessa divisione del lavoro di `_health_verdict`, e stessa ragione: il
+    conto non e' un giudizio, e un modello piccolo lo sbaglia anche con la
+    regola scritta davanti. Quanto pesi una misura su tre resta al quinto, e
+    la frase pure.
+
+    **Tre gradini e non quattro.** La Health ne ha quattro perche' ha quattro
+    misure da contare; qui sono tre — la readiness, la notte e il body battery
+    al risveglio — e il minimo di ieri non entra (`_readings_of` dice
+    perche'). Su tre, una scala a quattro gradini avrebbe un gradino che
+    nessuna combinazione raggiunge, e un gradino che non si puo' toccare e'
+    una riga che non si puo' provare."""
+    much = readings.count("much worse than usual")
+    worse = readings.count("worse than usual")
+    if not much and not worse:
+        return "ready"
+    if much >= 2 or much + worse == 3:
+        return "flat"
+    return "workable"
+
+
+def _cost_of_yesterday(where: str) -> str | None:
+    """Quanto e' costata la giornata di ieri, in parole, dal posto del minimo
+    del body battery nella sua fascia.
+
+    Stessa ragione di `_carrying` per la Load: e' aritmetica detta a parole, e
+    **non e' il verdetto**. Un minimo piu' basso del solito vuol dire che ieri
+    ha chiesto molto, che in una settimana di qualita' e' il piano che
+    funziona: percio' questa frase arriva al quinto come contesto e non come
+    un termine del conto, e il suo prompt ha una riga che glielo dice.
+
+    `None` quando la misura non c'e': la frase non si scrive, e il paragrafo
+    di apertura ne ha una in meno invece di inventarsela."""
+    if where == "unknown":
+        return None
+    if where.startswith("far below"):
+        return "yesterday took a great deal more out of you than a day usually does"
+    if where.startswith("below"):
+        return "yesterday took more out of you than a day usually does"
+    if "above" in where:
+        return "yesterday cost you less than a day usually does"
+    return "yesterday cost you about what a day usually costs"
+
+
+def _recovery_opening_facts(split: "Split", part: Part, facts: dict) -> dict:
+    """Quello che tocca al quinto della Recovery: **come si leggono le tre che
+    contano, e quanto e' costata ieri.**
+
+    Le prime due cose sono quelle del quinto della Health, contate dagli
+    stessi attrezzi e per le stesse ragioni, che in
+    `_health_opening_facts` sono scritte per intero: il verdetto gia' deciso,
+    le sole misure che puo' nominare, e come si leggono quelle — non i valori
+    e non le fasce, che sono il mestiere dei quattro paragrafi sotto.
+
+    **La terza cosa e' sua.** Il minimo del body battery di ieri nel verdetto
+    non entra, ma nel paragrafo di apertura ci deve entrare: la frase che
+    `03_recovery.md` chiede e' proprio quella — *la giornata ti ha svuotato
+    piu' del solito, e la mattina e' tornata su comunque* — e senza il costo
+    di ieri in mano quella frase non si puo' scrivere. Arriva per quello che
+    e': una cosa da dire, non un termine del conto. La riga che glielo dice
+    sta nel messaggio."""
+    seen = _readings_of(split, facts)
+    rests_on, good_news = _carried_by(seen)
+    speaks_of = rests_on + good_news
+    # Il pezzo senza parte cattiva e' il minimo di ieri, e di lui al quinto
+    # arriva il costo della giornata e non il posto nella fascia: dove sta un
+    # valore e' del paragrafo che lo possiede, due centimetri piu' sotto.
+    cost = next((p for p in split.parts if not p.bad_when), None)
+    low = facts.get("morning", {}).get(cost.key, {}) if cost else {}
+    return {
+        "verdict": RECOVERY_VERDICT_WORDS[_recovery_verdict([m["reading"] for m in seen])],
+        "what_it_rests_on": _rests_on(rests_on, good_news),
+        "how_they_read": [
+            {"measure": m["measure"], "reading": m["reading"]}
+            for m in seen
+            if m["measure"] in speaks_of
+        ],
+        "what_yesterday_cost": _cost_of_yesterday(low.get("where", "unknown")),
+    }
+
+
+def _recovery_opening_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio del quinto della Recovery. Il recinto e il perche' stanno
+    in `_recovery_opening_facts`; qui c'e' in piu' la riga sul costo di ieri,
+    che e' la sola cosa che questo paragrafo ha e quello della Health no."""
+    return (
+        f"Write the opening paragraph of the {split.title} section of the daily report "
+        f"for {day:%A %-d %B %Y}. "
+        "It goes at the top of the section, above four paragraphs that are already "
+        "written, one for each measure, and it says how ready the body was this "
+        "morning.\n\n"
+        f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        "`verdict` is the verdict and you do not reopen it. `what_it_rests_on` says "
+        "what the second sentence is about and names the only measures you may name "
+        "anywhere in the paragraph — when its `about` is null the morning rests on "
+        "nothing, and there is no second sentence to write and no measure to name; "
+        "`how_they_read` is how each of those measures reads, so that your paragraph "
+        "does not contradict the section it opens. `what_yesterday_cost` is what the "
+        "day before took out of him: **it is not part of the verdict and it never "
+        "softens it** — a day that cost a lot is a fact about the training, and what "
+        "matters is whether the morning came back anyway. Say it in the paragraph, as "
+        "the one thing it is worth knowing alongside the verdict, and never as the "
+        "reason for it. "
+        "Answer with the paragraph and nothing else: no number in it, no band in it, "
+        "no heading, no list, no quotes around it."
+    )
+
+
 # Le quattro misure della Health una per una, nell'ordine in cui la sezione
 # le legge — lo stesso di `HEALTH_MEASURES`, che e' quello della card. Qui
 # ognuna porta in piu' le cose che la distinguono dalle altre: come si chiama
@@ -1314,6 +1734,74 @@ HEALTH_SPLIT = Split(
     parts=HEALTH_PARTS,
 )
 
+# I sei file della Recovery spezzata, nella loro cartella come quelli delle
+# altre due: il quinto, le quattro misure, e `_measure.md` che quelle quattro
+# si dividono.
+RECOVERY_SPLIT_DIR = "03_recovery_split"
+
+
+def _recovery_measure(key: str, label: str, **extra) -> Part:
+    """Una delle quattro misure della Recovery. Il file si chiama come la
+    chiave e le regole condivise vengono dopo, dal piu' stretto al piu' largo;
+    il ritaglio e la domanda sono quelli delle misure della Health, che e' la
+    stessa domanda, e chi ne vuole di suoi li passa in `extra`."""
+    return Part(
+        key=key,
+        label=label,
+        agent=(f"{RECOVERY_SPLIT_DIR}/{key}.md", f"{RECOVERY_SPLIT_DIR}/_measure.md"),
+        **{"cut": _measure_facts, "asks": _recovery_measure_prompt, **extra},
+    )
+
+
+# Le quattro misure della Recovery una per una, nell'ordine in cui la card le
+# mostra — lo stesso di `RECOVERY_MEASURES`.
+#
+# **Tre hanno la parte cattiva in basso e la quarta non ce l'ha.** Readiness,
+# notte e body battery al risveglio sono *below* tutte e tre, che e' la riga
+# delle regole di casa: poco riposo, poco sonno, poca batteria. Il minimo di
+# ieri no, e non e' una dimenticanza — `_readings_of` e `_measure_facts`
+# dicono perche', ed e' la riga in grassetto di `03_recovery.md`: un minimo
+# piu' basso del solito e' quanto e' costata la giornata, non un difetto del
+# recupero.
+#
+# **E i due body battery sono due pezzi, che e' mezzo motivo per spezzare.**
+# Sono lo stesso numero a due ore diverse e il prompt intero deve chiedere di
+# non confonderli; la prima sera llama li ha impastati in una frase. Due
+# modelli che l'uno dell'altro non sanno niente non possono farlo.
+RECOVERY_PARTS = (
+    _recovery_measure("readiness", "readiness", bad_when="below"),
+    _recovery_measure(
+        "sleep_hours",
+        "last night's sleep",
+        bad_when="below",
+        cut=_sleep_facts,
+        asks=_sleep_prompt,
+        alert="short_sleep",
+    ),
+    _recovery_measure(
+        "body_battery_morning", "body battery at wake-up", bad_when="below"
+    ),
+    # Senza `bad_when`: `_measure_facts` non gli mette `reading`, e il suo
+    # messaggio non lo nomina.
+    _recovery_measure(
+        "body_battery_low_yesterday", "yesterday's body battery low", asks=_cost_prompt
+    ),
+)
+
+RECOVERY_SPLIT = Split(
+    key="recovery_split",
+    title="Recovery",
+    facts=recovery_facts,
+    opening=Part(
+        key="verdict",
+        label="the opening",
+        agent=(f"{RECOVERY_SPLIT_DIR}/_verdict.md",),
+        cut=_recovery_opening_facts,
+        asks=_recovery_opening_prompt,
+    ),
+    parts=RECOVERY_PARTS,
+)
+
 # I sette file della Load spezzata, nella loro cartella come quelli della
 # Health: il verdetto, i tre carichi, `_part.md` che quei tre si dividono, il
 # rapporto e la settimana.
@@ -1381,17 +1869,24 @@ LOAD_SPLIT = Split(
 )
 
 SECTIONS: "dict[str, Section | Split]" = {
-    section.key: section for section in (HEALTH, LOAD, HEALTH_SPLIT, LOAD_SPLIT)
+    section.key: section
+    for section in (HEALTH, LOAD, RECOVERY, HEALTH_SPLIT, LOAD_SPLIT, RECOVERY_SPLIT)
 }
-"""Le sezioni che la pagina Test sa chiedere. Le altre cinque del giorno non
+"""Le sezioni che la pagina Test sa chiedere. Le altre quattro del giorno non
 ci sono: si aggiungono quando servono, una alla volta, che ognuna vuole il
 suo ritaglio dei fatti e la sua prova.
 
-Sono **due sezioni chieste in due modi ciascuna**, e tutte e quattro nel
-registro apposta: la pagina mette ogni sezione accanto a se' stessa, sullo
-stesso giorno e sugli stessi numeri, ed e' il confronto a dover decidere
-quale delle due strade resta. Quando lo decide, quella che ha perso va via
-allora e non adesso."""
+**Non tutte sono li' per la stessa domanda**, e la pagina le accoppia di
+conseguenza. `health` e `load` stanno accanto a `health_split` e `load_split`:
+la stessa sezione chiesta allo stesso modello in due modi — un prompt, o un
+prompt per paragrafo — e il confronto decide quale delle due strade resta.
+
+`recovery` sta accanto a **quello che Claude ha scritto davvero**, letto dal
+frammento della Day. E' la domanda di prima di quell'altra, e per una sezione
+nuova e' quella che conta: non *come* chiederlo al modello di casa, ma se il
+modello di casa questa sezione la sappia scrivere. Finche' la risposta non e'
+si', spezzarla non vuol dire niente — ed e' per questo che un `recovery_split`
+qui non c'e'."""
 
 
 def _one_paragraph(text: str) -> str:
