@@ -2472,6 +2472,674 @@ FITNESS_SPLIT = Split(
 )
 
 
+# ===========================================================================
+# **La settimana spezzata** (todo 101)
+# ===========================================================================
+#
+# Le quattro card del corpo della Week negli stessi pezzi di quelle del
+# giorno: un paragrafo per misura, uno in cima, e la cucitura di
+# `_split_text` che di che sezione abbia in mano non guarda niente.
+#
+# **Quello che si riusa e' quasi tutto.** `Part`, `Split`, `_split_text`,
+# `_where`, `_sits`, `_reading`, `_measure_facts` e l'apertura generica di
+# `_health_opening_facts` non sanno niente ne' di giorno ne' di settimana:
+# leggono `split.measures_in` e i `bad_when` dei pezzi. La Fitness riusa
+# perfino il ritaglio intero, che il blocco `fitness` dei fatti della
+# settimana ha la stessa forma di quello del giorno, campo per campo.
+#
+# **Quello che cambia sta in tre punti**, e sono i tre che i file dei prompt
+# devono dire a parole — per questo sono scritti e non tradotti:
+#
+# - un valore e' la **media dei sette giorni**, non la lettura di una
+#   mattina;
+# - una fascia e' di **dodici settimane**, non di ventotto giorni, e `weeks`
+#   dice quante erano misurate;
+# - la settimana non ha ne' `alerts` ne' `missing` come li ha il giorno: ha
+#   `coverage`, che dice **quante mattine stanno sotto ogni media**, e una
+#   media sottile va detta sottile invece di spacciarla per una settimana.
+
+# I tre tempi per zona, nell'ordine della card. Sono la risposta settimanale
+# alla composizione del carico (todo 54, secondo tempo): i tre carichi del
+# giorno — `load_aerobic_low` e compagni — sono finestre di **ventotto
+# giorni**, e nella settimana non entrano per richiesta del 23 ottobre 2026.
+# I giorni di una settimana. Serve a decidere se una media e' sottile: sette
+# su sette non lo e', e un campo che dice "sette" lo faceva scrivere.
+WEEK_DAYS = 7
+
+WEEK_ZONES = ("low_aerobic", "high_aerobic", "anaerobic")
+
+
+def _week_ends(facts: dict) -> str:
+    """La settimana come la nomina chi scrive: i suoi due estremi.
+
+    `sections.Report.period` fa la stessa cosa per il prompt dell'agente di
+    Claude, e non si importa da la': `ollama` lo carica anche il CLI del
+    backfill, e tirarsi dietro il registro delle sezioni per una riga di
+    testo no."""
+    week = facts.get("week") or {}
+    start, end = week.get("start"), week.get("end")
+    if not start or not end:
+        return "the week"
+    first, last = date.fromisoformat(start), date.fromisoformat(end)
+    return f"the week from Monday {first:%-d %B} to Sunday {last:%-d %B %Y}"
+
+
+def _week_span(payload: dict) -> dict:
+    """I due estremi della settimana, piu' `partial` se e' in corso.
+
+    Compatto di proposito: nei fatti la settimana ha anche `last_day`, che su
+    una settimana finita ripete `end`. Ogni campo in piu' nel JSON di un
+    modello da otto miliardi e' una cosa in piu' che puo' ricopiare, e questo
+    non gli serviva."""
+    week = payload.get("week") or {}
+    span = {"start": week.get("start"), "end": week.get("end")}
+    if week.get("partial"):
+        span["partial"] = True
+        span["last_day"] = week.get("last_day")
+    return span
+
+
+def _week_measures(payload: dict, card: str) -> dict:
+    """Le misure della settimana di una card, con `where` attaccato.
+
+    Il recinto si **ricava da `card`** invece di elencare le chiavi: la lista
+    esiste gia' in `weekly_data.WEEK_MEASURES`, che e' anche quella che
+    disegna le barre della pagina, e una seconda copia qui sarebbero due
+    recinti da tenere d'accordo a mano. E' la lezione di `RECOVERY_MEASURES`
+    del giorno, che quella lista ce l'ha."""
+    measures = payload.get("measures") or {}
+    return {
+        key: {**measure, "where": _where(measure)}
+        for key, measure in measures.items()
+        if measure.get("card") == card
+    }
+
+
+def _week_body_facts(payload: dict, card: str) -> dict:
+    """I fatti di una delle due sezioni della settimana che sono fatte di
+    medie: Health e Recovery. Le altre due hanno il loro, che i loro numeri
+    non stanno sotto `measures`.
+
+    `missing` resta col nome del giorno perche' `_measure_facts` lo legge con
+    quel nome e `_style.md` ci conta: una misura elencata li' non si commenta
+    come se ci fosse. `alerts` e' vuota e non assente, per la stessa ragione —
+    e la settimana di allarmi non ne ha.
+
+    `days` e' `coverage`, cioe' quante delle sette mattine stanno sotto ogni
+    media. Non ce l'hanno tutte: `coverage` conta le metriche che Garmin non
+    calcola senza orologio al polso, e per le altre il campo semplicemente
+    non c'e' — un buco e' una domanda, e a una domanda il modello risponde da
+    se'."""
+    measures = _week_measures(payload, card)
+    coverage = payload.get("coverage") or {}
+    return {
+        "week": _week_span(payload),
+        "measures": measures,
+        "days": {key: coverage[key] for key in measures if key in coverage},
+        "health_days": payload.get("health_days"),
+        "alerts": [],
+        "missing": [key for key, m in measures.items() if m.get("value") is None],
+    }
+
+
+def week_health_facts(payload: dict, week: dict | None = None) -> dict:
+    """La parte della Health dei fatti della settimana: le quattro medie con
+    le loro fasce di dodici settimane.
+
+    Il piano della settimana non le serve e lo ignora, come nel giorno: se il
+    corpo ha tenuto per sette giorni non dipende da che cosa c'era scritto sul
+    foglio."""
+    return _week_body_facts(payload, "health")
+
+
+def week_recovery_facts(payload: dict, week: dict | None = None) -> dict:
+    """La parte della Recovery dei fatti della settimana: le quattro medie del
+    recupero.
+
+    **La batteria al risveglio e' `body_battery_wake`** e non il massimo del
+    giorno: dal todo 100 la colonna giusta e' quella, e la riga della Week che
+    la nomina «Body battery, wake-up» adesso la legge davvero."""
+    return _week_body_facts(payload, "recovery")
+
+
+def week_load_facts(payload: dict, week: dict | None = None) -> dict:
+    """La parte della Load dei fatti della settimana: **i tre tempi per zona**,
+    il carico acuto contro la sua fascia, e le due frasi di Garmin.
+
+    I tempi arrivano normalizzati come i punteggi della Fitness: nei fatti si
+    chiamano `minutes` e `_where` legge `value`, quindi si rinomina qui e
+    tutta la macchina delle misure funziona. Che siano minuti e non carico lo
+    dicono i file dei tre pezzi, ed e' la cosa su cui un paragrafo puo'
+    mentire senza sbagliare un numero.
+
+    Il carico acuto resta: letto alla domenica e' la somma di lunedi-domenica,
+    cioe' esattamente la settimana, e questo e' il punto che il todo 54 ha
+    salvato.
+
+    Le due frasi — lo stato di allenamento e l'equilibrio — sono **giudizi di
+    Garmin e non misure**, e per questo stanno in `state` e non fra le
+    misure: non hanno fascia, e un paragrafo che le confrontasse con qualcosa
+    confronterebbe due parole."""
+    zones = payload.get("zones") or {}
+    load = payload.get("load") or {}
+    measures: dict = {}
+    for key in WEEK_ZONES:
+        zone = zones.get(key) or {}
+        if zone.get("minutes") is None:
+            continue
+        measure = {
+            "value": zone["minutes"],
+            "band": zone.get("band"),
+            "weeks": zone.get("weeks"),
+        }
+        measures[key] = {**measure, "where": _where(measure)}
+    if load.get("load_acute") is not None:
+        measure = {
+            "value": load["load_acute"],
+            "band": load.get("band"),
+            "weeks": load.get("weeks"),
+        }
+        measures["carrying"] = {**measure, "where": _where(measure)}
+    return {
+        "week": _week_span(payload),
+        "measures": measures,
+        "state": {
+            "training_status": load.get("training_status_phrase"),
+            "balance": load.get("load_balance_phrase"),
+        },
+        "measured_min": zones.get("measured_min"),
+        "sessions_without_hr": zones.get("sessions_without_hr"),
+        "alerts": [],
+        "missing": [],
+    }
+
+
+def week_fitness_facts(payload: dict, week: dict | None = None) -> dict:
+    """La parte della Fitness dei fatti della settimana.
+
+    **E' `fitness_facts` con la settimana al posto del giorno**, e non e' una
+    scorciatoia: il blocco `fitness` dei fatti della settimana ha la stessa
+    forma di quello del giorno — `now`, `band`, `change`, `days_ago_28`, i due
+    acclimatamenti, la soglia — campo per campo. Riscrivere il ritaglio
+    vorrebbe dire due funzioni identiche che divergono da sole.
+
+    Quello che cambia e' che la forma di fine settimana e' **lo stato di quel
+    momento** e non una media: i punteggi sono il frutto di mesi, e la
+    domenica sera dicono dove si e' arrivati. Lo dicono i file dei pezzi."""
+    facts = fitness_facts(payload, week)
+    facts.pop("day", None)
+    return {"week": _week_span(payload), **facts}
+
+
+def _week_measure_facts(split: "Split", part: Part, facts: dict) -> dict:
+    """Quello che tocca a una misura della settimana: la sua misura, e quante
+    delle sette mattine ci stanno sotto.
+
+    Il cuore e' `_measure_facts`, che di giorno o di settimana non sa niente.
+    Qui si cambiano tre cose e si dice perche':
+
+    - **via `day`, dentro `week`**: un campo che si chiama giorno in una
+      sezione che parla di sette e' il genere di parola che un modello
+      piccolo ricopia — ed e' quello che e' successo al sonno il 23 novembre
+      2026, con un esempio invece di un campo;
+    - **via `alert`**: la settimana non ne ha, e un campo sempre nullo e' una
+      domanda in mano a chi scrive;
+    - **dentro `days_measured` e `weeks`**: quante mattine sotto la media, e
+      quante settimane sotto la fascia. Sono le due sottigliezze che la
+      settimana ha e il giorno no.
+    """
+    base = _measure_facts(split, part, facts)
+    base.pop("day", None)
+    base.pop("alert", None)
+    measure = (facts.get(split.measures_in) or {}).get(part.key) or {}
+    days = (facts.get("days") or {}).get(part.key)
+    return {
+        "week": facts.get("week"),
+        **base,
+        # **I due campi ci sono solo quando c'e' qualcosa da dirne**, e questa
+        # e' la regola di `fitness_facts` imparata un'altra volta: darglieli e
+        # poi chiedergli di non guardarli e' il modo piu' sicuro di vederli
+        # comparire. Col `days_measured` a sette, llama ha scritto *"this is a
+        # thin average built on 7 days"* — sette su sette, cioe' la settimana
+        # intera chiamata sottile — e *"built on seven full days of data"*,
+        # che e' una frase sul funzionamento della card. A fascia piena
+        # scriveva *"with twelve weeks of data to compare against"*.
+        #
+        # Adesso un campo presente **e'** la cosa da dire: `days_measured` c'e'
+        # solo se le mattine sono meno delle sette, e `weeks` solo se la
+        # fascia non si e' potuta fare.
+        **({"days_measured": days} if days is not None and days < WEEK_DAYS else {}),
+        **(
+            {"weeks": measure.get("weeks")}
+            if measure.get("band") is None and measure.get("weeks") is not None
+            else {}
+        ),
+    }
+
+
+# Come si legge una misura della settimana. Le righe che il giorno non ha — la
+# media dei sette giorni, le mattine che ci stanno sotto — e che sono la
+# ragione per cui questi prompt sono scritti e non tradotti.
+#
+# **La finestra della fascia non si nomina**, ne' qui ne' nelle altre righe
+# condivise: al modello non serve sapere di quante settimane e' fatta per dire
+# da che parte sta il valore, e nominandola ha scritto *"the band itself is
+# based on the past twelve weeks"*, che e' una frase sul funzionamento della
+# card. Il giorno fa lo stesso — `MEASURE_READS` la finestra non la dice — e i
+# ventotto giorni stanno nel file del punteggio, dove sono una frase da
+# allenatore.
+WEEK_MEASURE_READS = (
+    "`where` says where the week's figure falls against its band, and `reading` says "
+    "what that means for this measure: say what you make of them, and never contradict "
+    "them. **`value` is the average of the seven days, and `band` is where this measure "
+    "has sat in the weeks before** — so a figure here is a week's figure, and a "
+    "comparison is with other weeks and never with a single morning. `days_measured`, "
+    "when it is there, is how few of the seven mornings the average is built on: say so, "
+    "a thin average is not a week. **Never a word about how the band was built** — how "
+    "many weeks it holds is not the reader's business. **Not the story day by day** — "
+    "which morning was the high one belongs to the Day page, and yours is the seven days as "
+    "one thing. "
+    "**`week` is there so that you know which week you are writing about, and its dates are never written**: the card is headed by the week already, and a date in the paragraph is a figure spent on nothing. "
+)
+
+# I tre tempi per zona: come sopra, piu' la riga dell'unita'. **E' minuti,
+# non carico**, ed e' la cosa su cui questo paragrafo puo' mentire senza
+# sbagliare un numero — il carico di Garmin e' un'altra misura, sta nel
+# pezzo del carico acuto, e nella settimana e' l'unica che ci sia.
+WEEK_ZONE_READS = (
+    "`where` says where this week's minutes fall against their band, and `reading` what "
+    "that means: say what you make of them and contradict neither. **The figure is "
+    "minutes spent in the zone this week**, and the band is the same count in the weeks "
+    "before — not a training load, not a score, and never called one. **Never a word "
+    "about how the band was built.** `weeks`, when it is there, is how few weeks there "
+    "were; too few and the comparison is left alone. **No story day by day**, and "
+    "nothing about what to train: the week as one thing, and stop. "
+    "**`week` is there so that you know which week you are writing about, and its dates are never written**: the card is headed by the week already, and a date in the paragraph is a figure spent on nothing. "
+)
+
+
+def _week_measure_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio di una misura della settimana: la cornice, piu' le righe
+    che dicono che si legge una media e non una mattina."""
+    return _one_week_measure_prompt(split, part, day, facts, WEEK_MEASURE_READS)
+
+
+def _week_recovery_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Come sopra, piu' la coda della persona: alla Recovery serve anche nella
+    settimana, e per la ragione per cui serve nel giorno — readiness e sonno
+    sono cose che uno *ha*, e in bocca vengono *mie*."""
+    return _one_week_measure_prompt(
+        split, part, day, facts, WEEK_MEASURE_READS + RECOVERY_TAIL
+    )
+
+
+def _week_zone_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    return _one_week_measure_prompt(split, part, day, facts, WEEK_ZONE_READS)
+
+
+# Il carico acuto: come le zone, **meno la riga dei minuti**. Con quella —
+# "the figure is minutes spent in the zone this week" — llama ha scritto
+# *"this week's load was 374 minutes"*, e il file del pezzo che diceva il
+# contrario non e' bastato: la riga della cornice vince, perche' arriva col
+# messaggio e non col prompt di sistema.
+WEEK_LOAD_READS = (
+    "`where` says where this week's load falls against its band: say what you make of "
+    "it, and do not contradict it. **The figure is a training load, a plain number of "
+    "Garmin's own — never minutes, never hours, never a time, and never a zone.** "
+    "`weeks`, when it is there, is how few weeks the band could be built from; with no "
+    "band, give the figure and leave the comparison alone. **No story day by day**, and "
+    "nothing about what to train: the week as one thing, and stop. "
+    "**`week` is there so that you know which week you are writing about, and its dates are never written**: the card is headed by the week already, and a date in the paragraph is a figure spent on nothing. "
+)
+
+
+def _week_carrying_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    return _one_week_measure_prompt(split, part, day, facts, WEEK_LOAD_READS)
+
+
+# I punteggi della Fitness **non sono medie**, e questa e' la differenza che
+# vale piu' di tutte in questo file: VO2max, endurance e hill sono il frutto
+# di mesi, e la domenica sera dicono dove la settimana ti ha lasciato. Dare
+# loro le righe di `WEEK_MEASURE_READS` — "il valore e' la media dei sette
+# giorni" — sarebbe scrivere una cosa falsa nel prompt, cioe' il modo piu'
+# sicuro di vederla comparire nella card.
+WEEK_SCORE_READS = (
+    "`where` says which side of its own band the score ended the week on, and `reading` "
+    "says what that means for this score — it is what decides whether your paragraph is "
+    "good news or bad news, and you never work it out again from the band yourself. Say "
+    "what you make of them and contradict neither. **The band moves on its own and is "
+    "not a target**, and **never a word about how it was built.** **This is where the "
+    "score stood at the end of the week and not an average of the seven days**: these "
+    "scores are the work of months, and on Sunday evening they say where the week has "
+    "left the body. "
+    "**`week` is there so that you know which week you are writing about, and its dates are never written**: the card is headed by the week already, and a date in the paragraph is a figure spent on nothing. "
+) + FITNESS_TAIL
+
+
+def _week_score_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    return _one_week_measure_prompt(split, part, day, facts, WEEK_SCORE_READS)
+
+
+def _week_threshold_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio della soglia della settimana. Vale piu' parole degli altri
+    per la ragione del giorno: e' la sola di queste misure che cambi quello
+    che si fa in allenamento."""
+    return (
+        f"Write the paragraph about {part.label} for the {split.title} section of the "
+        f"weekly report for {_week_ends(facts)}. "
+        "The facts are here, below, and they are all there is: the scores of the "
+        "section are not yours and are not in them.\n\n"
+        f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        f"{THRESHOLD_READS}"
+        "Answer with the one paragraph and nothing else: no heading, no preamble, "
+        "no sign-off, no quotes around it."
+    )
+
+
+def _week_acclimation_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    return (
+        f"Write the paragraph about {part.label} for the {split.title} section of the "
+        f"weekly report for {_week_ends(facts)}. "
+        "The facts are here, below, and they are all there is: the scores, the "
+        "threshold and the other acclimatisation are not yours and are not in them."
+        "\n\n"
+        f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        f"{ACCLIMATION_READS}"
+        "One sentence, two at the most. "
+        "Answer with the one paragraph and nothing else: no heading, no preamble, "
+        "no sign-off, no quotes around it."
+    )
+
+
+def _w_score(key: str, label: str, **extra) -> Part:
+    """Un punteggio della Fitness della settimana: il file condiviso e'
+    `_score.md` e non `_measure.md`, come nel giorno — un punteggio si legge
+    al contrario di una misura del corpo, e quella riga sta li'."""
+    return Part(
+        key=key,
+        label=label,
+        agent=(f"{W_FITNESS_SPLIT_DIR}/{key}.md", f"{W_FITNESS_SPLIT_DIR}/_score.md"),
+        cut=_week_measure_facts,
+        asks=_week_score_prompt,
+        **extra,
+    )
+
+
+def _one_week_measure_prompt(
+    split: "Split", part: Part, day: date, facts: dict, reads: str
+) -> str:
+    """La cornice del messaggio di un paragrafo della settimana.
+
+    La stessa di `_one_measure_prompt` con due differenze, e sono due perche'
+    quella del giorno non si tocca: **il periodo** sono i due estremi della
+    settimana invece di una data, e le altre misure non si contano. Il giorno
+    dice "le altre tre" perche' sono sempre tre; la settimana ne ha tre, quattro
+    o cinque a seconda della sezione, e un numero sbagliato nel prompt e' un
+    numero che il modello puo' ricopiare — la lezione del 23 novembre 2026,
+    quando l'esempio della riga e' finito nella card al posto del dato."""
+    return (
+        f"Write the paragraph about {part.label} for the {split.title} section of the "
+        f"weekly report for {_week_ends(facts)}. "
+        "The facts are here, below, and they are all there is: the other measures of "
+        "the section are not yours and are not in them.\n\n"
+        f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        f"{reads}"
+        "Answer with the one paragraph and nothing else: no heading, "
+        "no preamble, no sign-off, no quotes around it."
+    )
+
+
+def _week_piece(inner):
+    """Un ritaglio del giorno riusato nella settimana, col periodo attaccato.
+
+    La soglia e i due acclimatamenti leggono il blocco `fitness`, che nella
+    settimana ha la stessa forma: il ritaglio e' buono com'e'. Quello che non
+    ha e' `week`, e senza quello la cornice del messaggio direbbe "the week"
+    e non quale."""
+
+    def cut(split: "Split", part: Part, facts: dict) -> dict | None:
+        piece = inner(split, part, facts)
+        if piece is None:
+            return None
+        return {"week": facts.get("week"), **piece}
+
+    return cut
+
+
+def _week_opening_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    """Il messaggio di chi apre una sezione della settimana.
+
+    Il recinto e' quello del giorno — `_health_opening_facts`, che e'
+    generico: legge `split.measures_in` e i `bad_when` dei pezzi, e di che
+    periodo si tratti non sa niente. Qui cambia la domanda: sette giorni
+    invece di una mattina, e la frase che chiude non e' *come stai stamattina*
+    ma **come il corpo ha preso questa settimana**."""
+    return (
+        f"Write the opening paragraph of the {split.title} section of the weekly report "
+        f"for {_week_ends(facts)}. "
+        "It goes at the top of the section, above the paragraphs of the single measures, "
+        "which are already written, and it says what they add up to over the seven "
+        "days.\n\n"
+        f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        "`verdict` is the verdict and you do not reopen it. `measures` names the only "
+        "measures you may name anywhere in the paragraph, worst first, and `about` is "
+        "what the second sentence makes of them: put both in your own words and not in "
+        "these. **An empty `measures` is no measure to name and no second sentence at "
+        "all** — write the first sentence and the third, and leave the missing one "
+        "unmentioned. `how_they_read` is how each of those measures reads, so that your "
+        "paragraph does not contradict the section it opens: say each one as its reading "
+        "says it and no further. **The subject is the week and not a morning**: how the "
+        "body took these seven days, not how it is right now. No number, no band, no "
+        "day of the week named, and nothing about what to train.\n\n"
+        "Answer with the paragraph and nothing else: no heading, no preamble, no list, "
+        "no quotes around it. Two sentences or three, and short."
+    )
+
+
+def _week_load_opening_facts(split: "Split", part: Part, facts: dict) -> dict | None:
+    """Quello che tocca a chi apre la Load della settimana: **le due frasi di
+    Garmin, e nient'altro.**
+
+    Non si usa il recinto generico delle altre tre, e la ragione e' la stessa
+    per cui il giorno non lo usa: i pezzi della Load non hanno `bad_when` —
+    un tempo per zona sopra la sua fascia non e' una notizia buona ne'
+    cattiva finche' non si sa che settimana era, e in una di scarico e'
+    perfino il piano che funziona. Senza `bad_when` il recinto generico
+    renderebbe una lista vuota, cioe' un'apertura senza niente da aprire.
+
+    Al loro posto ci sono i due giudizi che Garmin da' sulla settimana: lo
+    stato di allenamento e l'equilibrio fra facile e duro. Sono parole e non
+    numeri, quindi non si contraddicono con una fascia.
+
+    `None` quando non c'e' nessuna delle due: un'apertura senza verdetto non
+    e' un'apertura, e la sezione comincia dal primo tempo per zona con un
+    paragrafo in meno."""
+    state = facts.get("state") or {}
+    if not state.get("training_status") and not state.get("balance"):
+        return None
+    return {"week": facts.get("week"), "state": state}
+
+
+def _week_load_opening_prompt(split: "Split", part: Part, day: date, facts: dict) -> str:
+    return (
+        f"Write the opening paragraph of the Load section of the weekly report for "
+        f"{_week_ends(facts)}. "
+        "It goes at the top, above the paragraphs about the time spent in each zone and "
+        "about how much the week carried, which are already written.\n\n"
+        f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        "`training_status` and `balance` are Garmin's two words on the week, in its own "
+        "shorthand: say them the way a coach says them out loud, never read out as "
+        "labels and never quoted in capitals. They are judgements and not measures, so "
+        "there is no band to put them against and no figure to give. One short sentence "
+        "on what the week's work amounted to, and one on what it was short of or long "
+        "on, if the two words say so. **No number, no zone named, nothing about what to "
+        "train next.**\n\n"
+        "Answer with the paragraph and nothing else: no heading, no preamble, no quotes "
+        "around it. Two sentences, and short."
+    )
+
+
+# --- I quattro splits della settimana --------------------------------------
+
+W_HEALTH_SPLIT_DIR = "w1_health_split"
+W_LOAD_SPLIT_DIR = "w2_load_split"
+W_RECOVERY_SPLIT_DIR = "w3_recovery_split"
+W_FITNESS_SPLIT_DIR = "w4_fitness_split"
+
+
+def _w_measure(directory: str, asks, key: str, label: str, **extra) -> Part:
+    """Una misura della settimana: il file si chiama come la chiave, e
+    `_measure.md` della sua cartella viene dopo — dal piu' stretto al piu'
+    largo, come nel giorno."""
+    return Part(
+        key=key,
+        label=label,
+        agent=(f"{directory}/{key}.md", f"{directory}/_measure.md"),
+        cut=_week_measure_facts,
+        asks=asks,
+        **extra,
+    )
+
+
+W_HEALTH_PARTS = (
+    _w_measure(W_HEALTH_SPLIT_DIR, _week_measure_prompt,
+               "resting_hr", "the week's resting heart rate", bad_when="above"),
+    _w_measure(W_HEALTH_SPLIT_DIR, _week_measure_prompt,
+               "hrv_last_night", "the week's HRV", bad_when="below"),
+    _w_measure(W_HEALTH_SPLIT_DIR, _week_measure_prompt,
+               "resp_sleep_avg", "the week's breathing rate in sleep", bad_when="above"),
+    _w_measure(W_HEALTH_SPLIT_DIR, _week_measure_prompt,
+               "stress_avg", "the week's stress", bad_when="above"),
+)
+
+W_HEALTH_SPLIT = Split(
+    key="w_health_split",
+    title="Health",
+    facts=week_health_facts,
+    opening=Part(
+        key="verdict",
+        label="the opening",
+        agent=(f"{W_HEALTH_SPLIT_DIR}/_verdict.md",),
+        cut=_week_piece(_health_opening_facts),
+        asks=_week_opening_prompt,
+    ),
+    parts=W_HEALTH_PARTS,
+    measures_in="measures",
+)
+
+W_RECOVERY_PARTS = (
+    _w_measure(W_RECOVERY_SPLIT_DIR, _week_recovery_prompt,
+               "readiness", "the week's readiness", bad_when="below"),
+    _w_measure(W_RECOVERY_SPLIT_DIR, _week_recovery_prompt,
+               "sleep_hours", "the week's sleep", bad_when="below"),
+    _w_measure(W_RECOVERY_SPLIT_DIR, _week_recovery_prompt,
+               "body_battery_wake", "the week's body battery at wake-up", bad_when="below"),
+    # Senza `bad_when`, come il minimo di ieri nel giorno: un minimo piu'
+    # basso del solito e' quanto e' costata la settimana, non un difetto del
+    # recupero, e non deve poter spostare il verdetto sul corpo.
+    _w_measure(W_RECOVERY_SPLIT_DIR, _week_recovery_prompt,
+               "body_battery_low", "the week's body battery low"),
+)
+
+W_RECOVERY_SPLIT = Split(
+    key="w_recovery_split",
+    title="Recovery",
+    facts=week_recovery_facts,
+    opening=Part(
+        key="verdict",
+        label="the opening",
+        agent=(f"{W_RECOVERY_SPLIT_DIR}/_verdict.md",),
+        cut=_week_piece(_health_opening_facts),
+        asks=_week_opening_prompt,
+    ),
+    parts=W_RECOVERY_PARTS,
+    measures_in="measures",
+)
+
+W_LOAD_PARTS = (
+    _w_measure(W_LOAD_SPLIT_DIR, _week_zone_prompt,
+               "low_aerobic", "the time spent in easy aerobic work"),
+    _w_measure(W_LOAD_SPLIT_DIR, _week_zone_prompt,
+               "high_aerobic", "the time spent in harder aerobic work"),
+    _w_measure(W_LOAD_SPLIT_DIR, _week_zone_prompt,
+               "anaerobic", "the time spent in anaerobic work"),
+    # **Su un file suo e non su quello condiviso**, come nel giorno: gli
+    # altri tre pezzi di questa sezione sono minuti, e il file che lo dice
+    # per tre volte in mano al carico acuto ha fatto scrivere a llama *"374
+    # minutes in the zone"* — il carico di Garmin chiamato tempo, e
+    # attribuito a una zona che non esiste.
+    Part(
+        key="carrying",
+        label="how much the week carried",
+        agent=(f"{W_LOAD_SPLIT_DIR}/_carrying.md",),
+        cut=_week_measure_facts,
+        asks=_week_carrying_prompt,
+    ),
+)
+
+W_LOAD_SPLIT = Split(
+    key="w_load_split",
+    title="Load",
+    facts=week_load_facts,
+    opening=Part(
+        key="verdict",
+        label="the opening",
+        agent=(f"{W_LOAD_SPLIT_DIR}/_verdict.md",),
+        cut=_week_load_opening_facts,
+        asks=_week_load_opening_prompt,
+    ),
+    parts=W_LOAD_PARTS,
+    measures_in="measures",
+)
+
+# La Fitness della settimana riusa i pezzi del giorno che non sono misure —
+# la soglia e i due acclimatamenti — perche' i loro fatti sono gli stessi:
+# `_threshold_facts` e i due `_..._facts` leggono il blocco `fitness`, che
+# nella settimana ha la stessa forma. Cambia la cornice del messaggio, che e'
+# la settimana, e cambiano i file dei prompt.
+W_FITNESS_PARTS = (
+    _w_score("vo2max", "the VO2max score", bad_when="below"),
+    _w_score("endurance", "the endurance score", bad_when="below"),
+    _w_score("hill", "the hill score", bad_when="below"),
+    Part(
+        key="threshold",
+        label="the lactate threshold",
+        agent=(f"{W_FITNESS_SPLIT_DIR}/_threshold.md",),
+        cut=_week_piece(_threshold_piece_facts),
+        asks=_week_threshold_prompt,
+    ),
+    Part(
+        key="altitude_acclimation",
+        label="the altitude acclimation",
+        agent=(f"{W_FITNESS_SPLIT_DIR}/_altitude.md",),
+        cut=_week_piece(_altitude_facts),
+        asks=_week_acclimation_prompt,
+    ),
+    Part(
+        key="heat_acclimation",
+        label="the heat acclimation",
+        agent=(f"{W_FITNESS_SPLIT_DIR}/_heat.md",),
+        cut=_week_piece(_heat_facts),
+        asks=_week_acclimation_prompt,
+    ),
+)
+
+W_FITNESS_SPLIT = Split(
+    key="w_fitness_split",
+    title="Fitness",
+    facts=week_fitness_facts,
+    opening=Part(
+        key="verdict",
+        label="the opening",
+        agent=(f"{W_FITNESS_SPLIT_DIR}/_verdict.md",),
+        cut=_week_piece(_health_opening_facts),
+        asks=_week_opening_prompt,
+    ),
+    parts=W_FITNESS_PARTS,
+    measures_in="scores",
+)
+
+
 SECTIONS: "dict[str, Split]" = {
     section.key: section
     for section in (
@@ -2479,6 +3147,10 @@ SECTIONS: "dict[str, Split]" = {
         LOAD_SPLIT,
         RECOVERY_SPLIT,
         FITNESS_SPLIT,
+        W_HEALTH_SPLIT,
+        W_LOAD_SPLIT,
+        W_RECOVERY_SPLIT,
+        W_FITNESS_SPLIT,
     )
 }
 """Le sezioni che la pagina Test sa chiedere. Le altre quattro del giorno non

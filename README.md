@@ -734,6 +734,23 @@ passati: prima del 21 novembre quelle quattro sezioni restano di Claude, che
 e' la verita' storica e anche il bersaglio del banco di prova
 (`bench_tune.CORPUS_TO`, il giorno prima).
 
+**Le quattro della settimana esistono, e non sono ancora in produzione**
+(todo 101). `w1_health_split`, `w2_load_split`, `w3_recovery_split` e
+`w4_fitness_split` sono gli stessi pezzi per la Week — un paragrafo per
+misura, i prompt in `.ollama/agents/wN_..._split/` — e si chiedono **dalla
+pagina Test**, dove si guardano contro le settimane che Claude ha scritto. Il
+giro della domenica non le usa: nessuna e' in `WEEK_SECTIONS`, e i frammenti
+di `summary/02.weekly/` li scrivono ancora gli agenti di Claude. Il banco
+della settimana e il passaggio in produzione sono il todo 102.
+
+Tre differenze rispetto al giorno, che sono la ragione per cui quei prompt
+sono scritti e non tradotti: un valore e' la **media dei sette giorni**, una
+fascia e' fatta di **settimane** e non di giorni, e la Load legge i **minuti
+per zona** (`zones`) invece dei tre carichi del giorno, che sono finestre di
+ventotto giorni e nella settimana non entrano (todo 54). La Fitness e'
+l'eccezione dell'eccezione: i suoi punteggi non sono medie di niente, sono lo
+**stato di fine settimana**.
+
 **Se ollama tace, la sezione fallisce e si vede**: nessuna ricaduta su Claude,
 la card resta vuota, il giro esce 1 e scatta `athlos-alert@`. Una ricaduta
 silenziosa darebbe un report completo in cui non si sa chi ha scritto cosa,
