@@ -1831,7 +1831,7 @@ def test_the_fifth_hears_the_lean_without_the_band(payload):
     assert "band" not in said
 
 
-# --- La notte scritta in parole (todo 101) ----------------------------------
+# --- La notte scritta in parole (23 novembre 2026) --------------------------
 
 
 @pytest.mark.parametrize(
