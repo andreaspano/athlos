@@ -377,7 +377,7 @@ non dall'intensita'**: i giri di una corsa libera sono l'auto-lap al
 chilometro e quel campo e' vuoto. `cadence` e' quella del FIT, le falcate di
 una gamba al minuto: chi corre ne fa il doppio.
 
-### `health_daily` — 33 grandezze per giorno
+### `health_daily` — 34 grandezze per giorno
 
 Una riga per giorno, costruita aprendo tutti e undici i JSON di quel giorno.
 **`NULL` vuol dire "non lo sappiamo", mai zero**: uno zero direbbe "battito a
@@ -386,7 +386,7 @@ riposo zero", che e' falso.
 | Da quale file | Colonne |
 |---|---|
 | `training_readiness/` | `readiness` — e solo il punteggio **al risveglio** (`AFTER_WAKEUP_RESET`), che in un giorno ce n'e' piu' d'uno |
-| `stats/` | `body_battery_low`, `body_battery_high` |
+| `stats/` | `body_battery_low`, `body_battery_high` (il massimo del giorno), `body_battery_wake` (`bodyBatteryAtWakeTime`, il valore al risveglio: sono due numeri diversi, e il secondo e' quello che la Recovery commenta — todo 100) |
 | `hrv/` | `hrv_last_night`, `hrv_weekly_avg`, `hrv_status` |
 | `resting_heart_rate/` | `resting_hr` |
 | `sleep/` | `sleep_hours` (convertito dai secondi), `sleep_score` |

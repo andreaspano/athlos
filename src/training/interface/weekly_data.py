@@ -39,7 +39,10 @@ RECOVERY_METRICS = (
     "sleep_hours",
     "sleep_score",
     "stress_avg",
-    "body_battery_high",
+    # Il risveglio e non il massimo del giorno (todo 100): queste sono "le
+    # misure di recupero di ogni mattina", e il massimo di una giornata
+    # intera mattina non e'.
+    "body_battery_wake",
     "body_battery_low",
 )
 
@@ -85,7 +88,8 @@ WEEK_MEASURES: tuple[tuple[str, str, str, str, int], ...] = (
     ("health", "stress_avg", "Stress", "", 0),
     ("recovery", "readiness", "Readiness", "", 0),
     ("recovery", "sleep_hours", "Sleep", "h", 1),
-    ("recovery", "body_battery_high", "Body battery, wake-up", "", 0),
+    # L'etichetta era gia' giusta, la colonna no (todo 100).
+    ("recovery", "body_battery_wake", "Body battery, wake-up", "", 0),
     ("recovery", "body_battery_low", "Body battery, low", "", 0),
 )
 
@@ -93,7 +97,7 @@ WEEK_MEASURES: tuple[tuple[str, str, str, str, int], ...] = (
 # fascia non deve promettere un valore che la misura non puo' avere.
 WEEK_LIMITS: dict[str, tuple[float, float]] = {
     name: (0, 100)
-    for name in ("readiness", "stress_avg", "body_battery_high", "body_battery_low")
+    for name in ("readiness", "stress_avg", "body_battery_wake", "body_battery_low")
 }
 
 # Quante settimane guarda indietro una fascia della Week, e quante ne

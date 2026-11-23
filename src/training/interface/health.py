@@ -40,13 +40,14 @@ _USED_ENDPOINTS = tuple(DAILY_ENDPOINTS)
 _WAKEUP_CONTEXT = "AFTER_WAKEUP_RESET"
 
 # Le colonne del DataFrame, nello stesso ordine della tabella `health_daily`.
-# Le prime nove sono quelle delle card Recovery e Health della Day; le altre
+# Le prime dieci sono quelle delle card Recovery e Health della Day; le altre
 # servono a chi mette la salute accanto alle attivita' (VO2max, carico,
 # training status).
 COLUMNS = [
     "readiness",
     "body_battery_low",
     "body_battery_high",
+    "body_battery_wake",
     "hrv_last_night",
     "hrv_weekly_avg",
     "hrv_status",
@@ -333,6 +334,18 @@ def _day_row(health_dir: Path, day: str) -> dict[str, Any]:
         "readiness": _readiness_score(payloads["training_readiness"]),
         "body_battery_low": _number(_dig(payloads["stats"], "bodyBatteryLowestValue")),
         "body_battery_high": _number(_dig(payloads["stats"], "bodyBatteryHighestValue")),
+        # **Il risveglio non e' il massimo della giornata** (todo 100), ed
+        # erano lo stesso numero fino a qui. Due modi di sbagliare: di
+        # mattina il massimo e' quello delle ore passate dal risveglio, e
+        # alle 08:15 su una notte non ancora salita e' il massimo di niente;
+        # a giornata finita un pisolino lo alza sopra il valore del
+        # risveglio. Su 241 giorni con tutti e due i campi ne differivano
+        # 47, e in nessuno il risveglio stava sopra il massimo — come
+        # dev'essere, che il risveglio e' uno dei valori del giorno.
+        #
+        # `body_battery_high` resta: nello Snap e nel Trend e' etichettato
+        # "Body battery high" e li' il massimo e' proprio quel che si vuole.
+        "body_battery_wake": _number(_dig(payloads["stats"], "bodyBatteryAtWakeTime")),
         "hrv_last_night": _number(_dig(payloads["hrv"], "hrvSummary", "lastNightAvg")),
         "hrv_weekly_avg": _number(_dig(payloads["hrv"], "hrvSummary", "weeklyAvg")),
         "hrv_status": _text(_dig(payloads["hrv"], "hrvSummary", "status")),
