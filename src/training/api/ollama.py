@@ -927,17 +927,26 @@ RECOVERY_TAIL = (
 # righe di sopra.
 RECOVERY_READS = MEASURE_READS + RECOVERY_TAIL
 
-# Il sonno: lo stesso, piu' la scrittura da usare. Il fatto arriva in due
-# lingue — i minuti della card e le ore della fascia (`recovery_facts`) — e
-# questa riga dice quale delle due si scrive. Senza, la prima sera llama ha
-# scritto "almost eight hours" per 8h09: la scrittura sbagliata, e pure dalla
-# parte sbagliata.
+# Il sonno: lo stesso, piu' la scrittura da usare. Il fatto arriva in tre
+# lingue — i minuti della card, le ore della fascia (`recovery_facts`) e le
+# parole di `_clock_words` — e questa riga dice quale delle tre si scrive.
+#
+# **Niente esempio con un numero dentro, mai piu'** (todo 101). La storia di
+# questa riga e' una lezione in due tempi. La prima sera llama ha scritto
+# "almost eight hours" per 8h09: scrittura vaga e dalla parte sbagliata. La
+# riga allora ha aggiunto l'esempio giusto, "eight hours nine" — e il modello
+# ha cominciato a **copiarlo** invece di convertire i minuti, dicendo otto ore
+# e nove minuti a chi aveva dormito 7h04, ogni volta e identico. Un esempio
+# numerico in un prompt, per un modello da otto miliardi, non e' un esempio:
+# e' la risposta. Adesso la conversione la fa Python e qui si chiede solo di
+# ricopiare.
 SLEEP_READS = (
     "`where` says where the night falls against its own band, and `reading` says what "
-    "that means: say what you make of them, and never contradict them. **Write the "
-    "night the way `sleep_minutes` reads on the card**, in hours and minutes — eight "
-    "hours nine, never 8.2 hours: the hours in `value` are there to be read against "
-    "the band, not quoted. "
+    "that means: say what you make of them, and never contradict them. **Give the "
+    "night's length by copying `sleep_clock` word for word**: it is already written the "
+    "way the card reads it, and it is the only writing of the night allowed in the "
+    "paragraph. Do no arithmetic on it, and do not quote `sleep_minutes` or the hours "
+    "in `value` — those are there to be read against the band, not written. "
 ) + RECOVERY_TAIL
 
 # Il minimo del body battery di ieri, la misura senza parte cattiva: `reading`
@@ -985,18 +994,60 @@ def _one_measure_prompt(
     )
 
 
-def _sleep_facts(split: "Split", part: Part, facts: dict) -> dict:
-    """La notte: la sua misura, piu' **i minuti che la card mostra**.
+_UNITS = (
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+    "sixteen", "seventeen", "eighteen", "nineteen",
+)
+_TENS = ("", "", "twenty", "thirty", "forty", "fifty")
 
-    E' il solo dei quattro pezzi che prende un campo in piu' dai fatti della
+
+def _words(number: int) -> str:
+    """Un numero sotto il sessanta, in parole. Tanto basta: ore di sonno e
+    minuti di un'ora non vanno piu' in la'."""
+    if number < 20:
+        return _UNITS[number]
+    tens, units = divmod(number, 10)
+    return _TENS[tens] + (f"-{_UNITS[units]}" if units else "")
+
+
+def _clock_words(minutes: float | None) -> str | None:
+    """I minuti della card scritti come si leggono: *seven hours and four
+    minutes*, *eight hours* in punto, *forty minutes* sotto l'ora.
+
+    **Lo scrive Python, non il modello** (todo 101). La regola della casa lo
+    dice gia' per tutti — «every number comes from the JSON: nothing computed
+    by you» (`_style.md`) — e convertire 424 minuti in ore e minuti e' un
+    conto. Chiederlo a un modello da otto miliardi e' la cosa che e' andata
+    storta due volte di fila: prima «almost eight hours» per 8h09, poi
+    l'esempio della riga stessa copiato di peso."""
+    if minutes is None:
+        return None
+    hours, rest = divmod(int(round(minutes)), 60)
+    minutes_words = f"{_words(rest)} minute" + ("s" if rest != 1 else "")
+    if not hours:
+        return minutes_words
+    head = f"{_words(hours)} hour" + ("s" if hours != 1 else "")
+    return head if not rest else f"{head} and {minutes_words}"
+
+
+def _sleep_facts(split: "Split", part: Part, facts: dict) -> dict:
+    """La notte: la sua misura, piu' **i minuti che la card mostra** e come si
+    scrivono.
+
+    E' il solo dei quattro pezzi che prende dei campi in piu' dai fatti della
     sezione, e la ragione sta in `recovery_facts`: il sonno e' lo stesso fatto
-    scritto in due lingue, 489 minuti e 8,2 ore, e tutte e due servono — una
+    scritto in due lingue, 424 minuti e 7,1 ore, e tutte e due servono — una
     e' il numero grande della card, l'altra e' quella che la fascia confronta.
     Darne una sola vorrebbe dire o un paragrafo che scrive una scrittura che
-    sulla card non c'e', o un paragrafo che non puo' leggere la sua fascia."""
+    sulla card non c'e', o un paragrafo che non puo' leggere la sua fascia.
+
+    La terza, `sleep_clock`, e' la prima in parole: il paragrafo la copia e
+    non la calcola."""
     return {
         **_measure_facts(split, part, facts),
         "sleep_minutes": facts.get("sleep_minutes"),
+        "sleep_clock": _clock_words(facts.get("sleep_minutes")),
     }
 
 
