@@ -157,7 +157,7 @@ def _report(found: list, subject: date, missing: str) -> Report:
     un report che non c'e'**: le sezioni vuote da sole non sono un report.
     Giorno e settimana avevano la stessa coda, parola per parola, e cambiarla
     per uno solo dei due e' il modo in cui le due pagine divergono."""
-    if not any(body for _, body, _written, _verdict in found):
+    if not any(body for _, body, _written, _verdict, _as_of in found):
         raise HTTPException(status_code=404, detail=missing)
     return Report(
         day=subject,
@@ -168,8 +168,9 @@ def _report(found: list, subject: date, missing: str) -> Report:
                 icon=section_icon(title) if title else None,
                 written_at=written,
                 verdict=verdict,
+                data_as_of=as_of,
             )
-            for title, body, written, verdict in found
+            for title, body, written, verdict, as_of in found
         ],
     )
 
@@ -941,11 +942,14 @@ def _fragment_sections(
 
     Niente testo senza titolo: la riga "Data: ..." del file unico la scartava
     gia' `parse_report`, quindi alla pagina non e' mai arrivata."""
-    found: list[tuple[str | None, str, datetime | None, str | None]] = []
+    found: list[tuple[str | None, str, datetime | None, str | None, date | None]] = []
     for section in kind.sections:
         path = _fragment_path(folder, section.key, kind)
         body = path.read_text(encoding="utf-8").strip() if path.exists() else ""
-        # Prima si toglie il verdetto, poi si guarda se e' rimasto del testo:
+        # Il recinto del todo 99 per primo, che sta sopra tutto il resto: il
+        # verdetto dell'agente comincia dove finisce lui.
+        stamp, body = _stamp(body)
+        # Poi si toglie il verdetto, poi si guarda se e' rimasto del testo:
         # un frammento che contiene solo `verdict: high` non e' una sezione
         # scritta, e con l'ordine di prima prendeva l'ora e un corpo vuoto.
         #
@@ -957,8 +961,16 @@ def _fragment_sections(
         verdict = None
         if section.writes_verdict:
             verdict, body = _verdict(body)
-        written = datetime.fromtimestamp(path.stat().st_mtime) if body else None
-        found.append((section.title, body, written, verdict))
+        # L'ora scritta nel recinto batte l'`mtime`, che e' una proprieta'
+        # della copia e non del testo: un `cp -r` della cartella fa sembrare
+        # scritti adesso dei frammenti di settembre. I frammenti di prima del
+        # todo 99 il recinto non ce l'hanno e restano all'`mtime`.
+        written = stamp.get("written_at") or (
+            datetime.fromtimestamp(path.stat().st_mtime) if body else None
+        )
+        found.append(
+            (section.title, body, written if body else None, verdict, stamp.get("data_as_of"))
+        )
     return found
 
 
@@ -992,6 +1004,45 @@ def _verdict(body: str) -> tuple[str | None, str]:
     return match.group(1).lower(), body[match.end() :].strip()
 
 
+# Il recinto in cima a un frammento (todo 99), messo dall'orchestratore e non
+# dall'agente: `---`, le righe `chiave: valore`, `---`. Solo in cima, e si
+# accetta solo quello che `refresh._stamp` scrive — due date. Un recinto che
+# contiene altro non e' un recinto nostro, e allora e' testo.
+_STAMP_BLOCK = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.DOTALL)
+_STAMP_LINE = re.compile(r"\A(data_as_of|written_at)[ \t]*:[ \t]*(\S+)[ \t]*\Z")
+
+
+def _stamp(body: str) -> tuple[dict[str, Any], str]:
+    """Il francobollo del frammento e il corpo senza di lui.
+
+    Due campi, tutti e due facoltativi: `data_as_of`, fin dove arrivavano i
+    dati con cui il testo e' stato scritto, e `written_at`, quando. Li mette
+    `refresh._stamp` dopo che l'agente ha scritto.
+
+    **Un recinto che non capiamo e' testo**, e si lascia dov'e': i frammenti
+    di prima del todo 99 non ce l'hanno, e un `---` scritto da un agente in
+    cima al suo markdown non deve sparire dalla card. Per sparire deve
+    contenere soltanto le righe che scriviamo noi."""
+    match = _STAMP_BLOCK.match(body)
+    if not match:
+        return {}, body
+    found: dict[str, Any] = {}
+    for line in match.group(1).splitlines():
+        if not line.strip():
+            continue
+        pair = _STAMP_LINE.match(line.strip())
+        if not pair:
+            return {}, body
+        key, raw = pair.group(1), pair.group(2)
+        try:
+            found[key] = (
+                date.fromisoformat(raw) if key == "data_as_of" else datetime.fromisoformat(raw)
+            )
+        except ValueError:
+            return {}, body
+    return found, body[match.end() :].strip()
+
+
 @app.get("/api/reports/daily/{day}", response_model=Report, summary="Daily report")
 def get_daily_report(day: date, ctx: Context) -> Report:
     """The written daily report of `day`, split into its sections.
@@ -1005,13 +1056,15 @@ def get_daily_report(day: date, ctx: Context) -> Report:
         found = _fragment_sections(folder)
     elif path.exists():
         # Il file unico l'ha scritto un agente solo, in una volta: le sue
-        # sezioni portano tutte l'ora del file, e **nessuna ha un verdetto**
-        # — la riga `verdict:` e' del todo 92, questi report sono di prima.
-        # Il quarto posto va messo comunque: chi legge disfa quattro valori
+        # sezioni portano tutte l'ora del file, **nessuna ha un verdetto** —
+        # la riga `verdict:` e' del todo 92, questi report sono di prima — e
+        # nessuna ha un francobollo, che e' del todo 99 e ancora piu' tardi.
+        # I posti vuoti vanno messi comunque: chi legge disfa cinque valori
         # (il todo 92 ha cambiato `_fragment_sections` e non questo ramo, e
-        # da allora ogni giorno in formato vecchio rispondeva 500).
+        # da allora ogni giorno in formato vecchio rispondeva 500; il todo 99
+        # ha aggiunto il quinto e questa riga e' passata di li' di nuovo).
         written = datetime.fromtimestamp(path.stat().st_mtime)
-        found = [(title, body, written, None) for title, body in parse_report(path)]
+        found = [(title, body, written, None, None) for title, body in parse_report(path)]
     else:
         raise HTTPException(status_code=404, detail=f"No daily report for {day}.")
     return _report(found, day, f"No daily report for {day}.")
@@ -1040,8 +1093,9 @@ def post_daily_refresh(day: date, ctx: Context) -> RefreshStatus:
     summary="Rewrite one section of the daily report",
 )
 def post_daily_refresh_section(day: date, section: str, ctx: Context) -> RefreshStatus:
-    """Rewrite a single section: only its agent runs, the other sections keep the text they
-    have. 422 for a section that does not exist."""
+    """Rewrite a single section: its agent runs, **and the Summary with it** (todo 99),
+    because the Summary reads the other fragments and this call rewrites one of them. The
+    remaining sections keep the text they have. 422 for a section that does not exist."""
     if day > date.today():
         raise HTTPException(status_code=422, detail=f"{day} is in the future.")
     try:
@@ -1091,8 +1145,9 @@ def post_weekly_refresh(monday: date, ctx: Context) -> RefreshStatus:
     summary="Rewrite one section of the weekly report",
 )
 def post_weekly_refresh_section(monday: date, section: str, ctx: Context) -> RefreshStatus:
-    """Rewrite a single section of the week: only its agent runs, the other sections keep
-    the text they have. 422 for a section that does not exist."""
+    """Rewrite a single section of the week: its agent runs, **and the Summary with it**
+    (todo 99), for the same reason as the day. The remaining sections keep the text they
+    have. 422 for a section that does not exist."""
     _week_monday(monday)
     try:
         keys = refresh.section_keys(section, kind=WEEKLY)

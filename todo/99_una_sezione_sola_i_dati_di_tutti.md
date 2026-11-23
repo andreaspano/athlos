@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 
 # Una sezione sola, i dati di tutti
@@ -140,3 +140,60 @@ quando — e la pagina puo' dire quello che adesso non puo': **questo Summary
 e' piu' vecchio delle card che riassume.** Che e' anche la rete sotto il
 pezzo 1, per il giorno in cui il giro parziale lo lancia qualcosa che non
 passa da `section_keys()`.
+
+---
+
+## Com'e' finita (23 novembre 2026)
+
+**Fatti i pezzi 1 e 3. Il pezzo 2 e' stato lasciato cadere**, e non per
+stanchezza: mentre lo si scriveva e' saltato fuori che non avrebbe fermato
+il 23 novembre.
+
+`health_data_up_to` e' l'ultima data che ha `sleep_hours` **oppure**
+`resting_hr`. Quella mattina il sonno non c'era — il frammento diceva «not
+measured» e il giro rifatto a freddo ha poi trovato otto ore e nove minuti
+— ma la frequenza a riposo quasi certamente si', perche' il Summary la
+commenta e per commentarla serve un valore. Il cancello si sarebbe aperto
+lo stesso. E stringerlo al solo sonno non si puo': il sonno manca per
+davvero nei giorni senza orologio al polso (il 21 e il 22 novembre non
+hanno ne' sonno ne' readiness), e quei giorni resterebbero senza report per
+sempre.
+
+Sotto c'era dell'altro, ed e' diventato il **todo 100**: la misura non era
+incompleta, era la misura sbagliata. `body_battery_morning` leggeva
+`bodyBatteryHighestValue`, il massimo della giornata, invece di
+`bodyBatteryAtWakeTime`. Corretto quello, il guasto che il cancello doveva
+intercettare non c'e' piu', e un cancello che aspetta una giornata «ferma»
+diventa una macchina in piu' per un caso che non si presenta.
+
+Quello che resta scoperto, scritto qui perche' non si perda: se un giorno
+il giro del mattino dovesse di nuovo scrivere su dati a meta', la scelta e'
+fra aspettare dentro il giro — che tiene `.refresh.lock` e blocca il tasto
+della pagina per tutto il tempo — e far ribattere il timer, che vuole un
+codice d'uscita che non chiami `athlos-alert@` e una regola «se c'e' gia',
+non rifare». La seconda e' la meno peggio. E l'ora del timer resta la
+misura che questo todo chiedeva: il `data_as_of` del pezzo 3 adesso la
+rende facile, perche' dice giorno per giorno fin dove arrivavano i dati
+alle 08:15.
+
+**Anche del pezzo 3 e' stato fatto il lato dati e non la pagina**:
+francobollo, lettura, campo `data_as_of` dell'API, tipi del frontend
+rigenerati. La card non dice ancora niente a schermo. Il dato per dirlo
+adesso c'e'.
+
+## Revert
+
+```bash
+git revert -m 1 $(git log main --merges --grep="^Merge branch 'todo_99'$" --format=%H -1)
+```
+
+Effetti fuori dal repo: **i francobolli restano**. Ogni frammento scritto
+da qui in avanti comincia con il recinto `---` di `data_as_of` e
+`written_at`, e il revert non li toglie dai file gia' scritti in
+`summary/`. Sono innocui: chi legge senza il todo 99 non riconosce il
+recinto e lo tratta come testo — comparirebbe in cima alla card finche'
+quella sezione non viene riscritta. Per toglierli davvero bisogna rifare i
+frammenti, o cancellare le due righe a mano.
+
+Dopo il revert, rifare il merge di `todo_99` non riporta le modifiche (git
+le considera gia' unite): per riaverle serve il revert del revert.

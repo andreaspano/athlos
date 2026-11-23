@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from training.api import refresh as R
-from training.api.sections import DAILY
+from training.api.sections import DAILY, WEEKLY
 
 DAY = date(2026, 10, 1)
 
@@ -211,7 +211,7 @@ class TestFragmentReaders:
         folder.mkdir()
         (folder / "training.md").write_text("verdict: high\n", encoding="utf-8")
 
-        rows = {title: (body, written, verdict) for title, body, written, verdict in _fragment_sections(folder, DAILY)}
+        rows = {title: (body, written, verdict) for title, body, written, verdict, _as_of in _fragment_sections(folder, DAILY)}
         body, written, verdict = next(v for k, v in rows.items() if k and "rain" in k)
         assert body == ""
         assert written is None, "nessuna ora su una sezione senza testo"
@@ -263,6 +263,108 @@ class TestSummaryGate:
 
         assert "summary" in ran
         assert outcome["sections"]["summary"]["status"] == "done"
+
+
+class TestOneSectionIsNeverAlone:
+    """L'altra meta' di `TestSummaryGate` (todo 99).
+
+    Quella guarda la forma **per fallimento**: se in questo giro qualcuno e'
+    fallito, il Summary non gira. Questa guarda la forma **per giro
+    parziale**: se in questo giro qualcuno e' stato rifatto, il Summary deve
+    girare. Lo stesso pericolo — un verdetto che parla di frammenti che non
+    ci sono piu' — preso dai due lati."""
+
+    def test_one_card_brings_the_summary_with_it(self):
+        assert R.section_keys("health") == ("health", "summary")
+
+    def test_it_holds_for_the_week_too(self):
+        assert R.section_keys("health", kind=WEEKLY) == ("health", "summary")
+
+    def test_asking_for_the_summary_asks_for_the_summary(self):
+        """Chi chiede un verdetto resta solo: il Summary non si tira dietro
+        le quattro card che riassume."""
+        assert R.section_keys("summary") == ("summary",)
+
+    def test_the_training_card_does_not_bring_the_summary_of_the_week(self):
+        """La Training del giorno non legge i frammenti e non e' un
+        verdetto per il Summary, ma e' una card come le altre: anche lei
+        passa dal Summary, che del corpo parla comunque."""
+        assert R.section_keys("training") == ("training", "summary")
+
+    def test_a_moment_keeps_the_sections_it_was_given(self):
+        """I giri dei timer sono insiemi decisi a mano e non si allargano:
+        la sera scrive la seduta e basta, che e' la sovrapposizione tolta
+        dal todo 66."""
+        assert R.section_keys(None, "evening") == ("training",)
+        assert R.section_keys(None, "morning") == DAILY.moments["morning"]
+
+    def test_nothing_asked_is_still_everything(self):
+        assert R.section_keys(None) is None
+
+    def test_the_unknown_section_still_raises(self):
+        with pytest.raises(KeyError):
+            R.section_keys("nonesuch")
+
+    def test_the_summary_really_runs_when_one_card_is_asked(self, harness):
+        """Non solo le chiavi: il giro che ne esce scrive davvero il
+        Summary, ed e' quello che il 23 novembre 2026 non e' successo."""
+        ran: list[str] = []
+
+        def write(
+            kind, section, subject, moment, repo_root, facts, folder, began,
+            summary_dir, data_dir,
+        ):
+            ran.append(section.key)
+            (Path(folder) / f"{section.key}.md").write_text("testo", encoding="utf-8")
+            return True, None
+
+        args = harness(write=write)
+        keys = R.section_keys("health")
+        order = [s for s in DAILY.run_order if s.key in keys]
+        run(args, sections=order)
+
+        assert ran == ["health", "summary"], "il verdetto gira, e per ultimo"
+
+
+class TestTheRunStamps:
+    """Il giro mette il francobollo sui frammenti che ha scritto (todo 99)."""
+
+    def test_a_written_fragment_carries_the_hour_of_its_run(self, harness):
+        from training.api.app import _stamp
+
+        args = harness()
+        run(args)
+
+        folder = args["summary_dir"] / DAILY.folder / DAY.isoformat()
+        fragment = folder / f"{DAILY.run_order[0].key}.md"
+        found, body = _stamp(fragment.read_text(encoding="utf-8"))
+        assert found["written_at"] is not None
+        assert body == "testo", "il testo dell'agente resta quello"
+
+    def test_a_failed_fragment_keeps_the_stamp_it_had(self, harness):
+        """Su una sezione fallita non si tocca niente: il testo e' quello del
+        giro di prima, e il francobollo deve continuare a dire **quel** giro."""
+        from training.api.app import _stamp
+
+        def write(
+            kind, section, subject, moment, repo_root, facts, folder, began,
+            summary_dir, data_dir,
+        ):
+            return False, "01_health exited with 1."
+
+        args = harness(write=write)
+        args_folder = args["summary_dir"] / DAILY.folder / DAY.isoformat()
+        args_folder.mkdir(parents=True, exist_ok=True)
+        fragment = args_folder / f"{DAILY.run_order[0].key}.md"
+        fragment.write_text(
+            "---\nwritten_at: 2026-10-01T08:16:44\n---\nvecchio", encoding="utf-8"
+        )
+
+        run(args)
+
+        found, body = _stamp(fragment.read_text(encoding="utf-8"))
+        assert found["written_at"] == datetime(2026, 10, 1, 8, 16, 44)
+        assert body == "vecchio"
 
 
 class TestCollisionExitCode:

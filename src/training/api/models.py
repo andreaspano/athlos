@@ -188,7 +188,18 @@ class ReportSection(BaseModel):
     written_at: datetime | None = Field(
         default=None,
         description="When this section's text was written. Sections of the same day can carry "
-        "different times: the morning job writes some, the evening job others.",
+        "different times: the morning job writes some, the evening job others. From the "
+        "fragment's own stamp (todo 99), falling back to the file's mtime on the fragments "
+        "written before it.",
+    )
+    data_as_of: date | None = Field(
+        default=None,
+        description="How far the health data reached when this section was written (todo 99): "
+        "the last day that had a night on it. A section whose stamp is older than its "
+        "neighbours' is talking about data that has since been replaced — which is how a "
+        "Summary ends up contradicting the card it summarises. Null on the fragments written "
+        "before the stamp existed, and on the weekly report, which downloads nothing of its "
+        "own.",
     )
 
 

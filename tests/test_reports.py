@@ -50,9 +50,10 @@ def test_a_single_file_report_is_still_readable(tmp_path):
     )
 
 
-def test_every_fragment_row_has_four_values(tmp_path):
+def test_every_fragment_row_has_five_values(tmp_path):
     """I due rami devono dare righe della stessa forma: era il disaccordo da
-    cui veniva il 500."""
+    cui veniva il 500. Erano quattro valori fino al todo 99, che ha aggiunto
+    il francobollo — e il ramo del file unico e' passato di qui di nuovo."""
     folder = tmp_path / "2026-10-01"
     folder.mkdir()
     (folder / "health.md").write_text("Il corpo ha tenuto.", encoding="utf-8")
@@ -60,7 +61,7 @@ def test_every_fragment_row_has_four_values(tmp_path):
     rows = _fragment_sections(folder, DAILY)
 
     assert rows, "le sezioni ci sono tutte, anche senza frammento"
-    assert all(len(row) == 4 for row in rows)
+    assert all(len(row) == 5 for row in rows)
 
 
 class TestVerdictLine:
@@ -102,9 +103,103 @@ class TestVerdictLine:
         (folder / "health.md").write_text("verdict: high\n\nIl corpo ha tenuto.", encoding="utf-8")
         (folder / "training.md").write_text("verdict: high\n\nBuona seduta.", encoding="utf-8")
 
-        rows = {title: (body, verdict) for title, body, _written, verdict in _fragment_sections(folder, DAILY)}
+        rows = {title: (body, verdict) for title, body, _written, verdict, _as_of in _fragment_sections(folder, DAILY)}
         health = next(v for k, v in rows.items() if k and "ealth" in k)
         training = next(v for k, v in rows.items() if k and "rain" in k)
 
         assert health == ("verdict: high\n\nIl corpo ha tenuto.", None)
         assert training == ("Buona seduta.", "high")
+
+
+class TestStamp:
+    """Il francobollo del todo 99: due date in cima al frammento, messe
+    dall'orchestratore e tolte da chi legge."""
+
+    def test_the_two_halves_agree(self, tmp_path):
+        """Quello che scrive `refresh._stamp` lo rilegge `app._stamp`: le
+        due meta' del patto stanno in due moduli, come il verdetto del todo
+        92, ed e' la' che si scollano."""
+        from datetime import datetime
+
+        from training.api.app import _stamp as read
+        from training.api.refresh import _stamp as write
+
+        fragment = tmp_path / "health.md"
+        fragment.write_text("verdict: high\n\nIl corpo ha tenuto.", encoding="utf-8")
+        written_at = datetime(2026, 11, 23, 9, 21, 34)
+        write(fragment, "2026-11-23", written_at)
+
+        found, body = read(fragment.read_text(encoding="utf-8"))
+        assert found["data_as_of"] == date(2026, 11, 23)
+        assert found["written_at"] == written_at
+        assert body == "verdict: high\n\nIl corpo ha tenuto.", "il testo non si tocca"
+
+    def test_the_verdict_still_comes_off_underneath(self, tmp_path):
+        """Il recinto sta sopra il verdetto: chi legge toglie prima l'uno e
+        poi l'altro, e la Training deve uscirne con tutti e due via."""
+        from datetime import datetime
+
+        from training.api.refresh import _stamp as write
+
+        folder = tmp_path / "2026-11-23"
+        folder.mkdir()
+        fragment = folder / "training.md"
+        fragment.write_text("verdict: high\n\nBuona seduta.", encoding="utf-8")
+        write(fragment, "2026-11-23", datetime(2026, 11, 23, 21, 0, 0))
+
+        rows = {
+            title: (body, written, verdict, as_of)
+            for title, body, written, verdict, as_of in _fragment_sections(folder, DAILY)
+        }
+        body, written, verdict, as_of = next(v for k, v in rows.items() if k and "rain" in k)
+        assert body == "Buona seduta."
+        assert verdict == "high"
+        assert as_of == date(2026, 11, 23)
+        assert written == datetime(2026, 11, 23, 21, 0, 0), "l'ora del recinto, non l'mtime"
+
+    def test_a_fragment_without_a_stamp_reads_as_before(self, tmp_path):
+        """Sul disco ce ne sono centinaia scritti prima: niente recinto,
+        niente date, e l'ora torna a essere quella del file."""
+        folder = tmp_path / "2026-10-01"
+        folder.mkdir()
+        (folder / "health.md").write_text("Il corpo ha tenuto.", encoding="utf-8")
+
+        rows = _fragment_sections(folder, DAILY)
+        health = next(r for r in rows if r[0] and "ealth" in r[0])
+        assert health[1] == "Il corpo ha tenuto."
+        assert health[2] is not None, "l'mtime fa da ripiego"
+        assert health[4] is None
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "---\nqualcosa: altro\n---\n\nIl testo.",
+            "---\ndata_as_of: non una data\n---\n\nIl testo.",
+            "---\nIl corpo ha tenuto.\n---\n\nAltro.",
+        ],
+    )
+    def test_a_fence_we_did_not_write_is_text(self, body):
+        """Per sparire il recinto deve contenere soltanto quello che
+        scriviamo noi: un `---` di un agente resta nella card."""
+        from training.api.app import _stamp as read
+
+        found, kept = read(body)
+        assert found == {}
+        assert kept == body, "e il testo non si tocca"
+
+    def test_an_empty_stamp_is_not_a_crash(self, tmp_path):
+        """La settimana non ha `health_data_up_to`: il recinto esce con la
+        sola ora, e si rilegge lo stesso."""
+        from datetime import datetime
+
+        from training.api.app import _stamp as read
+        from training.api.refresh import _stamp as write
+
+        fragment = tmp_path / "summary.md"
+        fragment.write_text("La settimana ha tenuto.", encoding="utf-8")
+        write(fragment, None, datetime(2026, 11, 29, 21, 0, 0))
+
+        found, body = read(fragment.read_text(encoding="utf-8"))
+        assert "data_as_of" not in found
+        assert found["written_at"] == datetime(2026, 11, 29, 21, 0, 0)
+        assert body == "La settimana ha tenuto."
