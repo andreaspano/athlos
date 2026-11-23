@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 
 # La batteria al risveglio e' un altro numero
@@ -107,3 +107,27 @@ scritto qui il contrario.
 rete, niente Garmin — e serve perche' la colonna nuova prima non c'era.
 Finche' non lo si lancia, `body_battery_wake` non esiste nel database e la
 Recovery del giorno resta senza quella misura.
+
+## Revert
+
+```bash
+git revert -m 1 $(git log main --merges --grep="^Merge branch 'todo_100'$" --format=%H -1)
+```
+
+Effetti fuori dal repo: **si risistemano da soli, ma non subito.** In
+`activities.db` la tabella `health_daily` adesso ha la colonna
+`body_battery_wake` ed e' stata ricostruita dai JSON con
+`HEALTH_LOGIC_VERSION` a "4". Il revert riporta quel numero a "3", e al
+primo `sync_health()` — cioe' alla prima richiesta dell'API o al primo giro
+di un report — la versione sul disco non corrisponde piu', la tabella viene
+buttata e rifatta con il parsing vecchio. Da quel momento la colonna non
+c'e' piu' e i 47 giorni tornano a leggere il massimo del giorno. Nel
+frattempo la colonna resta li' e non la guarda nessuno.
+
+Niente di scritto in `summary/`: i testi gia' scritti non cambiano ne' col
+merge ne' col revert. Quello che cambia e' il **numero accanto** — nella
+Recovery della Day e nella barra "Body battery, wake-up" della Week — e lo
+fa in tutte e due le direzioni.
+
+Dopo il revert, rifare il merge di `todo_100` non riporta le modifiche (git
+le considera gia' unite): per riaverle serve il revert del revert.

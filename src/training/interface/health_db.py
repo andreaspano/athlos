@@ -44,7 +44,15 @@ from training.interface.health import (
 # la prima della lista (`health._readiness_score`). Senza alzare questo
 # numero la tabella continuerebbe a servire i tredici giorni sbagliati: i
 # file su disco non sono cambiati, quindi nessun mtime dice di rileggerli.
-HEALTH_LOGIC_VERSION = "3"
+#
+# "4": colonna `body_battery_wake`, da `bodyBatteryAtWakeTime` (todo 100).
+# Serve per due motivi insieme: la colonna nuova non la aggiungerebbe
+# `CREATE TABLE IF NOT EXISTS`, e i 47 giorni in cui il risveglio e il
+# massimo non coincidono vanno riletti dai JSON, che non sono cambiati e
+# quindi col solo mtime resterebbero come sono. Il numero alzato fa tutte e
+# due le cose, e le fa **anche all'indietro**, che e' quello che il todo
+# chiede.
+HEALTH_LOGIC_VERSION = "4"
 
 _VERSION_KEY = "health_logic_version"
 

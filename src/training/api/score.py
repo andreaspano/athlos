@@ -53,6 +53,12 @@ GOOD_HIGH: frozenset[str] = frozenset({
     "body_battery_morning",
     "body_battery_low_yesterday",
     "body_battery_high",
+    # La chiave della Week dal todo 100: quella di prima era
+    # `body_battery_high`, che resta perche' e' ancora la serie del Trend.
+    # Senza questa riga la misura non sarebbe stata letta al contrario —
+    # `step()` su una chiave che non conosce non vota affatto — ma sarebbe
+    # sparita dal voto del Recovery della settimana, in silenzio.
+    "body_battery_wake",
     "body_battery_low",
     "vo2max",
     "endurance",

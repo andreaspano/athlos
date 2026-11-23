@@ -51,7 +51,10 @@ MORNING_METRICS: dict[str, tuple[str, int]] = {
     "sleep_hours": ("sleep_hours", 0),
     "sleep_score": ("sleep_score", 0),
     "stress_avg_yesterday": ("stress_avg", -1),
-    "body_battery_morning": ("body_battery_high", 0),
+    # Il valore del risveglio, non il massimo del giorno (todo 100): il
+    # nome della misura dice "morning" e fino a qui leggeva la colonna
+    # sbagliata.
+    "body_battery_morning": ("body_battery_wake", 0),
     "body_battery_low_yesterday": ("body_battery_low", -1),
     "spo2_avg": ("spo2_avg", 0),
 }

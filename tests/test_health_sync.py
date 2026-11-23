@@ -137,3 +137,62 @@ class TestItDoesNotWipeTheCache:
         (tmp_path / "db").mkdir()
         (tmp_path / "health").mkdir()
         assert sync_health(tmp_path) == 0
+
+
+class TestBodyBatteryAtWake:
+    """Il risveglio e il massimo del giorno sono due numeri (todo 100), e
+    fino a qui `body_battery_morning` leggeva il secondo."""
+
+    def test_the_two_columns_come_from_two_fields(self, tmp_path):
+        import json
+
+        from training.interface.health import _day_row
+
+        day = "2026-11-08"
+        folder = tmp_path / "stats"
+        folder.mkdir(parents=True)
+        # I numeri sono quelli veri dell'8 novembre 2026, il giorno in cui i
+        # due campi sono piu' distanti di tutto l'archivio.
+        (folder / f"{day}.json").write_text(
+            json.dumps({"bodyBatteryAtWakeTime": 38, "bodyBatteryHighestValue": 45,
+                        "bodyBatteryLowestValue": 10}),
+            encoding="utf-8",
+        )
+
+        row = _day_row(tmp_path, day)
+        assert row["body_battery_wake"] == 38, "il risveglio"
+        assert row["body_battery_high"] == 45, "il massimo del giorno, che resta"
+
+    def test_the_morning_measure_reads_the_wake_one(self):
+        """Il nome della misura dice "morning": deve leggere la colonna del
+        risveglio, non quella del massimo."""
+        from training.interface.daily_data import MORNING_METRICS
+
+        column, offset = MORNING_METRICS["body_battery_morning"]
+        assert column == "body_battery_wake"
+        assert offset == 0, "di oggi, non di ieri"
+
+    def test_the_week_reads_it_too(self):
+        """La riga della Week aveva gia' l'etichetta giusta e la colonna
+        sbagliata."""
+        from training.interface.weekly_data import RECOVERY_METRICS, WEEK_MEASURES
+
+        wake = [m for m in WEEK_MEASURES if m[2] == "Body battery, wake-up"]
+        assert [m[1] for m in wake] == ["body_battery_wake"]
+        assert "body_battery_wake" in RECOVERY_METRICS
+        assert "body_battery_high" not in RECOVERY_METRICS, "la settimana non lo mostra"
+
+    def test_the_new_column_has_a_direction(self):
+        """`step()` su una chiave che non conosce non vota: senza questa, la
+        body battery sparirebbe dal voto del Recovery della settimana senza
+        dire niente."""
+        from training.api.score import GOOD_HIGH
+
+        assert "body_battery_wake" in GOOD_HIGH
+
+    def test_the_logic_version_was_raised(self):
+        """La colonna nuova non la aggiunge `CREATE TABLE IF NOT EXISTS`, e i
+        giorni vecchi vanno riletti benche' i loro file non siano cambiati."""
+        from training.interface.health_db import HEALTH_LOGIC_VERSION
+
+        assert int(HEALTH_LOGIC_VERSION) >= 4
