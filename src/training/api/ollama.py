@@ -931,7 +931,7 @@ RECOVERY_READS = MEASURE_READS + RECOVERY_TAIL
 # lingue — i minuti della card, le ore della fascia (`recovery_facts`) e le
 # parole di `_clock_words` — e questa riga dice quale delle tre si scrive.
 #
-# **Niente esempio con un numero dentro, mai piu'** (todo 101). La storia di
+# **Niente esempio con un numero dentro, mai piu'** (23 novembre 2026). La storia di
 # questa riga e' una lezione in due tempi. La prima sera llama ha scritto
 # "almost eight hours" per 8h09: scrittura vaga e dalla parte sbagliata. La
 # riga allora ha aggiunto l'esempio giusto, "eight hours nine" — e il modello
@@ -1015,7 +1015,7 @@ def _clock_words(minutes: float | None) -> str | None:
     """I minuti della card scritti come si leggono: *seven hours and four
     minutes*, *eight hours* in punto, *forty minutes* sotto l'ora.
 
-    **Lo scrive Python, non il modello** (todo 101). La regola della casa lo
+    **Lo scrive Python, non il modello** (23 novembre 2026). La regola della casa lo
     dice gia' per tutti — «every number comes from the JSON: nothing computed
     by you» (`_style.md`) — e convertire 424 minuti in ore e minuti e' un
     conto. Chiederlo a un modello da otto miliardi e' la cosa che e' andata
