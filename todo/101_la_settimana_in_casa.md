@@ -73,36 +73,44 @@ Il conto, dai fatti della settimana del 16 novembre:
 | Sezione | Pezzi | Chiamate | Da dove vengono i pezzi |
 |---|---|---|---|
 | `w1_health_split` | `resting_hr`, `hrv_last_night`, `resp_sleep_avg`, `stress_avg` | 1 + 4 = **5** | `measures` con `card == "health"` |
-| `w2_load_split` | **da decidere, vedi sotto** | 1 + 3 = **4** circa | il blocco `load` |
+| `w2_load_split` | `low_aerobic`, `high_aerobic`, `anaerobic`, `carrying`, `balance` | 1 + 5 = **6** | il blocco `zones`, piu' `load` |
 | `w3_recovery_split` | `readiness`, `sleep_hours`, `body_battery_wake`, `body_battery_low` | 1 + 4 = **5** | `measures` con `card == "recovery"` |
 | `w4_fitness_split` | `vo2max`, `endurance`, `hill`, `threshold`, `altitude_acclimation`, `heat_acclimation` | 1 + 6 = **7** | il blocco `fitness` |
 
-Ventuno chiamate in tutto, contro le ventitre delle quattro del giorno
-(5 + 6 + 5 + 7). Tre delle quattro sezioni sono quindi un **parallelo
-esatto**: gli stessi pezzi, gli stessi nomi a meno della media (`resp_sleep`
+Ventitre chiamate in tutto, **le stesse ventitre** delle quattro del giorno
+(5 + 6 + 5 + 7). Tutte e quattro le sezioni sono un **parallelo esatto**: gli stessi pezzi, gli stessi nomi a meno della media (`resp_sleep`
 diventa `resp_sleep_avg`, `body_battery_morning` diventa
 `body_battery_wake`), e un file di prompt per pezzo in
 `.ollama/agents/wN_..._split/`.
 
-**La Load e' l'eccezione, e va guardata prima di cominciare.** Il blocco
-`load` della settimana non ha la forma di quello del giorno: ha `load_acute`
-con la sua fascia, `training_status` con la sua frase, `load_balance_phrase`
-e le `weeks`, e **non ha le tre intensita'** — `load_aerobic_low`,
-`load_aerobic_high`, `load_anaerobic` — che nel giorno sono tre pezzi su
-cinque.
+**La Load legge un'altra chiave, e non e' una scelta aperta.** Il blocco
+`load` della settimana non ha le tre intensita' del giorno —
+`load_aerobic_low`, `load_aerobic_high`, `load_anaerobic` — e **non deve
+averle**: sono il carico degli ultimi **28 giorni**, lo dice la tabella del
+todo 54, e tenerle fuori e' stato chiesto in queste parole il 23 ottobre
+2026 — *«le misure che voglio vedere nella settimana sono i dati di quella
+settimana, non di 28 giorni»*. `WEEK_LOAD_KEYS` e' quella richiesta scritta
+in codice. Allargare quel blocco vorrebbe dire disfare il todo 54: non si
+fa.
 
-Le colonne pero' **ci sono**: stanno in `health_daily` con quei nomi, ed e'
-il blocco `load` della settimana che non le porta su (`build_weekly_data`
-ne sceglie sette: `as_of`, `load_acute`, lo stato con la sua frase,
-l'equilibrio, la fascia e le settimane). Nemmeno i `days` le hanno, e
-nemmeno `four_weeks`. Quindi la strada e' una di queste due: **allargare il
-blocco** — e allora i tre pezzi restano tre, come nel giorno — oppure fare
-della Load della settimana **un'altra sezione**, con i pezzi che quel blocco
-ha davvero: il carico acuto contro la sua fascia, lo stato di allenamento,
-l'equilibrio fra facile e duro. Nel secondo caso e' la sola delle quattro
-che si disegna da zero invece di tradursi. **Questa decisione non la prende questo todo**: si
-prende guardando il blocco `load` di qualche settimana vera, ed e' il primo
-lavoro del punto 1.
+La misura settimanale di quella composizione **esiste gia'** ed e' il
+secondo tempo dello stesso todo 54: i **minuti per zona**, contati sulla
+serie di frequenza di ogni seduta coi confini di zona di quella seduta. Nei
+fatti della settimana e' il blocco `zones`, e ha la forma che la macchina
+delle misure mangia — tre misure, ognuna coi suoi minuti e la sua fascia di
+dodici settimane:
+
+```json
+"low_aerobic":  {"minutes": 120, "band": {"low": 258, "high": 482, ...}, "weeks": 10},
+"high_aerobic": {"minutes":  68, "band": {"low":  18, "high":  54, ...}, "weeks": 10},
+"anaerobic":    {"minutes":   1, "band": {"low":   0, "high":   2, ...}, "weeks": 10}
+```
+
+Quindi i cinque pezzi della Load del giorno restano cinque e cambiano
+sorgente: i tre carichi diventano i tre **tempi** per zona, letti da `zones`
+invece che da `load`. L'unica cura in piu' e' che il valore si chiama
+`minutes` e non `value`, e che il pezzo parla di minuti: la fascia e' in
+minuti, e un paragrafo che dicesse "carico" starebbe mentendo sull'unita'.
 
 Le due parti che restano di Claude non cambiano: `w5_training` e
 `w7_summary`, un agente l'uno, come oggi.
@@ -185,6 +193,10 @@ Chi implementa questo todo faccia quindi i punti 1 e 2 e li provi **dalla
 pagina Test**, una sezione alla volta, contro le settimane di Claude che
 stanno sul disco; i punti 3, 4 e 5 — cioe' la produzione — vengono dopo, e
 `WEEK_LOCAL_FROM` si sceglie allora.
+
+Niente da decidere prima di cominciare: la sola domanda che questo todo
+aveva lasciata aperta — che pezzi dare alla Load — l'aveva gia' chiusa il
+todo 54, e la risposta e' `zones`.
 
 ## Effetti fuori dal repo
 
