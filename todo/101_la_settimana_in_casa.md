@@ -2,7 +2,7 @@
 status: todo
 ---
 
-# Il report della settimana lo scrive il modello di casa
+# Il report della settimana lo scrive il modello di casa: le quattro spezzate
 
 Da dove viene: dal **21 novembre 2026** le quattro card del corpo del giorno
 le scrive llama e non piu' Claude (`sections.LOCAL_FROM`). La settimana e'
@@ -73,36 +73,44 @@ Il conto, dai fatti della settimana del 16 novembre:
 | Sezione | Pezzi | Chiamate | Da dove vengono i pezzi |
 |---|---|---|---|
 | `w1_health_split` | `resting_hr`, `hrv_last_night`, `resp_sleep_avg`, `stress_avg` | 1 + 4 = **5** | `measures` con `card == "health"` |
-| `w2_load_split` | **da decidere, vedi sotto** | 1 + 3 = **4** circa | il blocco `load` |
+| `w2_load_split` | `low_aerobic`, `high_aerobic`, `anaerobic`, `carrying`, `balance` | 1 + 5 = **6** | il blocco `zones`, piu' `load` |
 | `w3_recovery_split` | `readiness`, `sleep_hours`, `body_battery_wake`, `body_battery_low` | 1 + 4 = **5** | `measures` con `card == "recovery"` |
 | `w4_fitness_split` | `vo2max`, `endurance`, `hill`, `threshold`, `altitude_acclimation`, `heat_acclimation` | 1 + 6 = **7** | il blocco `fitness` |
 
-Ventuno chiamate in tutto, contro le ventitre delle quattro del giorno
-(5 + 6 + 5 + 7). Tre delle quattro sezioni sono quindi un **parallelo
-esatto**: gli stessi pezzi, gli stessi nomi a meno della media (`resp_sleep`
+Ventitre chiamate in tutto, **le stesse ventitre** delle quattro del giorno
+(5 + 6 + 5 + 7). Tutte e quattro le sezioni sono un **parallelo esatto**: gli stessi pezzi, gli stessi nomi a meno della media (`resp_sleep`
 diventa `resp_sleep_avg`, `body_battery_morning` diventa
 `body_battery_wake`), e un file di prompt per pezzo in
 `.ollama/agents/wN_..._split/`.
 
-**La Load e' l'eccezione, e va guardata prima di cominciare.** Il blocco
-`load` della settimana non ha la forma di quello del giorno: ha `load_acute`
-con la sua fascia, `training_status` con la sua frase, `load_balance_phrase`
-e le `weeks`, e **non ha le tre intensita'** — `load_aerobic_low`,
-`load_aerobic_high`, `load_anaerobic` — che nel giorno sono tre pezzi su
-cinque.
+**La Load legge un'altra chiave, e non e' una scelta aperta.** Il blocco
+`load` della settimana non ha le tre intensita' del giorno —
+`load_aerobic_low`, `load_aerobic_high`, `load_anaerobic` — e **non deve
+averle**: sono il carico degli ultimi **28 giorni**, lo dice la tabella del
+todo 54, e tenerle fuori e' stato chiesto in queste parole il 23 ottobre
+2026 — *«le misure che voglio vedere nella settimana sono i dati di quella
+settimana, non di 28 giorni»*. `WEEK_LOAD_KEYS` e' quella richiesta scritta
+in codice. Allargare quel blocco vorrebbe dire disfare il todo 54: non si
+fa.
 
-Le colonne pero' **ci sono**: stanno in `health_daily` con quei nomi, ed e'
-il blocco `load` della settimana che non le porta su (`build_weekly_data`
-ne sceglie sette: `as_of`, `load_acute`, lo stato con la sua frase,
-l'equilibrio, la fascia e le settimane). Nemmeno i `days` le hanno, e
-nemmeno `four_weeks`. Quindi la strada e' una di queste due: **allargare il
-blocco** — e allora i tre pezzi restano tre, come nel giorno — oppure fare
-della Load della settimana **un'altra sezione**, con i pezzi che quel blocco
-ha davvero: il carico acuto contro la sua fascia, lo stato di allenamento,
-l'equilibrio fra facile e duro. Nel secondo caso e' la sola delle quattro
-che si disegna da zero invece di tradursi. **Questa decisione non la prende questo todo**: si
-prende guardando il blocco `load` di qualche settimana vera, ed e' il primo
-lavoro del punto 1.
+La misura settimanale di quella composizione **esiste gia'** ed e' il
+secondo tempo dello stesso todo 54: i **minuti per zona**, contati sulla
+serie di frequenza di ogni seduta coi confini di zona di quella seduta. Nei
+fatti della settimana e' il blocco `zones`, e ha la forma che la macchina
+delle misure mangia — tre misure, ognuna coi suoi minuti e la sua fascia di
+dodici settimane:
+
+```json
+"low_aerobic":  {"minutes": 120, "band": {"low": 258, "high": 482, ...}, "weeks": 10},
+"high_aerobic": {"minutes":  68, "band": {"low":  18, "high":  54, ...}, "weeks": 10},
+"anaerobic":    {"minutes":   1, "band": {"low":   0, "high":   2, ...}, "weeks": 10}
+```
+
+Quindi i cinque pezzi della Load del giorno restano cinque e cambiano
+sorgente: i tre carichi diventano i tre **tempi** per zona, letti da `zones`
+invece che da `load`. L'unica cura in piu' e' che il valore si chiama
+`minutes` e non `value`, e che il pezzo parla di minuti: la fascia e' in
+minuti, e un paragrafo che dicesse "carico" starebbe mentendo sull'unita'.
 
 Le due parti che restano di Claude non cambiano: `w5_training` e
 `w7_summary`, un agente l'uno, come oggi.
@@ -123,20 +131,12 @@ Le due parti che restano di Claude non cambiano: `w5_training` e
    per cui le due cartelle sono due, e l'esempio del sonno tolto da
    `SLEEP_READS` il 23 novembre 2026 e' la seconda volta che quella lezione
    e' costata un numero sbagliato nel report.
-3. **`_write_local_section` prende `kind`** e chiama `_facts(kind, ...)` al
-   posto di `daily_payload`. Attenzione alla ragione scritta nella sua
-   docstring: **non** si rilegge il JSON temporaneo di `_prepare`, perche'
-   la' le date sono passate da `_jsonable` e sono diventate stringhe.
-   `_facts` rende il dizionario vivo, quindi va bene.
-4. **L'asserzione cambia verso** e le quattro `WEEK_SECTIONS` prendono il
-   loro `local=`. Quella sotto — «le sezioni che scrive il modello di casa
-   sono tutte del giro del mattino» — vale per il giorno; per la settimana
-   l'equivalente e' che stiano nel giro unico della domenica.
-5. **Una data, `WEEK_LOCAL_FROM`**, un lunedi, per la ragione per cui
-   esiste `LOCAL_FROM` e che sta scritta accanto a lui: `backfill_reports`
-   rifa' periodi passati, e senza la data un backfill di settembre
-   riscriverebbe con llama le settimane che Claude ha scritto — cambiando
-   il report a posteriori e cancellando dal disco il bersaglio del banco.
+3. **Niente altro.** La produzione — `_write_local_section` che prende
+   `kind`, l'asserzione di `sections.py` che cambia verso, le quattro
+   `WEEK_SECTIONS` che prendono il loro `local=` e la data da cui vale — sta
+   nel **todo 102**, insieme al banco che la deve autorizzare. Qui si
+   costruisce e si guarda dalla pagina Test; il giro della domenica non si
+   tocca, e nemmeno quello del mattino.
 
 ## Le due cose che il giorno non insegna
 
@@ -158,37 +158,23 @@ e le quattro della settimana parlano di **medie su sette giorni**, e lo
 week's number»). Il prompt di ogni misura va scritto in quella voce, non
 tradotto da quello del giorno.
 
-## La decisione: il banco prima o dopo
+## Dove si guarda
 
-Oggi il banco e' **solo del giorno**. `bench_tune._facts_of` chiama
-`daily_payload`, e `CORPUS_FROM`/`CORPUS_TO` (26 ottobre - 20 novembre)
-delimitano giorni di `summary/01.daily/`. Per la settimana non c'e' ne'
-corpus ne' punteggio.
+Dalla **pagina Test**, che e' il motivo per cui il punto 1 mette i quattro
+splits in `ollama.SECTIONS`: la pagina sa chiedere una chiave e mostrare il
+testo, e non salva niente. Sul disco stanno **16 settimane** scritte da
+Claude, dal 3 agosto al 16 novembre: sono il termine di paragone, una
+sezione alla volta.
 
-Il materiale per farlo c'e': sul disco stanno **16 settimane** scritte da
-Claude, dal 3 agosto al 16 novembre. Quattro card l'una fanno 64 testi, che
-e' lo stesso ordine di grandezza dei 104 del giorno.
-
-**La raccomandazione e' il banco prima.** Due ragioni, e la seconda e' la
-piu' forte:
-
-- il passaggio del giorno a llama e' stato deciso su un confronto durato
-  dal 26 ottobre, non su un'impressione. Fare la settimana senza quel
-  confronto vorrebbe dire prendere la stessa decisione con meno di quanto
-  si aveva per la prima;
-- **una card della settimana sbagliata si vede per sette giorni**, non per
-  uno. Il difetto del sonno del 23 novembre e' stato trovato lo stesso
-  giorno perche' la pagina del giorno la si guarda ogni mattina; la Week la
-  si apre di meno, e un numero sbagliato ci resta.
-
-Chi implementa questo todo faccia quindi i punti 1 e 2 e li provi **dalla
-pagina Test**, una sezione alla volta, contro le settimane di Claude che
-stanno sul disco; i punti 3, 4 e 5 — cioe' la produzione — vengono dopo, e
-`WEEK_LOCAL_FROM` si sceglie allora.
+Il confronto serio — quello che ha autorizzato il passaggio del giorno, un
+mese di banco — e' il **todo 102**. Questo todo e' finito quando le quattro
+sezioni si chiedono dalla pagina e il testo che ne esce sta in piedi: i
+paragrafi giusti, nell'ordine giusto, ognuno sulla sua misura, i numeri
+quelli dei fatti.
 
 ## Effetti fuori dal repo
 
-Nessuno finche' si resta ai punti 1 e 2: la pagina Test scrive il testo e
-non lo salva da nessuna parte. Dal punto 4 in poi, i frammenti di
-`summary/02.weekly/<lunedi>/` cominciano a essere scritti da llama, e quelli
-gia' sul disco restano di Claude — che e' il mestiere della data del punto 5.
+**Nessuno.** La pagina Test scrive il testo e non lo salva da nessuna parte,
+e nessuna delle quattro sezioni nuove e' ancora in `WEEK_SECTIONS`: i
+frammenti di `summary/02.weekly/` continuano a scriverli gli agenti di
+Claude, come ieri. Quello che si scrive sul disco e' materia del todo 102.
