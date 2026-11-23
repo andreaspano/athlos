@@ -312,6 +312,9 @@ def _run(
                 if not ok:
                     message = problem
                 else:
+                    # Una volta per giro, non una per sezione: e' lo stesso
+                    # file di fatti per tutte (todo 99).
+                    data_as_of = _data_as_of(facts)
                     folder = Path(summary_dir) / kind.folder / subject.isoformat()
                     folder.mkdir(parents=True, exist_ok=True)
                     # Il piano della settimana (todo 14) lo leggono **due**
@@ -349,6 +352,13 @@ def _run(
                             kind, section, subject, moment, repo_root, facts, folder,
                             began, Path(summary_dir), Path(data_dir),
                         )
+                        # Il francobollo va sul testo appena scritto, dopo
+                        # che `_write_section` ha controllato che l'agente
+                        # l'abbia davvero scritto (todo 99): su un frammento
+                        # fallito resta quello del giro che l'aveva scritto,
+                        # che e' la verita' — quel testo viene da quei dati.
+                        if good:
+                            _stamp(folder / f"{section.key}.md", data_as_of, began)
                         _set(
                             section.key,
                             status="done" if good else "failed",
@@ -374,6 +384,61 @@ def _run(
         if claimed or message:
             with _lock:
                 _state.update(status=outcome, finished=datetime.now(), message=message)
+
+
+def _data_as_of(facts: Path) -> str | None:
+    """Fin dove arrivavano i dati con cui questo giro ha scritto.
+
+    E' `health_data_up_to` dei fatti del giorno — l'ultima data che ha un
+    sonno o una frequenza a riposo, cioe' le due cose che l'orologio porta
+    al risveglio (`daily_data.build_daily_data`). I fatti della settimana
+    non ce l'hanno, e allora non c'e': il campo e' facoltativo e la
+    settimana non scarica niente di suo (todo 53).
+
+    Si legge una volta per giro e non una per sezione: e' lo stesso file per
+    tutte, e aprirlo sei volte sarebbe sei volte lo stesso JSON."""
+    try:
+        payload = json.loads(facts.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    value = payload.get("health_data_up_to")
+    return value if isinstance(value, str) else None
+
+
+def _stamp(fragment: Path, data_as_of: str | None, written_at: datetime) -> None:
+    """Mette in cima al frammento il front matter del todo 99: da quali dati
+    e' stato scritto, e quando.
+
+    **Lo mette l'orchestratore, non chi scrive il testo.** Sono due fatti che
+    il modello non conosce — la data dei dati sta nei fatti e l'ora e'
+    quella del giro — e chiederglieli nel prompt vorrebbe dire fidarsi di un
+    modello da otto miliardi di parametri per la riga che serve ad
+    accorgersi che il modello ha sbagliato.
+
+    **E non sostituisce l'`mtime`**, lo mette al riparo: `written_at` lo
+    ricava oggi `app._fragment_sections` dall'`mtime` del file, che e' giusto
+    finche' nessuno copia la cartella. Un `cp -r` di backup la riscrive tutta
+    e fa sembrare scritti adesso dei testi di settembre.
+
+    Il recinto e' quello delle settimane di `summary/05.plan/`, e il
+    `verdict:` dell'agente (todo 92) resta dov'era, sotto: chi legge toglie
+    prima il recinto e poi il verdetto, e i frammenti scritti prima — che il
+    recinto non ce l'hanno — si leggono come sempre."""
+    try:
+        body = fragment.read_text(encoding="utf-8")
+    except OSError:
+        return
+    lines = ["---"]
+    if data_as_of:
+        lines.append(f"data_as_of: {data_as_of}")
+    lines.append(f"written_at: {written_at.isoformat(timespec='seconds')}")
+    lines.append("---")
+    try:
+        write_text(fragment, "\n".join(lines) + "\n" + body)
+    except OSError:
+        # Il testo c'e' ed e' quello che conta: un frammento senza francobollo
+        # si legge come quelli di prima del todo 99.
+        return
 
 
 def _jsonable(value):
@@ -691,17 +756,49 @@ def _tail(result: subprocess.CompletedProcess) -> str:
     return "\n".join(lines[-MESSAGE_LINES:])
 
 
+def _verdict_keys(kind: Report) -> tuple[str, ...]:
+    """Le sezioni che leggono i frammenti degli altri invece dei numeri.
+
+    Oggi e' il Summary, per il giorno e per la settimana, e si ricava dal
+    registro invece di battere "summary" qui: il giorno in cui i verdetti
+    tornano due (lo sono stati fino al todo 66) questa funzione li trova
+    tutti e due da sola."""
+    return tuple(s.key for s in kind.run_order if s.reads_fragments)
+
+
 def section_keys(
     name: str | None, moment: str | None = None, kind: Report = DAILY
 ) -> tuple[str, ...] | None:
-    """Le chiavi da rifare: una sola col nome di una sezione, quelle del giro
-    con un momento, tutte senza niente. Alza `KeyError` su un nome che non
-    esiste.
+    """Le chiavi da rifare: una sola col nome di una sezione **piu' i
+    verdetti**, quelle del giro con un momento, tutte senza niente. Alza
+    `KeyError` su un nome che non esiste.
 
     Il nome di una sezione vince sul momento: chiedere una sezione sola e'
-    piu' preciso di chiedere un giro."""
+    piu' preciso di chiedere un giro.
+
+    **Una sezione sola non e' mai sola** (todo 99). Chiedere una card
+    riscarica i dati di tutti (`_prepare`) e riscrive il testo di una: le
+    altre restano a parlare dei dati di prima, e la peggiore e' il Summary,
+    che di suo non ha numeri e legge soltanto i frammenti degli altri. Il 23
+    novembre 2026 il tasto della card Health ha rifatto `health.md` alle
+    09:21 e lasciato un Summary delle 08:16 che quella Health la citava: due
+    verita' nella stessa cartella, e quella in cima sbagliata.
+    Chi chiede una card si ritrova quindi anche i verdetti, che
+    `run_order` mette gia' in coda.
+
+    **Il momento no.** I giri dei timer sono insiemi decisi a mano (todo 66:
+    la mattina il corpo, la sera la seduta) e ognuno porta gia' i verdetti
+    che gli spettano: aggiungerli qui vorrebbe dire scrivere il Summary
+    anche la sera, che e' esattamente la sovrapposizione che il todo 66 ha
+    tolto.
+
+    **E chi chiede un verdetto resta solo**: domandare il Summary vuol dire
+    il Summary, non le quattro card sotto."""
     if name is not None:
-        return (kind.by_key[name].key,)
+        asked = kind.by_key[name]
+        if asked.reads_fragments:
+            return (asked.key,)
+        return (asked.key, *_verdict_keys(kind))
     if moment is not None:
         return kind.moments[moment]
     return None

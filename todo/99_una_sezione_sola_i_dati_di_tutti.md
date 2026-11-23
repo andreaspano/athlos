@@ -1,5 +1,5 @@
 ---
-status: todo
+status: failed
 ---
 
 # Una sezione sola, i dati di tutti
@@ -140,3 +140,75 @@ quando — e la pagina puo' dire quello che adesso non puo': **questo Summary
 e' piu' vecchio delle card che riassume.** Che e' anche la rete sotto il
 pezzo 1, per il giorno in cui il giro parziale lo lancia qualcosa che non
 passa da `section_keys()`.
+
+---
+
+## Serve una decisione (23 novembre 2026)
+
+I pezzi **1 e 3 sono fatti e verdi** sul ramo `todo_99`. Il pezzo 2 si
+ferma qui, e si ferma per due motivi, il secondo piu' serio del primo.
+
+**Il primo: `health_data_up_to` non avrebbe fermato il 23 novembre.** E'
+l'ultima data che ha `sleep_hours` **oppure** `resting_hr`
+(`daily_data.build_daily_data`). Alle 08:16 il sonno non c'era — il
+frammento di quel giro diceva «not measured» e il giro rifatto a freddo ha
+poi trovato otto ore e nove minuti — ma la frequenza a riposo quasi
+certamente si': il Summary di quel giro la commenta, e per commentarla
+serve un valore. Se c'era, `health_data_up_to` diceva gia' 2026-11-23 e il
+cancello si apriva lo stesso.
+
+Stringerlo al solo sonno non va: il sonno manca per davvero nei giorni in
+cui l'orologio non e' stato indossato — il 21 e il 22 novembre non hanno
+ne' sonno ne' readiness — e un cancello sul sonno terrebbe quei giorni
+senza report per sempre.
+
+**Il secondo: la misura sbagliata non era incompleta, era la misura
+sbagliata.** `body_battery_morning` legge `bodyBatteryHighestValue`
+(`daily_data.py`, la riga che lo mappa su `body_battery_high`), cioe' **il
+massimo della giornata fino a quel momento**. Alle 08:16 e' un massimo
+parziale e non vuol dire niente; alle 21:00 e' il valore del risveglio solo
+perche' la batteria da li' in poi cala. Il campo che dice davvero quanto
+c'era al risveglio esiste e si chiama `bodyBatteryAtWakeTime` — il 23
+novembre vale 99, e `bodyBatteryHighestValue` oggi vale 99 anche lui, ma
+per coincidenza.
+
+Cambiare quel campo e' la correzione vera di questa misura, e **non la
+faccio**: cambia un numero in ogni Recovery gia' scritta e nel corpus del
+banco, ed e' il genere di cosa che il commento accanto a `LOCAL_FROM` dice
+di non fare a posteriori senza deciderlo.
+
+### Le due strade per il «riprova piu' tardi»
+
+Il todo dice *riprova piu' tardi* e non dice come. Le due forme non sono
+equivalenti e nessuna delle due e' piccola:
+
+- **Aspettare dentro il giro.** Nessun file di unita' da toccare, ma
+  `_claim` e' preso prima di `_prepare`: aspettare dentro vuol dire tenere
+  `.refresh.lock` per un'ora e rispondere «Another refresh is already
+  running» al tasto della pagina per tutto quel tempo.
+- **Far ribattere il timer.** `OnCalendar` piu' volte nella mattina, un
+  codice d'uscita che non faccia scattare `athlos-alert@`, e una regola
+  «se c'e' gia', non rifare» per le battute dopo la prima. Tocca
+  `deploy/athlos-morning.timer`, cioe' la cosa che il 16 novembre e' stata
+  spostata da 08:00 a 08:15 con un ragionamento scritto — e il commento di
+  `athlos-morning.service` dichiara per le dipendenze il principio
+  opposto: «fallire e dirlo, non rimandare il giro».
+
+**La mia raccomandazione**, in quest'ordine:
+
+1. `body_battery_morning` legge `bodyBatteryAtWakeTime`. E' la correzione
+   che risolve il caso del 23 novembre e non dipende dall'ora del timer.
+   Decidi tu se vale anche all'indietro o solo da una data, come
+   `LOCAL_FROM`.
+2. Il cancello, se lo vuoi comunque, sulla **seconda** strada: il timer che
+   ribatte. Tenere il lock per un'ora e' peggio del guasto che cura.
+3. L'ora del timer resta la misura che il todo chiede, e il pezzo 3
+   adesso la rende facile: `data_as_of` sui frammenti dice, giorno per
+   giorno, fin dove arrivavano i dati alle 08:15.
+
+Il pezzo 3 e' stato fatto per intero sul lato dati — francobollo, lettura,
+campo dell'API, tipi del frontend rigenerati — e **si ferma prima della
+pagina**: cosa la card deve dire dipende da questa decisione. Se un giorno
+non fermo non viene scritto affatto il messaggio e' «non ancora scritto»;
+se viene scritto lo stesso dopo un'attesa e' «scritto su dati parziali».
+Sono due stati diversi del componente.

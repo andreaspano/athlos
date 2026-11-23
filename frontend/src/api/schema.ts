@@ -777,8 +777,9 @@ export interface paths {
         put?: never;
         /**
          * Rewrite one section of the daily report
-         * @description Rewrite a single section: only its agent runs, the other sections keep the text they
-         *     have. 422 for a section that does not exist.
+         * @description Rewrite a single section: its agent runs, **and the Summary with it** (todo 99),
+         *     because the Summary reads the other fragments and this call rewrites one of them. The
+         *     remaining sections keep the text they have. 422 for a section that does not exist.
          */
         post: operations["post_daily_refresh_section_api_reports_daily__day__refresh__section__post"];
         delete?: never;
@@ -844,8 +845,9 @@ export interface paths {
         put?: never;
         /**
          * Rewrite one section of the weekly report
-         * @description Rewrite a single section of the week: only its agent runs, the other sections keep
-         *     the text they have. 422 for a section that does not exist.
+         * @description Rewrite a single section of the week: its agent runs, **and the Summary with it**
+         *     (todo 99), for the same reason as the day. The remaining sections keep the text they
+         *     have. 422 for a section that does not exist.
          */
         post: operations["post_weekly_refresh_section_api_reports_weekly__monday__refresh__section__post"];
         delete?: never;
@@ -2673,9 +2675,14 @@ export interface components {
             icon: string | null;
             /**
              * Written At
-             * @description When this section's text was written. Sections of the same day can carry different times: the morning job writes some, the evening job others.
+             * @description When this section's text was written. Sections of the same day can carry different times: the morning job writes some, the evening job others. From the fragment's own stamp (todo 99), falling back to the file's mtime on the fragments written before it.
              */
             written_at?: string | null;
+            /**
+             * Data As Of
+             * @description How far the health data reached when this section was written (todo 99): the last day that had a night on it. A section whose stamp is older than its neighbours' is talking about data that has since been replaced — which is how a Summary ends up contradicting the card it summarises. Null on the fragments written before the stamp existed, and on the weekly report, which downloads nothing of its own.
+             */
+            data_as_of?: string | null;
         };
         /**
          * Route
