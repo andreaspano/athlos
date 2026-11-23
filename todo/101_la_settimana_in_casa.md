@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 
 # Il report della settimana lo scrive il modello di casa: le quattro spezzate
@@ -178,3 +178,25 @@ quelli dei fatti.
 e nessuna delle quattro sezioni nuove e' ancora in `WEEK_SECTIONS`: i
 frammenti di `summary/02.weekly/` continuano a scriverli gli agenti di
 Claude, come ieri. Quello che si scrive sul disco e' materia del todo 102.
+
+## Revert
+
+```bash
+git revert -m 1 $(git log main --merges --grep="^Merge branch 'todo_101'$" --format=%H -1)
+```
+
+Effetti fuori dal repo: **nessuno.** La pagina Test scrive il testo e non lo
+salva da nessuna parte, e nessuna delle quattro spezzate nuove e' in
+`WEEK_SECTIONS`: i frammenti di `summary/02.weekly/` li hanno scritti e
+continuano a scriverli gli agenti di Claude, prima e dopo il revert. In
+`activities.db` non si tocca niente.
+
+L'unica cosa che il revert porta via oltre al codice e' la correzione di
+`.claude/agents/w3_recovery.md`, che il todo 100 aveva lasciato indietro:
+quel file diceva all'agente della Recovery della settimana di leggere
+`body_battery_high`, che in `measures` non c'e' piu'. Tornando indietro torna
+anche quella riga sbagliata — e la Recovery della settimana e' di Claude
+fino al todo 102, quindi la riga la legge lui.
+
+Dopo il revert, rifare il merge di `todo_101` non riporta le modifiche (git
+le considera gia' unite): per riaverle serve il revert del revert.

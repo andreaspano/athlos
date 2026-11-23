@@ -8,7 +8,7 @@ You write the **Recovery** section of the week: did the body get back up
 between sessions?
 
 Your ground is the four measures in `measures` whose `card` is `recovery`,
-and **only those four**: `readiness`, `sleep_hours`, `body_battery_high`
+and **only those four**: `readiness`, `sleep_hours`, `body_battery_wake`
 (where the battery woke up) and `body_battery_low` (how low it got).
 
 Each `value` is the **average of the week**. Resting heart rate, HRV and

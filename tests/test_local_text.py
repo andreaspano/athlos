@@ -1170,7 +1170,7 @@ def test_recovery_ignores_the_week(recovery_payload):
     )
 
 
-def test_the_registry_is_the_four_splits():
+def test_the_registry_is_the_eight_splits():
     """**Sono tutte spezzate, e per un po' non lo erano.** Accanto a ognuna
     stava la stessa sezione chiesta intera — un prompt, una domanda — e le due
     si guardavano affiancate sulla pagina Test per decidere quale strada
@@ -1180,14 +1180,38 @@ def test_the_registry_is_the_four_splits():
     ciclo tarasse qualcosa, le intere avevano meno errori gravi e stavano piu'
     vicine ai testi di Claude, in 76 parole contro 153. Le 50 righe che lo
     dicono sono nel quaderno sotto le chiavi vecchie; i quattro prompt non ci
-    sono piu'."""
+    sono piu'.
+
+    **Erano quattro e dal todo 101 sono otto**: le quattro del giorno e le
+    quattro della settimana. Stare qui vuol dire essere chiedibili dalla
+    pagina Test, ed e' li' che le quattro nuove si guardano prima di mettere
+    mano al giro della domenica — la produzione e' il todo 102, e finche'
+    quello non e' fatto i frammenti della Week li scrivono gli agenti di
+    Claude."""
     assert sorted(ollama.SECTIONS) == [
         "fitness_split",
         "health_split",
         "load_split",
         "recovery_split",
+        "w_fitness_split",
+        "w_health_split",
+        "w_load_split",
+        "w_recovery_split",
     ]
     assert all(isinstance(s, ollama.Split) for s in ollama.SECTIONS.values())
+
+
+def test_the_week_splits_are_not_in_production_yet():
+    """La riga che tiene fermo il confine del todo 101: le quattro spezzate
+    della settimana esistono e si chiedono dalla pagina Test, e **nessuna e'
+    ancora nel registro delle sezioni**. Finche' e' cosi', il giro della
+    domenica scrive con gli agenti di Claude come ieri, e un errore nei
+    prompt nuovi non puo' finire in un report.
+
+    Quando il todo 102 la togliera', la toglie di proposito."""
+    from training.api.sections import WEEK_SECTIONS
+
+    assert not any(section.local for section in WEEK_SECTIONS)
 
 
 def test_the_recovery_facts_are_in_the_message(recovery_payload):
