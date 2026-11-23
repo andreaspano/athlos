@@ -57,6 +57,56 @@ Due altre cose ci sono gia':
   come fa oggi `RECOVERY_MEASURES` per il giorno. Una lista in meno da
   tenere d'accordo.
 
+## Quanti agenti, e quali
+
+**Una chiamata al modello per misura, piu' una in cima**, come nel giorno:
+non una chiamata per sezione. E' il punto di tutta la strada della spezzata e
+va detto qui perche' e' la cosa che si perde traducendo: un paragrafo per
+misura, **ognuno cieco agli altri**, e l'ordine e il numero li decide Python
+cucendo i pezzi. Un modello da otto miliardi che riceve quattro misure
+insieme ne impasta due in una frase e spiega l'una con l'altra — e' la
+ragione per cui `_measure_facts` mette dentro una misura sola, ed e'
+documentata li'.
+
+Il conto, dai fatti della settimana del 16 novembre:
+
+| Sezione | Pezzi | Chiamate | Da dove vengono i pezzi |
+|---|---|---|---|
+| `w1_health_split` | `resting_hr`, `hrv_last_night`, `resp_sleep_avg`, `stress_avg` | 1 + 4 = **5** | `measures` con `card == "health"` |
+| `w2_load_split` | **da decidere, vedi sotto** | 1 + 3 = **4** circa | il blocco `load` |
+| `w3_recovery_split` | `readiness`, `sleep_hours`, `body_battery_wake`, `body_battery_low` | 1 + 4 = **5** | `measures` con `card == "recovery"` |
+| `w4_fitness_split` | `vo2max`, `endurance`, `hill`, `threshold`, `altitude_acclimation`, `heat_acclimation` | 1 + 6 = **7** | il blocco `fitness` |
+
+Ventuno chiamate in tutto, contro le ventitre delle quattro del giorno
+(5 + 6 + 5 + 7). Tre delle quattro sezioni sono quindi un **parallelo
+esatto**: gli stessi pezzi, gli stessi nomi a meno della media (`resp_sleep`
+diventa `resp_sleep_avg`, `body_battery_morning` diventa
+`body_battery_wake`), e un file di prompt per pezzo in
+`.ollama/agents/wN_..._split/`.
+
+**La Load e' l'eccezione, e va guardata prima di cominciare.** Il blocco
+`load` della settimana non ha la forma di quello del giorno: ha `load_acute`
+con la sua fascia, `training_status` con la sua frase, `load_balance_phrase`
+e le `weeks`, e **non ha le tre intensita'** — `load_aerobic_low`,
+`load_aerobic_high`, `load_anaerobic` — che nel giorno sono tre pezzi su
+cinque.
+
+Le colonne pero' **ci sono**: stanno in `health_daily` con quei nomi, ed e'
+il blocco `load` della settimana che non le porta su (`build_weekly_data`
+ne sceglie sette: `as_of`, `load_acute`, lo stato con la sua frase,
+l'equilibrio, la fascia e le settimane). Nemmeno i `days` le hanno, e
+nemmeno `four_weeks`. Quindi la strada e' una di queste due: **allargare il
+blocco** — e allora i tre pezzi restano tre, come nel giorno — oppure fare
+della Load della settimana **un'altra sezione**, con i pezzi che quel blocco
+ha davvero: il carico acuto contro la sua fascia, lo stato di allenamento,
+l'equilibrio fra facile e duro. Nel secondo caso e' la sola delle quattro
+che si disegna da zero invece di tradursi. **Questa decisione non la prende questo todo**: si
+prende guardando il blocco `load` di qualche settimana vera, ed e' il primo
+lavoro del punto 1.
+
+Le due parti che restano di Claude non cambiano: `w5_training` e
+`w7_summary`, un agente l'uno, come oggi.
+
 ## Il lavoro
 
 1. **Quattro splits nuovi** — `w1_health_split`, `w2_load_split`,
