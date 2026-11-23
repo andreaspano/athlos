@@ -11,6 +11,7 @@ di non guardare il sonno, la batteria e il VO2max; qui si fa in modo che non
 li abbia proprio."""
 
 import json
+import re
 from datetime import date
 from pathlib import Path
 
@@ -1297,15 +1298,22 @@ def test_the_night_piece_gets_the_minutes_of_the_card(recovery_payload):
 
 def test_the_night_piece_is_told_which_spelling_to_write(recovery_payload):
     """Senza questa riga, la prima sera llama ha scritto "almost eight hours"
-    per 8h09: la scrittura sbagliata, e pure dalla parte sbagliata."""
+    per 8h09: la scrittura sbagliata, e pure dalla parte sbagliata.
+
+    La riga chiedeva «in hours and minutes — eight hours nine», e dal todo
+    101 non lo chiede piu': l'esempio se lo copiava invece di convertire. La
+    scrittura adesso arriva gia' fatta in `sleep_clock` e qui si chiede di
+    ricopiarla — il che e' ancora "dirgli quale scrittura scrivere", che e'
+    quello che questo test guarda."""
     text = asked(
         rec_part("sleep_hours"),
         ollama.recovery_facts(recovery_payload),
         ollama.RECOVERY_SPLIT,
         date(2026, 11, 19),
     )
-    assert "in hours and minutes" in text
-    assert "never 8.2 hours" in text
+    assert "copying `sleep_clock` word for word" in text
+    assert "Do no arithmetic on it" in text
+    assert "eight hours nine" not in text, "l'esempio no: se lo copia"
 
 
 def test_the_sleep_alert_is_the_night_piece_and_nobody_else(recovery_payload):
@@ -1821,3 +1829,72 @@ def test_the_fifth_hears_the_lean_without_the_band(payload):
     said = json.dumps(facts)
     assert "in its range" not in said
     assert "band" not in said
+
+
+# --- La notte scritta in parole (todo 101) ----------------------------------
+
+
+@pytest.mark.parametrize(
+    "minutes,expected",
+    [
+        (424, "seven hours and four minutes"),
+        (489, "eight hours and nine minutes"),
+        (480, "eight hours"),
+        (555, "nine hours and fifteen minutes"),
+        (60, "one hour"),
+        (61, "one hour and one minute"),
+        (59, "fifty-nine minutes"),
+        (1, "one minute"),
+        (None, None),
+    ],
+)
+def test_the_clock_is_written_in_python(minutes, expected):
+    """La conversione non si chiede al modello: la regola della casa dice
+    «every number comes from the JSON, nothing computed by you», e 424 minuti
+    in ore e minuti e' un conto."""
+    assert ollama._clock_words(minutes) == expected
+
+
+def test_a_fraction_of_a_minute_does_not_leak():
+    """I minuti arrivano da una divisione e possono avere la virgola."""
+    assert ollama._clock_words(424.2) == "seven hours and four minutes"
+
+
+def test_the_sleep_line_asks_for_the_words_and_nothing_else():
+    assert "sleep_clock" in ollama.SLEEP_READS
+    assert "sleep_minutes" in ollama.SLEEP_READS, "nominato per dire di non scriverlo"
+
+
+def test_the_sleep_facts_carry_the_words(payload):
+    split = ollama.RECOVERY_SPLIT
+    part = next(p for p in ollama.RECOVERY_PARTS if p.key == "sleep_hours")
+    facts = part.cut(split, part, split.facts(payload))
+    assert facts["sleep_clock"] == ollama._clock_words(facts["sleep_minutes"])
+
+
+# Un numero — in cifre o in parole — attaccato a un'unita' di tempo: e' la
+# forma di un **valore d'esempio**, cioe' di una risposta gia' scritta.
+# "last 28 days" e "the two figures" non ci cascano, che non sono durate.
+_VALUE_EXAMPLE = re.compile(
+    r"\b(?:\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+    r"[\s-]+(?:hour|minute)s?\b",
+    re.IGNORECASE,
+)
+
+
+def test_no_reads_line_carries_a_formatted_value():
+    """L'altra meta' di `test_no_prompt_of_llamas_carries_an_example`, che
+    guardava i **file** di `.ollama/agents/` e non le righe costruite qui.
+
+    L'esempio del sonno viveva in questa stringa, non sotto un "## Example",
+    e il buco era esattamente la' dove e' passato il difetto: la riga diceva
+    «in hours and minutes — eight hours nine», e llama ha scritto otto ore e
+    nove minuti a chi aveva dormito 7h04, ogni volta e identico. Per un
+    modello da otto miliardi un esempio numerico non e' un esempio, e' la
+    risposta."""
+    for name in sorted(n for n in dir(ollama) if n.endswith(("_READS", "_TAIL"))):
+        text = getattr(ollama, name)
+        if not isinstance(text, str):
+            continue
+        found = _VALUE_EXAMPLE.search(text)
+        assert not found, f"{name} porta un valore d'esempio: {found.group(0)!r}"
